@@ -3,6 +3,8 @@ PROJECT := golang-web
 VERSION := v0.0.1
 OPV := $(OWNER)/$(PROJECT):$(VERSION)
 WEBPORT := 8080:8080
+CURRENTTAG:=$(shell git describe --tags --abbrev=0)
+NEWTAG ?= $(shell bash -c 'read -p "Please provide a new tag (currnet tag - ${CURRENTTAG}): " newtag; echo $$newtag')
 
 # you may need to change to "sudo docker" if not a member of 'docker' group
 DOCKERCMD := "docker"
@@ -67,3 +69,19 @@ k8s-apply:
 
 k8s-delete:
 	kubectl delete -f golang-web.yaml
+
+#release: @ Create and push a new tag
+release:
+	$(eval NT=$(NEWTAG))
+	@echo -n "Are you sure to create and push ${NT} tag? [y/N] " && read ans && [ $${ans:-N} = y ]
+	@echo ${NT} > ./version.txt
+	@git add -A
+	@git commit -a -s -m "Cut ${NT} release"
+	@git tag ${NT}
+	@git push origin ${NT}
+	@git push
+	@echo "Done."
+
+#version: @ Print current version(tag)
+version:
+	@echo $(shell git describe --tags --abbrev=0)
