@@ -118,9 +118,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          # https://docs.github.com/en/actions/publishing-packages/publishing-docker-images
-          images: |
-            ghcr.io/${{ env.OWNER_LC }}/${{ env.FULL_IMAGE_NAME }}
+          images: ghcr.io/${{ env.FULL_IMAGE_NAME }}
           flavor: latest=true
           tags: |
             type=semver,pattern=v{{version}}
@@ -142,9 +140,12 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           build-args: |
             MY_VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
             MY_BUILTBY=github-action
