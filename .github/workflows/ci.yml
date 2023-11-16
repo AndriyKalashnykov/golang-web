@@ -1,0 +1,155 @@
+name: ci
+
+run-name: CI
+
+on:
+  push:
+
+env:
+  GH_REGISTRY: ghcr.io
+  FULL_IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+
+  staticcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - uses: dominikh/staticcheck-action@v1
+        with:
+          version: "2023.1.6"
+
+  tests:
+
+    strategy:
+      matrix:
+        name: [unit]
+        go-version: [1.21.x]
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    name: test (${{ matrix.name }}, ${{ matrix.os }})
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+      - name: go mod package cache
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('tests/go.sum') }}
+      - name: Run ${{ matrix.name }}-${{ matrix.os }} tests
+        run: make test
+
+  builds:
+
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        go-version: [1.21]
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    name: build (${{ matrix.os }})
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Build [go${{ matrix.go-version }} - ${{ matrix.os }}]
+        run: make build
+
+  build-oci-image:
+    if: github.ref_type == 'tag'
+    needs: [ tests, staticcheck, builds ]
+    runs-on: ubuntu-latest # https://github.com/actions/runner-images
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+
+      # debug
+      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event from ${{ github.actor }}."
+      - run: echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
+      - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+
+      # checkout
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      # debug
+      - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
+      - run: echo "🖥️ The workflow is now ready to test your code on the runner."
+      - name: List files in the repository
+        run: |
+          ls ${{ github.workspace }}
+      - run: echo "🍏 This job's status is ${{ job.status }}."
+
+      # debug github context and env
+      - name: Dump env
+        run: env | sort
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: echo "$GITHUB_CONTEXT"
+
+      # Github container registry credentials
+      - name: Log in to the Github Container registry ${{ env.GH_REGISTRY }} as ${{ github.actor }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GH_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Convert owner to lower case
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >>${GITHUB_ENV}
+        env:
+          OWNER: '${{ github.repository_owner }}'
+
+      # tags and labels
+      - name: Extract metadata (tags, labels) for image ${{ env.FULL_IMAGE_NAME }}
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # https://docs.github.com/en/actions/publishing-packages/publishing-docker-images
+          images: |
+            ghcr.io/${{ env.OWNER_LC }}/${{ env.FULL_IMAGE_NAME }}
+          flavor: latest=true
+          tags: |
+            type=semver,pattern=v{{version}}
+            type=ref,event=pr
+            type=ref,event=branch
+            type=ref,event=tag
+          labels: |
+            org.opencontainers.image.vendor=Andriy Kalashnykov - andriykalashnykov@gmail.com
+            org.opencontainers.image.title=HTTP web server with Prometheus metrics in Go
+            org.opencontainers.image.description=HTTP web server with Prometheus metrics in Go
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.version=${{  github.ref_name }}"
+            io.artifacthub.package.readme-url=https://raw.githubusercontent.com/AndriyKalashnykov/golang-web/main/README.md
+            io.artifacthub.package.maintainers=[{\"name\":\"Andriy Kalashnykov\",\"email\":\"andriykalashnykov@gmail.com\"}]
+            io.artifacthub.package.license=MIT
+
+      # build OCI image and push to registries (Docker Hub and Github Container Registry)
+      - name: build and push docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            MY_VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+            MY_BUILTBY=github-action

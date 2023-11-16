@@ -1,0 +1,7 @@
+*.log
+.idea
+.vscode
+*.swp
+*.swo
+*~
+manager

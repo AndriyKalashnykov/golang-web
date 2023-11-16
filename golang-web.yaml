@@ -1,0 +1,102 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: golang-web
+spec:
+  selector:
+    matchLabels:
+      app: golang-web
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: golang-web
+      annotations:
+        sidecar.istio.io/inject: "false"
+
+    spec:
+
+      containers:
+      - name: golang-web
+        image: ghcr.io/andriykalashnykov/golang-web:v0.0.1
+
+        # resource limits
+        resources:
+          requests:
+            memory: "4Mi"
+            cpu: "5m"
+          limits:
+            memory: "8Mi"
+            cpu: "10m"
+
+        env:
+
+        # 404 if request not to this context
+        - name: APP_CONTEXT
+          value: "/myhello/"
+
+        # default message
+        - name: MESSAGE_TO
+          value: "World"
+
+        # Downward API support - inserts these into container as env variables
+        # https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/#use-pod-fields-as-values-for-environment-variables
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+
+        - name: MY_POD_SERVICE_ACCOUNT
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.serviceAccountName
+
+        - name: PORT
+          value: "8080"
+
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 3
+          periodSeconds: 3
+
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 3
+          periodSeconds: 3
+
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: golang-web-service
+  labels:
+    app: golang-web
+spec:
+  ports:
+  - port: 8080
+    name: http
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: golang-web
