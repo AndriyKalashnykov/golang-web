@@ -81,12 +81,14 @@ func handleApp(w http.ResponseWriter, r *http.Request) {
 	mainMsgFormat := "request %d %s %s\n"
 	prc := getMetricValue(promRequestCounter)
 	prcInt := int(math.Round(prc))
-
 	log.Printf(mainMsgFormat, prcInt, r.Method, r.URL.Path)
 	_, err := fmt.Fprintf(w, mainMsgFormat, prcInt, r.Method, r.URL.Path)
 	if err != nil {
 		fmt.Println(err)
 	}
+
+	// increment prometheus counter
+	promRequestCounter.Inc()
 
 	// 'Host' header is promoted to Request.Host field and removed from Header map
 	_, err = fmt.Fprintf(w, "Host: %s\n", provideDefault(r.Host, "empty"))
@@ -94,8 +96,35 @@ func handleApp(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 	}
 
-	// increment prometheus counter
-	promRequestCounter.Inc()
+	// env MY_NODE_NAME
+	_, err = fmt.Fprintf(w, "MY_NODE_NAME: %s\n", getenv("MY_NODE_NAME", "empty"))
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// env MY_POD_NAME
+	_, err = fmt.Fprintf(w, "MY_POD_NAME: %s\n", getenv("MY_POD_NAME", "empty"))
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// env MY_POD_NAMESPACE
+	_, err = fmt.Fprintf(w, "MY_POD_NAMESPACE: %s\n", getenv("MY_POD_NAMESPACE", "empty"))
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// env MY_POD_IP
+	_, err = fmt.Fprintf(w, "MY_POD_IP: %s\n", getenv("MY_POD_IP", "empty"))
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// env MY_POD_SERVICE_ACCOUNT
+	_, err = fmt.Fprintf(w, "MY_POD_SERVICE_ACCOUNT: %s\n", getenv("MY_POD_SERVICE_ACCOUNT", "empty"))
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 // provide default for value

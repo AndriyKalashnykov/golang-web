@@ -35,19 +35,26 @@ update:
 	@go get -u ./...; go mod tidy
 
 ## runs container in foreground, testing a couple of override values
-docker-test-fg:
-	$(DOCKERCMD) run -it -p $(WEBPORT) -e APP_CONTEXT=/myhello/ -e MY_NODE_NAME=node1 --rm $(OPV)
+docker-test-fg: docker-build
+	$(DOCKERCMD) run -it -p $(WEBPORT) \
+	-e APP_CONTEXT=/myhello/ \
+	-e MY_NODE_NAME=node1 \
+	-e MY_POD_NAME=pod1 \
+	-e MY_POD_NAMESPACE=ns1 \
+	-e MY_POD_IP=podip1 \
+	-e MY_POD_SERVICE_ACCOUNT=podsa1 \
+	--rm $(OPV)
 
 ## runs container in foreground, override entrypoint to use use shell
 docker-test-cli:
 	$(DOCKERCMD) run -it --rm --entrypoint "/bin/sh" $(OPV)
 
 ## run container in background
-docker-run-bg:
+docker-run-bg: docker-build
 	$(DOCKERCMD) run -d -p $(WEBPORT) --rm --name $(PROJECT) $(OPV)
 
 ## get into console of container running in background
-docker-cli-bg:
+docker-cli-bg: docker-build
 	$(DOCKERCMD) exec -it $(PROJECT) /bin/sh
 
 ## tails $(DOCKERCMD)logs
