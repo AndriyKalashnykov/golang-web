@@ -118,7 +118,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ env.FULL_IMAGE_NAME }}
+          images: ghcr.io/${{ env.OWNER_LC }}/golang-web
           flavor: latest=true
           tags: |
             type=semver,pattern=v{{version}}
