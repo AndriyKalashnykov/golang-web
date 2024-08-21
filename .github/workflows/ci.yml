@@ -16,16 +16,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - uses: dominikh/staticcheck-action@v1
+      - uses: dominikh/staticcheck-action@v1.3.1
         with:
-          version: "2023.1.6"
+          version: "2024.1"
 
   tests:
 
     strategy:
       matrix:
         name: [unit]
-        go-version: [1.21.x]
+        go-version: [1.23]
         os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     name: test (${{ matrix.name }}, ${{ matrix.os }})
@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        go-version: [1.21]
+        go-version: [1.23]
         os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     name: build (${{ matrix.os }})

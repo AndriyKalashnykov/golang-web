@@ -5,3 +5,4 @@
 *.swo
 *~
 manager
+coverage.out
