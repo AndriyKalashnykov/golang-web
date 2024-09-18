@@ -1,6 +1,6 @@
 name: ci
 
-run-name: CI
+run-name: ci
 
 on:
   push:
@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        go-version: [1.23]
+        go-version: [ 1.23 ]
         os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     name: build (${{ matrix.os }})

@@ -22,7 +22,7 @@ build:
 	CGO_ENABLED=0 go build -ldflags "-X main.Version=${MY_VERSION} -X main.BuildTime=${MY_BUILDTIME}" -a -o manager main.go
 
 ## builds docker image
-docker-build:
+image-build:
 	echo MY_GITREF is $(MY_GITREF)
 	$(DOCKERCMD) build --build-arg MY_VERSION=$(VERSION) --build-arg MY_BUILDTIME=$(BUILD_TIME) -f Dockerfile -t $(OPV) .
 
@@ -35,7 +35,7 @@ update:
 	@go get -u ./...; go mod tidy
 
 ## runs container in foreground, testing a couple of override values
-docker-test-fg: docker-build
+image-test-fg: docker-build
 	$(DOCKERCMD) run -it -p $(WEBPORT) \
 	-e APP_CONTEXT=/myhello/ \
 	-e MY_NODE_NAME=node1 \
@@ -50,24 +50,24 @@ docker-test-cli:
 	$(DOCKERCMD) run -it --rm --entrypoint "/bin/sh" $(OPV)
 
 ## run container in background
-docker-run-bg: docker-build
+image-run-bg: docker-build
 	$(DOCKERCMD) run -d -p $(WEBPORT) --rm --name $(PROJECT) $(OPV)
 
 ## get into console of container running in background
-docker-cli-bg: docker-build
+image-cli-bg: docker-build
 	$(DOCKERCMD) exec -it $(PROJECT) /bin/sh
 
 ## tails $(DOCKERCMD)logs
-docker-logs:
+image-logs:
 	$(DOCKERCMD) logs -f $(PROJECT)
 
 ## stops container running in background
-docker-stop:
+image-stop:
 	$(DOCKERCMD) stop $(PROJECT)
 
 
 ## pushes to $(DOCKERCMD)hub
-docker-push:
+image-push:
 	$(DOCKERCMD) push $(OPV)
 
 ## pushes to kubernetes cluster
