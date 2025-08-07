@@ -1,5 +1,5 @@
 [![ci](https://github.com/AndriyKalashnykov/golang-web/actions/workflows/ci.yml/badge.svg)](https://github.com/AndriyKalashnykov/golang-web/actions/workflows/ci.yml)
-[![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2FAndriyKalashnykov%2Fgolang-web&count_bg=%2340C83D&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
+[![Hits](https://hits.sh/github.com/AndriyKalashnykov/golang-web.svg?view=today-total&style=plastic)](https://hits.sh/github.com/AndriyKalashnykov/golang-web/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
 [![Renovate enabled](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://app.renovatebot.com/dashboard#github/AndriyKalashnykov/golang-web)
 # HTTP web server with Prometheus metrics in Go
@@ -7,6 +7,20 @@
 * http web server running by default on port 8080 that is intended for testing.
 * Prometheus formatted metrics available at "/metrics" with key "total_request_count" using [prometheus/client_golang library](https://github.com/prometheus/client_golang).
 * Kubernetes compatible health check available at "/healthz".
+
+# Running image locally
+
+In terminal #1
+```bash
+cd golang-web
+make make image-test-fg
+```
+
+In terminal #2
+```bash
+cd golang-web
+xdg-open http://localhost:8080/myhello/
+```
 
 # Pulling image from GitHub Container Registry
 

@@ -24,7 +24,8 @@ build:
 ## builds docker image
 image-build:
 	echo MY_GITREF is $(MY_GITREF)
-	$(DOCKERCMD) build --build-arg MY_VERSION=$(VERSION) --build-arg MY_BUILDTIME=$(BUILD_TIME) -f Dockerfile -t $(OPV) .
+	$(DOCKERCMD) buildx build --load --build-arg MY_VERSION=$(VERSION) --build-arg MY_BUILDTIME=$(BUILD_TIME) -f Dockerfile -t $(OPV) .
+
 
 ## cleans docker image
 clean:
@@ -35,7 +36,7 @@ update:
 	@go get -u ./...; go mod tidy
 
 ## runs container in foreground, testing a couple of override values
-image-test-fg: docker-build
+image-test-fg: image-build
 	$(DOCKERCMD) run -it -p $(WEBPORT) \
 	-e APP_CONTEXT=/myhello/ \
 	-e MY_NODE_NAME=node1 \
