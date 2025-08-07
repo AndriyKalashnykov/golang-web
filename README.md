@@ -18,7 +18,6 @@ make make image-test-fg
 
 In terminal #2
 ```bash
-cd golang-web
 xdg-open http://localhost:8080/myhello/
 ```
 
