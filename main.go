@@ -1,11 +1,5 @@
 package main
 
-// https://ashishb.net/tech/docker-101-a-basic-web-server-displaying-hello-world/
-// https://tutorialedge.net/golang/creating-simple-web-server-with-golang/
-// https://blog.gopheracademy.com/advent-2017/kubernetes-ready-service/
-// https://semaphoreci.com/community/tutorials/how-to-deploy-a-go-web-application-with-docker
-// https://prometheus.io/docs/tutorials/instrumenting_http_server_in_go/
-
 import (
 	"fmt"
 	"log"
