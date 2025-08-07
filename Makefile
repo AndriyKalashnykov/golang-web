@@ -47,15 +47,15 @@ image-test-fg: image-build
 	--rm $(OPV)
 
 ## runs container in foreground, override entrypoint to use use shell
-docker-test-cli:
+image-test-cli:
 	$(DOCKERCMD) run -it --rm --entrypoint "/bin/sh" $(OPV)
 
 ## run container in background
-image-run-bg: docker-build
+image-run-bg: image-build
 	$(DOCKERCMD) run -d -p $(WEBPORT) --rm --name $(PROJECT) $(OPV)
 
 ## get into console of container running in background
-image-cli-bg: docker-build
+image-cli-bg: image-build
 	$(DOCKERCMD) exec -it $(PROJECT) /bin/sh
 
 ## tails $(DOCKERCMD)logs
