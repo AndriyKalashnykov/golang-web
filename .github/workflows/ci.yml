@@ -6,6 +6,10 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+  packages: write
+
 env:
   GH_REGISTRY: ghcr.io
   FULL_IMAGE_NAME: ${{ github.repository }}
