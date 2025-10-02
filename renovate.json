@@ -34,6 +34,8 @@
     {
       "description": "Automerge major updates",
       "matchUpdateTypes": ["major"],
+      "matchDatasources": ["docker", "golang-version"],
+      "matchPackageNames": ["go", "golang"],
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true
