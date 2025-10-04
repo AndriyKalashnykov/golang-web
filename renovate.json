@@ -92,10 +92,11 @@
       "rangeStrategy": "bump"
     },
     {
-      "matchManagers": [
-        "github-actions"
-      ],
-      "groupName": "Pipeline dependencies"
+      "description": "Automerge github-actions updates",
+      "matchManagers": ["github-actions"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
     }
   ]
 }
