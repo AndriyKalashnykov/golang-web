@@ -73,7 +73,8 @@
         "golang",
         "ubuntu",
         "alpine",
-        "gcr.io/distroless/static"
+        "gcr.io/distroless/static",
+        "nginxinc/nginx-unprivileged"
       ],
       "automerge": true,
       "automergeType": "pr",
