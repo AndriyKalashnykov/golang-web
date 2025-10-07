@@ -8,7 +8,6 @@
     "docker:pinDigests",
     "helpers:pinGitHubActionDigests",
     ":dependencyDashboard",
-    "schedule:daily",
     ":automergePatch",
     ":automergePr",
     ":automergeRequireAllStatusChecks",
@@ -36,14 +35,6 @@
       "matchUpdateTypes": [
         "major"
       ],
-      "matchDatasources": [
-        "docker",
-        "golang-version"
-      ],
-      "matchPackageNames": [
-        "go",
-        "golang"
-      ],
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true
@@ -55,6 +46,7 @@
         "patch",
         "digest",
         "pin",
+        "pinDigest",
         "internal",
         "devDependencies",
         "ref",
@@ -63,33 +55,9 @@
         "grop",
         "unpin"
       ],
-      "matchDatasources": [
-        "docker",
-        "golang-version",
-        "go"
-      ],
-      "matchPackageNames": [
-        "go",
-        "golang",
-        "ubuntu",
-        "alpine",
-        "gcr.io/distroless/static"
-      ],
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true
-    },
-    {
-      "description": "Enforce bump range strategy",
-      "matchDatasources": [
-        "docker",
-        "golang-version"
-      ],
-      "matchPackageNames": [
-        "go",
-        "golang"
-      ],
-      "rangeStrategy": "bump"
     },
     {
       "description": "Automerge github-actions updates",
