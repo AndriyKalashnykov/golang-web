@@ -1,7 +1,7 @@
 #
 # builder image
 # https://hub.docker.com/_/golang/tags?page=1&name=buster
-FROM golang:1.25.5@sha256:36b4f45d2874905b9e8573b783292629bcb346d0a70d8d7150b6df545234818f AS builder
+FROM golang:1.25.5@sha256:31c1e53dfc1cc2d269deec9c83f58729fa3c53dc9a576f6426109d1e319e9e9a AS builder
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /workspace
