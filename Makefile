@@ -22,7 +22,7 @@ build:
 	CGO_ENABLED=0 go build -ldflags "-X main.Version=${MY_VERSION} -X main.BuildTime=${MY_BUILDTIME}" -a -o manager main.go
 
 ## builds docker image
-image-build:
+image:
 	echo MY_GITREF is $(MY_GITREF)
 	$(DOCKERCMD) buildx build --load --build-arg MY_VERSION=$(VERSION) --build-arg MY_BUILDTIME=$(BUILD_TIME) -f Dockerfile -t $(OPV) .
 
@@ -36,7 +36,7 @@ update:
 	@go get -u ./...; go mod tidy
 
 ## runs container in foreground, testing a couple of override values
-image-test-fg: image-build
+image-test-fg: image
 	$(DOCKERCMD) run -it -p $(WEBPORT) \
 	-e APP_CONTEXT=/myhello/ \
 	-e MY_NODE_NAME=node1 \
@@ -51,11 +51,11 @@ image-test-cli:
 	$(DOCKERCMD) run -it --rm --entrypoint "/bin/sh" $(OPV)
 
 ## run container in background
-image-run-bg: image-build
+image-run-bg: image
 	$(DOCKERCMD) run -d -p $(WEBPORT) --rm --name $(PROJECT) $(OPV)
 
 ## get into console of container running in background
-image-cli-bg: image-build
+image-cli-bg: image
 	$(DOCKERCMD) exec -it $(PROJECT) /bin/sh
 
 ## tails $(DOCKERCMD)logs
