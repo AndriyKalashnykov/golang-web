@@ -17,10 +17,11 @@ HTTP web server with Prometheus metrics written in Go. Serves a simple "Hello, W
 ```bash
 make build          # Build the Go binary
 make test           # Run tests with coverage
-make lint           # Run staticcheck
-make ci             # Full local CI pipeline (deps, lint, build, test)
+make lint           # Run staticcheck + hadolint
+make ci             # Full local CI pipeline (deps, lint, test, build)
+make ci-run         # Run GitHub Actions workflow locally via act
 make run            # Run locally on port 8080
-make image          # Build Docker image
+make image-build    # Build Docker image
 make release        # Create and push a new semver tag
 make version        # Print current version tag
 ```
@@ -31,15 +32,13 @@ make version        # Print current version tag
 
 | Workflow | File | Triggers | Purpose |
 |----------|------|----------|---------|
-| CI | `ci.yml` | push to main, tags `v*`, PRs | Lint (staticcheck), build, test, Docker image (tag-only) |
+| CI | `ci.yml` | push to main, tags `v*`, PRs | Lint, test, build, Docker image (tag-only) |
 | Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual | Delete old workflow runs (retain 7 days, keep 5 minimum) |
 
 ### CI Jobs
 
-- **staticcheck**: Static analysis via `dominikh/staticcheck-action`
-- **tests**: `make test` on ubuntu-latest
-- **builds**: `make build` on ubuntu-latest
-- **build-oci-image**: Docker multi-arch build+push to GHCR (tag-gated)
+- **ci**: Lint (`make lint`), test (`make test`), build (`make build`) on ubuntu-latest
+- **build-oci-image**: Docker multi-arch build+push to GHCR (tag-gated, requires ci to pass)
 
 ## Project Structure
 
