@@ -3,12 +3,7 @@
   "extends": [
     "config:best-practices",
     ":semanticCommitType(chore)",
-    "docker:pinDigests",
-    "helpers:pinGitHubActionDigests",
-    ":dependencyDashboard",
-    ":separatePatchReleases",
-    "replacements:all",
-    "workarounds:all"
+    ":separatePatchReleases"
   ],
   "postUpdateOptions": ["gomodTidy"],
   "commitMessagePrefix": "chore(all): ",
@@ -20,11 +15,29 @@
   "platformAutomerge": true,
   "automerge": true,
   "automergeType": "pr",
+  "automergeStrategy": "squash",
+  "ignoreTests": false,
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "automerge": true,
+    "minimumReleaseAge": "0 days"
+  },
   "packageRules": [
     {
-      "description": "Automerge all updates when checks pass",
-      "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
-      "automerge": true
+      "description": "Wait 3 days before automerging major updates",
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Group GitHub Actions into one PR",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "Bump Go version in go.mod to latest patch",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["go"],
+      "rangeStrategy": "bump"
     },
     {
       "description": "Block echo v5 until echo-swagger supports it",

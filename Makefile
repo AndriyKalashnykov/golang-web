@@ -6,6 +6,7 @@ VERSION := v0.0.1
 OPV := $(OWNER)/$(PROJECT):$(VERSION)
 WEBPORT := 8080:8080
 CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+NVM_VERSION := 0.40.4
 
 # you may need to change to "sudo docker" if not a member of 'docker' group
 DOCKERCMD := "docker"
@@ -124,4 +125,19 @@ version:
 	image-test-fg image-test-cli image-run-bg image-cli-bg \
 	image-logs image-stop image-push \
 	k8s-apply k8s-delete \
-	ci release version
+	ci release version \
+	renovate-bootstrap renovate-validate
+
+#renovate-bootstrap: @ Install nvm and npm for Renovate
+renovate-bootstrap:
+	@command -v node >/dev/null 2>&1 || { \
+		echo "Installing nvm $(NVM_VERSION)..."; \
+		curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v$(NVM_VERSION)/install.sh | bash; \
+		export NVM_DIR="$$HOME/.nvm"; \
+		[ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh"; \
+		nvm install --lts; \
+	}
+
+#renovate-validate: @ Validate Renovate configuration
+renovate-validate: renovate-bootstrap
+	@npx --yes renovate --platform=local
