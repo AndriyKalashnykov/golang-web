@@ -5,44 +5,67 @@
     ":semanticCommitType(chore)",
     ":separatePatchReleases"
   ],
-  "postUpdateOptions": ["gomodTidy"],
+  "postUpdateOptions": [
+    "gomodTidy"
+  ],
   "commitMessagePrefix": "chore(all): ",
   "commitMessageAction": "update",
   "commitBody": "Signed-off-by: Renovate Bot <bot@renovateapp.com>",
-  "labels": ["dependencies"],
+  "labels": [
+    "dependencies"
+  ],
   "prConcurrentLimit": 50,
   "prHourlyLimit": 0,
   "platformAutomerge": true,
   "automerge": true,
-  "automergeType": "pr",
+  "automergeType": "branch",
   "automergeStrategy": "squash",
   "ignoreTests": false,
   "vulnerabilityAlerts": {
-    "labels": ["security"],
+    "labels": [
+      "security"
+    ],
     "automerge": true,
     "minimumReleaseAge": "0 days"
   },
   "packageRules": [
     {
       "description": "Wait 3 days before automerging major updates",
-      "matchUpdateTypes": ["major"],
+      "matchUpdateTypes": [
+        "major"
+      ],
       "minimumReleaseAge": "3 days"
     },
     {
       "description": "Group GitHub Actions into one PR",
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "github-actions"
+      ],
       "groupName": "GitHub Actions"
     },
     {
       "description": "Bump Go version in go.mod to latest patch",
-      "matchManagers": ["gomod"],
-      "matchDepNames": ["go"],
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchDepNames": [
+        "go"
+      ],
       "rangeStrategy": "bump"
     },
     {
       "description": "Block echo v5 until echo-swagger supports it",
-      "matchPackageNames": ["github.com/labstack/echo/v5"],
+      "matchPackageNames": [
+        "github.com/labstack/echo/v5"
+      ],
       "enabled": false
+    },
+    {
+      "description": "Group Docker base images",
+      "matchDatasources": [
+        "docker"
+      ],
+      "groupName": "Docker dependencies"
     }
   ]
 }
