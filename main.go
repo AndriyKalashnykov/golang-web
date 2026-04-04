@@ -59,14 +59,14 @@ func StartWebServer() {
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "{\"health\":\"ok\", \"Version\":\"%s\", \"BuildTime\":\"%s\"}", Version, BuildTime)
 }
 
 func handleApp(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
 
 	// print main hello message
 	fmt.Fprintf(w, "Hello, %s\n", messageTo)

@@ -54,13 +54,6 @@
       "rangeStrategy": "bump"
     },
     {
-      "description": "Block echo v5 until echo-swagger supports it",
-      "matchPackageNames": [
-        "github.com/labstack/echo/v5"
-      ],
-      "enabled": false
-    },
-    {
       "description": "Group Docker base images",
       "matchDatasources": [
         "docker"
