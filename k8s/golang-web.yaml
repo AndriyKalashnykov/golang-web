@@ -17,9 +17,22 @@ spec:
 
     spec:
 
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+
       containers:
       - name: golang-web
         image: ghcr.io/andriykalashnykov/golang-web:v0.0.1
+
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
 
         # resource limits
         resources:
@@ -70,6 +83,13 @@ spec:
         - name: PORT
           value: "8080"
 
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          failureThreshold: 10
+          periodSeconds: 2
+
         livenessProbe:
           httpGet:
             path: /healthz
@@ -84,7 +104,6 @@ spec:
           initialDelaySeconds: 3
           periodSeconds: 3
 
-      restartPolicy: Always
 ---
 apiVersion: v1
 kind: Service
@@ -93,6 +112,7 @@ metadata:
   labels:
     app: golang-web
 spec:
+  type: LoadBalancer
   ports:
   - port: 8080
     name: http

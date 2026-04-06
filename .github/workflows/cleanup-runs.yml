@@ -5,11 +5,16 @@ on:
     - cron: '0 0 * * 0'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   actions: write
+  packages: write
 
 jobs:
-  cleanup:
+  cleanup-runs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -24,3 +29,21 @@ jobs:
             --json databaseId,createdAt --limit 200 \
             --jq "sort_by(.createdAt) | reverse | .[$KEEP_MINIMUM:] | .[] | select(.createdAt < \\"$CUTOFF\\") | .databaseId" \
           | xargs -r -I{} gh run delete {} --repo "${{ github.repository }}"
+
+  cleanup-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      KEEP_MINIMUM: 5
+    steps:
+      - name: Delete untagged container images
+        run: |
+          PACKAGE="golang-web"
+          OWNER="${{ github.repository_owner }}"
+          gh api "orgs/${OWNER}/packages/container/${PACKAGE}/versions" \
+            --jq '[.[] | select(.metadata.container.tags | length == 0)] | sort_by(.created_at) | reverse | .['$KEEP_MINIMUM':][] | .id' 2>/dev/null \
+          | xargs -r -I{} gh api --method DELETE "orgs/${OWNER}/packages/container/${PACKAGE}/versions/{}" 2>/dev/null || \
+          gh api "users/${OWNER}/packages/container/${PACKAGE}/versions" \
+            --jq '[.[] | select(.metadata.container.tags | length == 0)] | sort_by(.created_at) | reverse | .['$KEEP_MINIMUM':][] | .id' 2>/dev/null \
+          | xargs -r -I{} gh api --method DELETE "users/${OWNER}/packages/container/${PACKAGE}/versions/{}" 2>/dev/null || true

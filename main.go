@@ -12,17 +12,19 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-// default noun
+// messageTo is the default noun.
 var messageTo = "World"
 
-// built into binary using ldflags
+// Version is built into binary using ldflags.
 var Version string
+
+// BuildTime is built into binary using ldflags.
 var BuildTime string
 
-// Prometehus request counter for this container
+// promRequestCounter is the Prometheus request counter for this container.
 var promRequestCounter = prometheus.NewCounter(
-	prometheus.CounterOpts{
-		Name: "request_count_promtotal", // suffix '_promtotal' intentionally for prometheus-adapter rule
+	prometheus.CounterOpts{ //nolint:promlinter // suffix '_promtotal' intentionally for prometheus-adapter rule
+		Name: "request_count_promtotal",
 		Help: "No of total request handled by container",
 	},
 )
@@ -33,19 +35,20 @@ func getMetricValue(col prometheus.Collector) float64 {
 	c := make(chan prometheus.Metric, 1) // 1 for metric with no vector
 	col.Collect(c)                       // collect current metric value into the channel
 	m := dto.Metric{}
-	_ = (<-c).Write(&m) // read metric value from the channel
+	_ = (<-c).Write(&m) //nolint:errcheck // metric write error is not actionable
 	return *m.Counter.Value
 }
 
+// StartWebServer initializes handlers and starts the HTTP server.
 func StartWebServer() {
 	prometheus.MustRegister(promRequestCounter)
 
-	// handlers
+	// handlers.
 	http.HandleFunc("/healthz", handleHealth)
 	http.HandleFunc("/shutdown", handleShutdown)
 	http.Handle("/metrics", promhttp.Handler())
 
-	// APP_CONTEXT defaults to root
+	// APP_CONTEXT defaults to root.
 	appContext := getenv("APP_CONTEXT", "/")
 	log.Printf("app context: %s", appContext)
 	http.HandleFunc(appContext, handleApp)
@@ -53,94 +56,99 @@ func StartWebServer() {
 	port := getenv("PORT", "8080")
 	log.Printf("Starting web server on port %s", port)
 	log.Printf("Open http://localhost:%s%s", port, appContext)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	if err := http.ListenAndServe(":"+port, nil); err != nil { // #nosec G114 -- simple test server //nolint:gosec
 		panic(err)
 	}
-
 }
 
-func handleHealth(w http.ResponseWriter, r *http.Request) {
+func handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "{\"health\":\"ok\", \"Version\":\"%s\", \"BuildTime\":\"%s\"}", Version, BuildTime)
+	_, err := fmt.Fprintf(w, "{\"health\":\"ok\", \"Version\":\"%s\", \"BuildTime\":\"%s\"}", Version, BuildTime)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func handleApp(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 
-	// print main hello message
-	fmt.Fprintf(w, "Hello, %s\n", messageTo)
+	// Print main hello message.
+	_, err := fmt.Fprintf(w, "Hello, %s\n", messageTo)
+	if err != nil {
+		fmt.Println(err)
+	}
 
-	// writes count and path
+	// Writes count and path.
 	mainMsgFormat := "request %d %s %s\n"
 	prc := getMetricValue(promRequestCounter)
 	prcInt := int(math.Round(prc))
-	log.Printf(mainMsgFormat, prcInt, r.Method, r.URL.Path)
-	_, err := fmt.Fprintf(w, mainMsgFormat, prcInt, r.Method, r.URL.Path)
+	log.Printf(mainMsgFormat, prcInt, r.Method, r.URL.Path)              // #nosec G706 -- test server //nolint:gosec
+	_, err = fmt.Fprintf(w, mainMsgFormat, prcInt, r.Method, r.URL.Path) // #nosec G705 -- test server //nolint:gosec
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	// increment prometheus counter
+	// Increment prometheus counter.
 	promRequestCounter.Inc()
 
-	// 'Host' header is promoted to Request.Host field and removed from Header map
-	_, err = fmt.Fprintf(w, "Host: %s\n", provideDefault(r.Host, "empty"))
+	// 'Host' header is promoted to Request.Host field and removed from Header map.
+	_, err = fmt.Fprintf(w, "Host: %s\n", provideDefault(r.Host, "empty")) // #nosec G705 -- test server //nolint:gosec
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	// env MY_NODE_NAME
+	// env MY_NODE_NAME.
 	_, err = fmt.Fprintf(w, "MY_NODE_NAME: %s\n", getenv("MY_NODE_NAME", "empty"))
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	// env MY_POD_NAME
+	// env MY_POD_NAME.
 	_, err = fmt.Fprintf(w, "MY_POD_NAME: %s\n", getenv("MY_POD_NAME", "empty"))
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	// env MY_POD_NAMESPACE
+	// env MY_POD_NAMESPACE.
 	_, err = fmt.Fprintf(w, "MY_POD_NAMESPACE: %s\n", getenv("MY_POD_NAMESPACE", "empty"))
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	// env MY_POD_IP
+	// env MY_POD_IP.
 	_, err = fmt.Fprintf(w, "MY_POD_IP: %s\n", getenv("MY_POD_IP", "empty"))
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	// env MY_POD_SERVICE_ACCOUNT
+	// env MY_POD_SERVICE_ACCOUNT.
 	_, err = fmt.Fprintf(w, "MY_POD_SERVICE_ACCOUNT: %s\n", getenv("MY_POD_SERVICE_ACCOUNT", "empty"))
 	if err != nil {
 		fmt.Println(err)
 	}
 }
 
-// provide default for value
+// provideDefault returns defaultVal when value is empty.
 func provideDefault(value, defaultVal string) string {
-	if len(value) == 0 {
+	if value == "" {
 		return defaultVal
 	}
 	return value
 }
 
-// pull from OS environment variable, provide default
+// getenv pulls from OS environment variable, provides a default.
 func getenv(key, fallback string) string {
 	value := os.Getenv(key)
-	if len(value) == 0 {
+	if value == "" {
 		return fallback
 	}
 	return value
 }
 
-// non-graceful and abrupt exit
-func handleShutdown(w http.ResponseWriter, r *http.Request) {
+// handleShutdown performs a non-graceful and abrupt exit.
+func handleShutdown(_ http.ResponseWriter, _ *http.Request) {
 	log.Printf("About to abruptly exit")
 	os.Exit(0)
 }

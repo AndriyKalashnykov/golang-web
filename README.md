@@ -22,9 +22,9 @@ make run       # start the application on port 8080
 | Tool | Version | Purpose |
 |------|---------|---------|
 | [GNU Make](https://www.gnu.org/software/make/) | 3.81+ | Build orchestration |
+| [Git](https://git-scm.com/) | 2.0+ | Version control |
 | [Go](https://go.dev/dl/) | 1.26+ | Language runtime and compiler |
 | [Docker](https://www.docker.com/) | latest | Container image builds |
-| [staticcheck](https://staticcheck.dev/) | latest | Static analysis |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | latest | Kubernetes deployment (optional) |
 
 Install all required dependencies:
@@ -37,6 +37,15 @@ make deps
 
 Run `make help` to see all available targets.
 
+### Setup
+
+| Target | Description |
+|--------|-------------|
+| `make help` | List available tasks |
+| `make deps` | Check and install required dependencies |
+| `make deps-act` | Install act for local CI runs |
+| `make deps-hadolint` | Install hadolint for Dockerfile linting |
+
 ### Build & Run
 
 | Target | Description |
@@ -44,9 +53,21 @@ Run `make help` to see all available targets.
 | `make build` | Build the Go binary |
 | `make run` | Run the application locally |
 | `make test` | Run tests with coverage |
-| `make lint` | Run static analysis |
-| `make clean` | Remove Docker image |
+| `make format` | Auto-format Go source files |
+| `make clean` | Remove Docker image and build artifacts |
 | `make update` | Update dependency packages to latest versions |
+
+### Quality & Security
+
+| Target | Description |
+|--------|-------------|
+| `make static-check` | Run all quality and security checks |
+| `make lint` | Run static analysis (golangci-lint + hadolint) |
+| `make lint-ci` | Lint GitHub Actions workflows |
+| `make sec` | Run security scanner (gosec) |
+| `make vulncheck` | Check for known vulnerabilities in dependencies |
+| `make secrets` | Scan for hardcoded secrets (gitleaks) |
+| `make coverage-check` | Verify test coverage meets threshold |
 
 ### Docker
 
@@ -67,20 +88,29 @@ Run `make help` to see all available targets.
 |--------|-------------|
 | `make k8s-apply` | Deploy to Kubernetes cluster |
 | `make k8s-delete` | Delete from Kubernetes cluster |
+| `make deps-kind` | Install KinD for local Kubernetes testing |
+| `make kind-create` | Create local KinD cluster with MetalLB |
+| `make kind-deploy` | Deploy application to KinD cluster and wait for rollout |
+| `make kind-undeploy` | Remove application from KinD cluster |
+| `make kind-delete` | Delete KinD cluster |
+| `make e2e` | Run end-to-end tests against KinD cluster |
 
 ### CI
 
 | Target | Description |
 |--------|-------------|
-| `make ci` | Full CI pipeline: lint, test, build |
-| `make ci-run` | Run GitHub Actions workflow locally via [act](https://github.com/nektos/act) |
+| `make ci` | Run full local CI pipeline |
+| `make ci-run` | Run GitHub Actions workflow locally using [act](https://github.com/nektos/act) |
 
 ### Utilities
 
 | Target | Description |
 |--------|-------------|
-| `make release` | Create and push a new semver tag |
+| `make release` | Create and push a new tag |
 | `make version` | Print current version (tag) |
+| `make deps-prune` | Remove unused dependencies |
+| `make deps-prune-check` | Verify no prunable dependencies (CI gate) |
+| `make renovate-bootstrap` | Install nvm and Node.js for Renovate |
 | `make renovate-validate` | Validate Renovate configuration |
 
 ## Environment Variables
@@ -112,7 +142,9 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests.
 
 | Job | Triggers | Steps |
 |-----|----------|-------|
-| **ci** | push, PR, tags | Lint, Test, Build |
+| **static-check** | push, PR, tags | Lint, Vulnerability check |
+| **build** | push, PR, tags | Build (after static-check) |
+| **test** | push, PR, tags | Test with coverage (after static-check) |
 | **build-oci-image** | tags only | Docker multi-arch build+push to GHCR |
 | **cleanup** | Weekly (Sunday) | Delete old workflow runs (retain 7 days, keep 5 minimum) |
 

@@ -17,11 +17,14 @@ HTTP web server with Prometheus metrics written in Go. Serves a simple "Hello, W
 ```bash
 make build          # Build the Go binary
 make test           # Run tests with coverage
-make lint           # Run staticcheck + hadolint
-make ci             # Full local CI pipeline (deps, lint, test, build)
+make static-check   # Run all quality + security checks (lint, sec, vulncheck, secrets)
+make format         # Auto-format Go source files
+make ci             # Full local CI pipeline (format, static-check, test, build)
 make ci-run         # Run GitHub Actions workflow locally via act
 make run            # Run locally on port 8080
 make image-build    # Build Docker image
+make e2e            # Run e2e tests (KinD + MetalLB + curl checks)
+make kind-delete    # Clean up KinD cluster
 make release        # Create and push a new semver tag
 make version        # Print current version tag
 ```
@@ -37,15 +40,19 @@ make version        # Print current version tag
 
 ### CI Jobs
 
-- **ci**: Lint (`make lint`), test (`make test`), build (`make build`) on ubuntu-latest
-- **build-oci-image**: Docker multi-arch build+push to GHCR (tag-gated, requires ci to pass)
+- **static-check**: All quality + security checks (`make static-check`: lint, sec, vulncheck, secrets) on ubuntu-latest
+- **build**: Build (`make build`) after static-check passes
+- **test**: Test with coverage (`make test`) after static-check passes (parallel with build)
+- **build-oci-image**: Docker multi-arch build+push to GHCR (tag-gated, requires build+test to pass)
 
 ## Project Structure
 
 - `main.go` -- Application entry point and HTTP handlers
 - `Makefile` -- Build automation and CI targets
-- `Dockerfile` -- Multi-stage Docker build
-- `golang-web.yaml` -- Kubernetes deployment manifest
+- `Dockerfile` -- Multi-stage Docker build (with `.dockerignore`)
+- `k8s/golang-web.yaml` -- Kubernetes deployment manifest (with security context)
+- `k8s/kind-config.yaml` -- KinD cluster configuration
+- `k8s/metallb-config.yaml` -- MetalLB IP pool template
 - `renovate.json` -- Renovate dependency update configuration
 - `version.txt` -- Current release version
 

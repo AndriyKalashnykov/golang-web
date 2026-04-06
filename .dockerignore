@@ -1,0 +1,13 @@
+.git/
+.github/
+.claude/
+.golangci.yml
+.hadolint.yaml
+.dockerignore
+*.md
+LICENSE
+coverage.out
+manager
+k8s/
+renovate.json
+version.txt

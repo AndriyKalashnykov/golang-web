@@ -5,6 +5,24 @@
     ":semanticCommitType(chore)",
     ":separatePatchReleases"
   ],
+  "enabledManagers": [
+    "gomod",
+    "github-actions",
+    "dockerfile",
+    "custom.regex"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update Makefile tool versions via inline renovate comments",
+      "managerFilePatterns": [
+        "/^Makefile$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)( versioning=(?<versioning>[^\\s]+))?\\n[A-Z_]+\\s*:=\\s*(?<currentValue>[^\\s]+)"
+      ]
+    }
+  ],
   "postUpdateOptions": [
     "gomodTidy"
   ],
@@ -59,6 +77,23 @@
         "docker"
       ],
       "groupName": "Docker dependencies"
+    },
+    {
+      "description": "Group Go module dependencies",
+      "matchManagers": [
+        "gomod"
+      ],
+      "groupName": "Go dependencies",
+      "matchDepNames": [
+        "!go"
+      ]
+    },
+    {
+      "description": "Group Makefile tool version updates",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "groupName": "Makefile tools"
     }
   ]
 }

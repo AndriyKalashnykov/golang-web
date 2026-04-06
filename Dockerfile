@@ -1,6 +1,7 @@
+# syntax=docker/dockerfile:1
 #
 # builder image
-# https://hub.docker.com/_/golang/tags?page=1&name=buster
+# https://hub.docker.com/_/golang/tags
 FROM golang:1.26.1@sha256:595c7847cff97c9a9e76f015083c481d26078f961c9c8dca3923132f51fe12f1 AS builder
 ARG TARGETOS
 ARG TARGETARCH

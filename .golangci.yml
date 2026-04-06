@@ -1,0 +1,137 @@
+version: "2"
+
+run:
+  timeout: 3m
+  modules-download-mode: mod
+
+linters:
+  default: all
+  disable:
+    # Too noisy / opinionated for this project size
+    - varnamelen        # Short var names are fine in a small codebase
+    - wsl_v5            # Overly opinionated whitespace rules
+    - nlreturn          # Blank-line-before-return is stylistic noise
+    - exhaustruct       # Not all struct fields need explicit init
+    - gochecknoglobals  # messageTo, Version, BuildTime are valid globals
+    - gochecknoinits    # No init() funcs exist, but don't block future use
+    - depguard          # No import deny-list needed for this project
+    - ireturn           # Handlers must return interface (error)
+    - mnd               # Magic numbers in HTTP status codes are fine
+    - godox             # TODO/FIXME comments are acceptable during development
+    - lll               # Line length handled by gofmt convention
+    - funlen            # Small codebase, functions are already short
+    - wrapcheck         # Wrapping http errors adds noise, not value
+    - testpackage       # Using same package for tests to access internals
+    - err113            # Dynamic errors in handlers are acceptable
+    # nolintlint is enabled (default) — ensures nolint directives stay valid
+    - gomoddirectives   # No replace/retract directives to manage
+    - gomodguard        # No module allow/block lists needed
+    - tagliatelle       # No struct tags with naming conventions to enforce
+    - paralleltest      # Test suite is fast enough without t.Parallel()
+    - tparallel         # Same as above
+    - inamedparam       # Interface method params are clear from context
+    - nonamedreturns    # Named returns acceptable in small codebase
+    - gocognit          # Covered by cyclop and nestif
+    - gosmopolitan      # No i18n requirements
+    - musttag           # No custom marshaling tags needed
+    - protogetter       # No protobuf usage
+    - zerologlint       # No zerolog usage
+    - spancheck         # No OpenTelemetry usage
+    - loggercheck       # No structured logger (slog/zap) in use yet
+    - rowserrcheck      # No database/sql usage
+    - sqlclosecheck     # No database/sql usage
+    - unqueryvet        # No SQL usage
+    - ginkgolinter      # Not using ginkgo
+    - testifylint       # Not using testify
+    - noinlineerr       # Inline error handling is idiomatic in handlers
+    - wsl               # Deprecated in favor of wsl_v5, and too opinionated
+    - grouper           # Import grouping handled by goimports
+    - goheader          # No required file headers
+    - forbidigo         # No forbidden identifiers
+    - decorder          # Declaration order is already consistent
+    - arangolint        # No ArangoDB usage
+
+  settings:
+    cyclop:
+      max-complexity: 15
+
+    nestif:
+      min-complexity: 4
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+
+    gocyclo:
+      min-complexity: 15
+
+    nakedret:
+      max-func-lines: 20
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+        - opinionated
+
+    revive:
+      rules:
+        - name: exported
+          arguments:
+            - "checkPrivateReceivers"
+        - name: unused-parameter
+
+    misspell:
+      locale: US
+
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment  # Micro-optimization noise for a small codebase
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+    interfacebloat:
+      max: 5
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - std-error-handling
+    rules:
+      # Relax rules for test files
+      - path: _test\.go
+        linters:
+          - bodyclose
+          - dupl
+          - errcheck
+          - forcetypeassert
+          - goconst
+          - gosec
+          - unparam
+          - containedctx
+          - maintidx
+          - cyclop
+          - gocyclo
+          - exhaustive
+          - fatcontext
+          - godot
+          - intrange
+          - modernize
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/AndriyKalashnykov/golang-web
