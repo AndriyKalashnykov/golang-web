@@ -39,12 +39,23 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Claude config
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          repository: AndriyKalashnykov/claude-config
+          token: ${{ secrets.CLAUDE_CONFIG_TOKEN }}
+          path: .claude-config
+
+      - name: Install Claude config
+        run: bash .claude-config/setup.sh .claude-config && rm -rf .claude-config
+
       - name: Run Claude
         uses: anthropics/claude-code-action@f2accb9a171bd71f4b5c93bcea23876aa5244edb # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # assignee_trigger: claude  # Uncomment to also trigger when issues are assigned to "claude"
           claude_args: "--max-turns 50"
+          allowed_tools: "Bash,Edit,Read,Write,Glob,Grep,WebFetch,mcp__github_comment__update_claude_comment"
 
   # Automation mode: automatic code review on every non-draft PR open/update.
   # Prompt provided — runs in automation mode with scoped-down permissions (read-only content).
@@ -67,6 +78,16 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
+
+      - name: Setup Claude config
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          repository: AndriyKalashnykov/claude-config
+          token: ${{ secrets.CLAUDE_CONFIG_TOKEN }}
+          path: .claude-config
+
+      - name: Install Claude config
+        run: bash .claude-config/setup.sh .claude-config && rm -rf .claude-config
 
       - name: Review PR
         uses: anthropics/claude-code-action@f2accb9a171bd71f4b5c93bcea23876aa5244edb # v1
