@@ -24,10 +24,10 @@ jobs:
     steps:
       - name: Delete old workflow runs
         run: |
-          CUTOFF=$(date -u -d "$RETAIN_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)
+          CUTOFF=$(date -u -d "${RETAIN_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
           gh run list --repo "${{ github.repository }}" \
             --json databaseId,createdAt --limit 200 \
-            --jq "sort_by(.createdAt) | reverse | .[$KEEP_MINIMUM:] | .[] | select(.createdAt < \\"$CUTOFF\\") | .databaseId" \
+            --jq "sort_by(.createdAt) | reverse | .[${KEEP_MINIMUM}:] | .[] | select(.createdAt < \\"${CUTOFF}\\") | .databaseId" \
           | xargs -r -I{} gh run delete {} --repo "${{ github.repository }}"
 
   cleanup-images:
@@ -42,8 +42,8 @@ jobs:
           PACKAGE="golang-web"
           OWNER="${{ github.repository_owner }}"
           gh api "orgs/${OWNER}/packages/container/${PACKAGE}/versions" \
-            --jq '[.[] | select(.metadata.container.tags | length == 0)] | sort_by(.created_at) | reverse | .['$KEEP_MINIMUM':][] | .id' 2>/dev/null \
+            --jq "[.[] | select(.metadata.container.tags | length == 0)] | sort_by(.created_at) | reverse | .[${KEEP_MINIMUM}:][] | .id" 2>/dev/null \
           | xargs -r -I{} gh api --method DELETE "orgs/${OWNER}/packages/container/${PACKAGE}/versions/{}" 2>/dev/null || \
           gh api "users/${OWNER}/packages/container/${PACKAGE}/versions" \
-            --jq '[.[] | select(.metadata.container.tags | length == 0)] | sort_by(.created_at) | reverse | .['$KEEP_MINIMUM':][] | .id' 2>/dev/null \
+            --jq "[.[] | select(.metadata.container.tags | length == 0)] | sort_by(.created_at) | reverse | .[${KEEP_MINIMUM}:][] | .id" 2>/dev/null \
           | xargs -r -I{} gh api --method DELETE "users/${OWNER}/packages/container/${PACKAGE}/versions/{}" 2>/dev/null || true

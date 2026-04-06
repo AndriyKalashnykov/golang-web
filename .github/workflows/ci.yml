@@ -145,7 +145,7 @@ jobs:
 
       - name: Convert owner to lower case
         run: |
-          echo "OWNER_LC=${OWNER,,}" >>${GITHUB_ENV}
+          echo "OWNER_LC=${OWNER,,}" >>"${GITHUB_ENV}"
         env:
           OWNER: '${{ github.repository_owner }}'
 

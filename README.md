@@ -26,6 +26,7 @@ make run       # start the application on port 8080
 | [Go](https://go.dev/dl/) | 1.26+ | Language runtime and compiler |
 | [Docker](https://www.docker.com/) | latest | Container image builds |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | latest | Kubernetes deployment (optional) |
+| [KinD](https://kind.sigs.k8s.io/) | 0.31.0 | Local Kubernetes testing (optional, auto-installed by `make deps-kind`) |
 
 Install all required dependencies:
 
