@@ -14,6 +14,7 @@ make deps      # check required dependencies
 make build     # build the Go binary
 make test      # run tests with coverage
 make run       # start the application on port 8080
+# Open http://localhost:8080
 ```
 
 ## Prerequisites

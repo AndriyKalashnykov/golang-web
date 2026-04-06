@@ -52,6 +52,7 @@ func StartWebServer() {
 
 	port := getenv("PORT", "8080")
 	log.Printf("Starting web server on port %s", port)
+	log.Printf("Open http://localhost:%s%s", port, appContext)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		panic(err)
 	}
