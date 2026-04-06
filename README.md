@@ -46,6 +46,7 @@ Run `make help` to see all available targets.
 | `make deps` | Check and install required dependencies |
 | `make deps-act` | Install act for local CI runs |
 | `make deps-hadolint` | Install hadolint for Dockerfile linting |
+| `make deps-shellcheck` | Install shellcheck for shell script linting |
 
 ### Build & Run
 

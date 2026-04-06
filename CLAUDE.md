@@ -37,6 +37,7 @@ make version        # Print current version tag
 |----------|------|----------|---------|
 | CI | `ci.yml` | push to main, tags `v*`, PRs | Lint, test, build, Docker image (tag-only) |
 | Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual | Delete old workflow runs (retain 7 days, keep 5 minimum) |
+| Claude Code | `claude.yml` | issue/PR comments, PR opens | Interactive Claude agent and automated PR review |
 
 ### CI Jobs
 
@@ -56,6 +57,11 @@ make version        # Print current version tag
 - `renovate.json` -- Renovate dependency update configuration
 - `version.txt` -- Current release version
 
+## Upgrade Backlog
+
+- [ ] `munnerz/goautoneg` — bus factor of 1, no releases, last commit 2019. Monitor for a maintained fork if prometheus/common drops it.
+- [ ] Run `go get -u ./... && go mod tidy` periodically to keep indirect deps fresh — Renovate handles direct deps but indirect-only bumps may lag.
+
 ## Skills
 
 Use the following skills when working on related files:
@@ -65,6 +71,6 @@ Use the following skills when working on related files:
 | `Makefile` | `/makefile` |
 | `renovate.json` | `/renovate` |
 | `README.md` | `/readme` |
-| `.github/workflows/*.yml` | `/ci-workflow` |
+| `.github/workflows/*.{yml,yaml}` | `/ci-workflow` |
 
 When spawning subagents, always pass conventions from the respective skill into the agent's prompt.

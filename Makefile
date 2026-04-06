@@ -36,7 +36,7 @@ METALLB_VERSION     := 0.15.3
 KIND_CLUSTER_NAME   := golang-web
 KIND_IMAGE          := $(OPV)
 
-# you may need to change to "sudo docker" if not a member of 'docker' group
+# if not a member of the 'docker' group, add yourself: sudo usermod -aG docker $USER
 DOCKERCMD := "docker"
 
 BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
@@ -67,7 +67,7 @@ deps:
 #deps-act: @ Install act for local CI runs
 deps-act: deps
 	@command -v act >/dev/null 2>&1 || { echo "Installing act $(ACT_VERSION)..."; \
-		curl -sSfL https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash -s -- -b /usr/local/bin v$(ACT_VERSION); \
+		curl -sSfL https://raw.githubusercontent.com/nektos/act/master/install.sh | bash -s -- -b "$$(go env GOPATH)/bin" v$(ACT_VERSION); \
 	}
 
 #deps-shellcheck: @ Install shellcheck for shell script linting
@@ -83,7 +83,7 @@ deps-shellcheck:
 deps-hadolint:
 	@command -v hadolint >/dev/null 2>&1 || { echo "Installing hadolint $(HADOLINT_VERSION)..."; \
 		curl -sSfL -o /tmp/hadolint https://github.com/hadolint/hadolint/releases/download/v$(HADOLINT_VERSION)/hadolint-Linux-x86_64 && \
-		install -m 755 /tmp/hadolint /usr/local/bin/hadolint && \
+		install -m 755 /tmp/hadolint "$$(go env GOPATH)/bin/hadolint" && \
 		rm -f /tmp/hadolint; \
 	}
 
