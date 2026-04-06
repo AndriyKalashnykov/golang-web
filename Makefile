@@ -26,6 +26,8 @@ NVM_VERSION         := 0.40.4
 NODE_VERSION        := 24
 # renovate: datasource=github-releases depName=hadolint/hadolint
 HADOLINT_VERSION    := 2.14.0
+# renovate: datasource=github-releases depName=koalaman/shellcheck
+SHELLCHECK_VERSION  := 0.11.0
 # renovate: datasource=github-releases depName=kubernetes-sigs/kind
 KIND_VERSION        := 0.31.0
 # renovate: datasource=github-releases depName=metallb/metallb
@@ -68,6 +70,15 @@ deps-act: deps
 		curl -sSfL https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash -s -- -b /usr/local/bin v$(ACT_VERSION); \
 	}
 
+#deps-shellcheck: @ Install shellcheck for shell script linting
+deps-shellcheck:
+	@command -v shellcheck >/dev/null 2>&1 || { echo "Installing shellcheck $(SHELLCHECK_VERSION)..."; \
+		curl -sSfL -o /tmp/shellcheck.tar.xz https://github.com/koalaman/shellcheck/releases/download/v$(SHELLCHECK_VERSION)/shellcheck-v$(SHELLCHECK_VERSION).linux.x86_64.tar.xz && \
+		tar -xJf /tmp/shellcheck.tar.xz -C /tmp && \
+		install -m 755 /tmp/shellcheck-v$(SHELLCHECK_VERSION)/shellcheck "$$(go env GOPATH)/bin/shellcheck" && \
+		rm -rf /tmp/shellcheck-v$(SHELLCHECK_VERSION) /tmp/shellcheck.tar.xz; \
+	}
+
 #deps-hadolint: @ Install hadolint for Dockerfile linting
 deps-hadolint:
 	@command -v hadolint >/dev/null 2>&1 || { echo "Installing hadolint $(HADOLINT_VERSION)..."; \
@@ -91,7 +102,7 @@ lint: deps deps-hadolint
 	@hadolint Dockerfile
 
 #lint-ci: @ Lint GitHub Actions workflows
-lint-ci: deps
+lint-ci: deps deps-shellcheck
 	@actionlint
 
 #sec: @ Run security scanner
@@ -351,7 +362,7 @@ deps-prune-check: deps
 	fi; \
 	echo "No prunable dependencies found."
 
-.PHONY: help deps deps-act deps-hadolint deps-kind test build lint lint-ci sec vulncheck secrets \
+.PHONY: help deps deps-act deps-shellcheck deps-hadolint deps-kind test build lint lint-ci sec vulncheck secrets \
 	static-check format run coverage-check \
 	image-build clean update \
 	image-test-fg image-test-cli image-run-bg image-cli-bg \
