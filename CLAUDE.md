@@ -56,6 +56,16 @@ make version        # Print current version tag
 - `renovate.json` -- Renovate dependency update configuration
 - `version.txt` -- Current release version
 
+## Upgrade Backlog
+
+Items not immediately actionable — review on next upgrade cycle:
+
+- [ ] **`golang/protobuf` deprecated transitive dep** — `github.com/golang/protobuf v1.5.0` (in go.sum, not go.mod) is deprecated in favor of `google.golang.org/protobuf`. Not directly actionable; will be removed when `prometheus/client_golang` drops it. Monitor upstream.
+- [ ] **Deep transitive dep updates** — `golang.org/x/net` v0.48→v0.52, `golang.org/x/oauth2` v0.34→v0.36, `golang.org/x/sync` v0.17→v0.20, `golang.org/x/text` v0.32→v0.35, `klauspost/compress` v1.18.0→v1.18.5 are in go.sum but not go.mod. Not directly upgradeable; will update when `prometheus/client_golang` or `prometheus/common` release new versions pulling them.
+- [ ] **NODE_VERSION := 24** — Node.js v26 becomes LTS in October 2026. Bump `NODE_VERSION` in Makefile when v26 LTS is released.
+- [ ] **Dockerfile builder digest** — `golang:1.26.1` digest may drift over time (tag is mutable for security patches). Renovate handles this via the `dockerfile` manager; verify Renovate PRs are not blocked.
+- [ ] **Distroless variant** — Currently `gcr.io/distroless/static:nonroot` (PR #107 changes to `static-debian12:nonroot` for explicit OS tracking). If `static-debian12` is merged, monitor Debian 12 EOL (expected ~2028).
+
 ## Skills
 
 Use the following skills when working on related files:
