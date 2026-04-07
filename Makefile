@@ -28,6 +28,8 @@ NODE_VERSION        := 24
 HADOLINT_VERSION    := 2.14.0
 # renovate: datasource=github-releases depName=koalaman/shellcheck
 SHELLCHECK_VERSION  := 0.11.0
+# renovate: datasource=npm depName=renovate
+RENOVATE_VERSION    := 43.109.0
 # renovate: datasource=github-releases depName=kubernetes-sigs/kind
 KIND_VERSION        := 0.31.0
 # renovate: datasource=github-releases depName=metallb/metallb
@@ -37,7 +39,7 @@ KIND_CLUSTER_NAME   := golang-web
 KIND_IMAGE          := $(OPV)
 
 # if not a member of the 'docker' group, add yourself: sudo usermod -aG docker $USER
-DOCKERCMD := "docker"
+DOCKERCMD := docker
 
 BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 # unique id from last git commit
@@ -134,7 +136,7 @@ coverage-check: deps
 	@go test --cover -parallel=1 -v -coverprofile=coverage.out ./...
 	@total=$$(go tool cover -func=coverage.out | grep total | awk '{print $$NF}' | tr -d '%'); \
 	threshold=80; \
-	if [ "$$(echo "$$total < $$threshold" | bc -l)" -eq 1 ]; then \
+	if echo "$$total $$threshold" | awk '{exit (!($$1 < $$2))}'; then \
 		echo "Coverage $${total}% is below $${threshold}% threshold"; exit 1; \
 	else \
 		echo "Coverage $${total}% meets $${threshold}% threshold"; \
@@ -147,7 +149,7 @@ image-build: build
 
 #clean: @ Remove Docker image and build artifacts
 clean:
-	@$(DOCKERCMD) image rm $(OPV) | true
+	@$(DOCKERCMD) image rm $(OPV) || true
 	@rm -f manager coverage.out
 
 #update: @ Update dependency packages to latest versions
@@ -305,7 +307,7 @@ e2e: kind-deploy
 	if [ $$FAIL -gt 0 ]; then exit 1; fi
 
 #ci: @ Run full local CI pipeline
-ci: deps format static-check test build
+ci: deps format static-check test build deps-prune-check
 	@echo "Local CI pipeline passed."
 
 #ci-run: @ Run GitHub Actions workflow locally using act
@@ -320,8 +322,8 @@ release: deps
 		echo "$$newtag" | grep -qE "^v[0-9]+\.[0-9]+\.[0-9]+$$" || { echo "Error: Tag must match vN.N.N"; exit 1; } && \
 		echo -n "Create and push $$newtag? [y/N] " && read ans && [ "$${ans:-N}" = y ] && \
 		echo $$newtag > ./version.txt && \
-		git add -A && \
-		git commit -a -s -m "Cut $$newtag release" && \
+		git add version.txt && \
+		git commit -s -m "Cut $$newtag release" && \
 		git tag $$newtag && \
 		git push origin $$newtag && \
 		git push && \
@@ -344,10 +346,10 @@ renovate-bootstrap:
 #renovate-validate: @ Validate Renovate configuration
 renovate-validate: renovate-bootstrap
 	@if [ -n "$$GH_ACCESS_TOKEN" ]; then \
-		GITHUB_COM_TOKEN=$$GH_ACCESS_TOKEN npx --yes renovate --platform=local; \
+		GITHUB_COM_TOKEN=$$GH_ACCESS_TOKEN npx --yes renovate@$(RENOVATE_VERSION) --platform=local; \
 	else \
 		echo "Warning: GH_ACCESS_TOKEN not set, some dependency lookups may fail"; \
-		npx --yes renovate --platform=local; \
+		npx --yes renovate@$(RENOVATE_VERSION) --platform=local; \
 	fi
 
 #deps-prune: @ Remove unused dependencies

@@ -64,9 +64,9 @@ Run `make help` to see all available targets.
 | Target | Description |
 |--------|-------------|
 | `make static-check` | Run all quality and security checks |
-| `make lint` | Run static analysis (golangci-lint + hadolint) |
+| `make lint` | Run static analysis |
 | `make lint-ci` | Lint GitHub Actions workflows |
-| `make sec` | Run security scanner (gosec) |
+| `make sec` | Run security scanner |
 | `make vulncheck` | Check for known vulnerabilities in dependencies |
 | `make secrets` | Scan for hardcoded secrets (gitleaks) |
 | `make coverage-check` | Verify test coverage meets threshold |
@@ -115,6 +115,27 @@ Run `make help` to see all available targets.
 | `make renovate-bootstrap` | Install nvm and Node.js for Renovate |
 | `make renovate-validate` | Validate Renovate configuration |
 
+## CI/CD
+
+### Workflows
+
+| Workflow | File | Triggers | Purpose |
+|----------|------|----------|---------|
+| CI | `ci.yml` | push to main, tags `v*`, PRs | Lint, test, build, Docker image (tag-only) |
+| Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual | Delete old workflow runs and untagged images |
+| Claude Code | `claude.yml` | issue/PR comments, PR opens | Interactive Claude agent and automated PR review |
+
+### CI Jobs
+
+| Job | Runs after | Steps |
+|-----|------------|-------|
+| **static-check** | — | Lint, security scan, vulnerability check, secrets scan |
+| **build** | static-check | Build Go binary |
+| **test** | static-check | Test with coverage |
+| **build-oci-image** | build + test (tags only) | Docker multi-arch build+push to GHCR |
+
+[Renovate](https://docs.renovatebot.com/) keeps dependencies up to date with platform automerge enabled.
+
 ## Environment Variables
 
 | Variable | Description | Default |
@@ -137,20 +158,6 @@ Run `make help` to see all available targets.
 ```bash
 docker pull ghcr.io/andriykalashnykov/golang-web:latest
 ```
-
-## CI/CD
-
-GitHub Actions runs on every push to `main`, tags `v*`, and pull requests.
-
-| Job | Triggers | Steps |
-|-----|----------|-------|
-| **static-check** | push, PR, tags | Lint, Vulnerability check |
-| **build** | push, PR, tags | Build (after static-check) |
-| **test** | push, PR, tags | Test with coverage (after static-check) |
-| **build-oci-image** | tags only | Docker multi-arch build+push to GHCR |
-| **cleanup** | Weekly (Sunday) | Delete old workflow runs (retain 7 days, keep 5 minimum) |
-
-[Renovate](https://docs.renovatebot.com/) keeps dependencies up to date with platform automerge enabled.
 
 ## References
 

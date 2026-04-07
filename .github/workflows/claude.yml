@@ -11,6 +11,11 @@ on:
     types: [submitted]
   pull_request:
     types: [opened, synchronize, ready_for_review]
+  workflow_call:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
