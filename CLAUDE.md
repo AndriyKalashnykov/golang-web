@@ -43,7 +43,7 @@ make version        # Print current version tag
 
 - **static-check**: All quality + security checks (`make static-check`: lint, sec, vulncheck, secrets) on ubuntu-latest
 - **build**: Build (`make build`) after static-check passes
-- **test**: Test with coverage (`make test`) after static-check passes (parallel with build)
+- **test**: Test with coverage (`make coverage-check`) after static-check passes (parallel with build)
 - **build-oci-image**: Docker multi-arch build+push to GHCR (tag-gated, requires build+test to pass)
 
 ## Project Structure

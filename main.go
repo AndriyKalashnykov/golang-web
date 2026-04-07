@@ -39,24 +39,30 @@ func getMetricValue(col prometheus.Collector) float64 {
 	return *m.Counter.Value
 }
 
+// newServeMux creates a new ServeMux with all application routes registered.
+func newServeMux() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", handleHealth)
+	mux.HandleFunc("/shutdown", handleShutdown)
+	mux.Handle("/metrics", promhttp.Handler())
+
+	appContext := getenv("APP_CONTEXT", "/")
+	log.Printf("app context: %s", appContext)
+	mux.HandleFunc(appContext, handleApp)
+
+	return mux
+}
+
 // StartWebServer initializes handlers and starts the HTTP server.
 func StartWebServer() {
 	prometheus.MustRegister(promRequestCounter)
 
-	// handlers.
-	http.HandleFunc("/healthz", handleHealth)
-	http.HandleFunc("/shutdown", handleShutdown)
-	http.Handle("/metrics", promhttp.Handler())
-
-	// APP_CONTEXT defaults to root.
-	appContext := getenv("APP_CONTEXT", "/")
-	log.Printf("app context: %s", appContext)
-	http.HandleFunc(appContext, handleApp)
+	mux := newServeMux()
 
 	port := getenv("PORT", "8080")
 	log.Printf("Starting web server on port %s", port)
-	log.Printf("Open http://localhost:%s%s", port, appContext)
-	if err := http.ListenAndServe(":"+port, nil); err != nil { // #nosec G114 -- simple test server //nolint:gosec
+	log.Printf("Open http://localhost:%s%s", port, getenv("APP_CONTEXT", "/"))
+	if err := http.ListenAndServe(":"+port, mux); err != nil { // #nosec G114 -- simple test server //nolint:gosec
 		panic(err)
 	}
 }
