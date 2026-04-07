@@ -214,8 +214,10 @@ kind-create: deps-kind image-build
 	fi
 	@echo "Installing MetalLB $(METALLB_VERSION)..."
 	@kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v$(METALLB_VERSION)/config/manifests/metallb-native.yaml
-	@echo "Waiting for MetalLB pods..."
-	@kubectl wait pods -n metallb-system -l app=metallb --for condition=Ready --timeout=180s
+	@echo "Waiting for MetalLB controller..."
+	@kubectl rollout status deployment/controller -n metallb-system --timeout=180s
+	@echo "Waiting for MetalLB speaker..."
+	@kubectl rollout status daemonset/speaker -n metallb-system --timeout=180s
 	@echo "Configuring MetalLB IP pool..."
 	@ip_sub=$$(docker network inspect kind -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1 | awk -F. '{printf "%d.%d", $$1, $$2}'); \
 	sed "s/METALLB_IP_SUB/$$ip_sub/g" k8s/metallb-config.yaml | kubectl apply -f -
