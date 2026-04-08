@@ -152,7 +152,7 @@ jobs:
         if: steps.guard.outputs.skip != 'true'
         uses: anthropics/claude-code-action@f2accb9a171bd71f4b5c93bcea23876aa5244edb # v1
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           use_sticky_comment: true
           direct_prompt: |
             CI failed on PR #${{ steps.guard.outputs.pr_number }}.
