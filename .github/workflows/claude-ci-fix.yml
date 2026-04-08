@@ -1,0 +1,152 @@
+name: Claude CI Fix
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  claude-ci-fix:
+    # Only run when CI fails on a PR (not direct pushes or successful runs).
+    # workflow_run excludes fork PRs automatically, so this only fires for
+    # same-repo branches (Renovate, Dependabot, feature branches).
+    if: |
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.pull_requests[0] != null
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: claude-ci-fix-${{ github.event.workflow_run.pull_requests[0].number }}
+      cancel-in-progress: true
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      # Anti-recursion: skip if the last commit on the PR was already a Claude
+      # fix attempt (author is github-actions[bot]). Renovate rebases reset the
+      # guard, so Claude retries on fresh dependency updates.
+      - name: Check for prior fix attempt
+        id: guard
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            const pr = context.payload.workflow_run.pull_requests[0];
+            const { data: commits } = await github.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 5
+            });
+            const last = commits[commits.length - 1];
+            const author = last?.author?.login || '';
+            if (author === 'github-actions[bot]') {
+              core.info(`Skipping: last commit by ${author} (prior fix attempt)`);
+              core.setOutput('skip', 'true');
+              return;
+            }
+            core.setOutput('skip', 'false');
+            core.setOutput('pr_number', pr.number);
+            core.setOutput('head_branch', context.payload.workflow_run.head_branch);
+
+      - name: Get CI failure details
+        if: steps.guard.outputs.skip != 'true'
+        id: logs
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            const runId = context.payload.workflow_run.id;
+            const { data: { jobs } } = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId,
+              filter: 'latest'
+            });
+            const failedJobs = jobs.filter(j => j.conclusion === 'failure');
+            const errorDetails = [];
+            for (const job of failedJobs) {
+              try {
+                const logs = await github.rest.actions.downloadJobLogsForWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  job_id: job.id
+                });
+                const lines = logs.data.split('\n');
+                const tail = lines.slice(-150).join('\n');
+                errorDetails.push(`### Job: ${job.name}\n\`\`\`\n${tail}\n\`\`\``);
+              } catch (e) {
+                errorDetails.push(`### Job: ${job.name}\nCould not fetch logs: ${e.message}`);
+              }
+            }
+            core.setOutput('failed_jobs', failedJobs.map(j => j.name).join(', '));
+            core.setOutput('error_logs', errorDetails.join('\n\n'));
+            core.setOutput('run_url', context.payload.workflow_run.html_url);
+
+      - name: Checkout PR branch
+        if: steps.guard.outputs.skip != 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ steps.guard.outputs.head_branch }}
+          fetch-depth: 1
+
+      - name: Install Go
+        if: steps.guard.outputs.skip != 'true'
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Setup Claude config
+        if: steps.guard.outputs.skip != 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          repository: AndriyKalashnykov/claude-config
+          token: ${{ secrets.CLAUDE_CONFIG_TOKEN }}
+          path: .claude-config
+
+      - name: Install Claude config
+        if: steps.guard.outputs.skip != 'true'
+        run: bash .claude-config/setup.sh .claude-config && rm -rf .claude-config
+
+      - name: Fix CI failure
+        if: steps.guard.outputs.skip != 'true'
+        uses: anthropics/claude-code-action@f2accb9a171bd71f4b5c93bcea23876aa5244edb # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          use_sticky_comment: true
+          direct_prompt: |
+            CI failed on PR #${{ steps.guard.outputs.pr_number }}.
+            Run: ${{ steps.logs.outputs.run_url }}
+            Failed jobs: ${{ steps.logs.outputs.failed_jobs }}
+
+            ## Error logs
+
+            ${{ steps.logs.outputs.error_logs }}
+
+            ## Instructions
+
+            1. Read CLAUDE.md for project conventions and Makefile targets
+            2. Analyze the error logs above to identify root cause
+            3. If you can fix it:
+               - Make minimal changes that directly address the failure
+               - Verify your fix by running `make check` (or the specific failing target)
+               - Commit and push the fix to this branch
+            4. If you cannot fix it:
+               - Comment on PR #${{ steps.guard.outputs.pr_number }} explaining:
+                 - What failed and why
+                 - What manual action is needed (e.g., "upgrade Go to X.Y.Z", "wait for upstream fix")
+               - Do NOT push any changes
+
+            Important:
+            - Follow project coding standards from CLAUDE.md
+            - Only change files that directly address the CI failure
+            - Do not refactor, add features, or make unrelated improvements
+            - Use conventional commit messages (fix:, chore:, etc.)
+          allowed_tools: "Bash,Edit,Read,Write,Glob,Grep,WebFetch,mcp__github_comment__update_claude_comment"
+          claude_args: "--max-turns 30"
