@@ -36,7 +36,7 @@ make version        # Print current version tag
 | Workflow | File | Triggers | Purpose |
 |----------|------|----------|---------|
 | CI | `ci.yml` | push to main, tags `v*`, PRs | Lint, test, build, Docker image (tag-only) |
-| Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual | Delete old workflow runs (retain 7 days, keep 5 minimum) |
+| Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual | Delete old workflow runs (retain 7 days, keep 5 minimum) and untagged container images |
 | Claude Code | `claude.yml` | issue/PR comments, PR opens | Interactive Claude agent and automated PR review |
 
 ### CI Jobs

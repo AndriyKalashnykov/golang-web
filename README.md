@@ -5,7 +5,7 @@
 
 # HTTP web server with Prometheus metrics in Go
 
-HTTP web server running by default on port 8080, intended for testing. Features Prometheus formatted metrics at `/metrics` with key `total_request_count` using [prometheus/client_golang](https://github.com/prometheus/client_golang), and a Kubernetes compatible health check at `/healthz`.
+HTTP web server running by default on port 8080, intended for testing. Features Prometheus formatted metrics at `/metrics` with key `request_count_promtotal` using [prometheus/client_golang](https://github.com/prometheus/client_golang), and a Kubernetes compatible health check at `/healthz`.
 
 ## Quick Start
 

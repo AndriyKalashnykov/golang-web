@@ -29,7 +29,7 @@ HADOLINT_VERSION    := 2.14.0
 # renovate: datasource=github-releases depName=koalaman/shellcheck
 SHELLCHECK_VERSION  := 0.11.0
 # renovate: datasource=npm depName=renovate
-RENOVATE_VERSION    := 43.109.0
+RENOVATE_VERSION    := 43.110.5
 # renovate: datasource=github-releases depName=kubernetes-sigs/kind
 KIND_VERSION        := 0.31.0
 # renovate: datasource=github-releases depName=metallb/metallb
