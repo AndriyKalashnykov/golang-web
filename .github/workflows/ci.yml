@@ -69,6 +69,13 @@ jobs:
       - name: Static check
         run: make static-check
 
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: 'fs'
+          scanners: 'vuln,secret,misconfig'
+          severity: 'CRITICAL,HIGH'
+
   build:
     needs: [static-check]
     runs-on: ubuntu-latest

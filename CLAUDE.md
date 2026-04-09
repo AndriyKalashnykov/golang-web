@@ -17,9 +17,9 @@ HTTP web server with Prometheus metrics written in Go. Serves a simple "Hello, W
 ```bash
 make build          # Build the Go binary
 make test           # Run tests with coverage
-make static-check   # Run all quality + security checks (lint, sec, vulncheck, secrets)
+make static-check   # Run all quality + security checks (lint, sec, vulncheck, secrets, trivy-config)
 make format         # Auto-format Go source files
-make ci             # Full local CI pipeline (format, static-check, test, build)
+make ci             # Full local CI pipeline (format, deps-prune-check, static-check, test, build)
 make ci-run         # Run GitHub Actions workflow locally via act
 make run            # Run locally on port 8080
 make image-build    # Build Docker image
@@ -42,7 +42,7 @@ make version        # Print current version tag
 
 ### CI Jobs
 
-- **static-check**: All quality + security checks (`make static-check`: lint, sec, vulncheck, secrets) on ubuntu-latest
+- **static-check**: All quality + security checks (`make static-check`: lint, sec, vulncheck, secrets, trivy-config) on ubuntu-latest
 - **build**: Build (`make build`) after static-check passes
 - **test**: Test with coverage (`make coverage-check`) after static-check passes (parallel with build)
 - **build-oci-image**: Docker multi-arch build+push to GHCR (tag-gated, requires build+test to pass)
@@ -55,6 +55,7 @@ make version        # Print current version tag
 - `k8s/golang-web.yaml` -- Kubernetes deployment manifest (with security context)
 - `k8s/kind-config.yaml` -- KinD cluster configuration
 - `k8s/metallb-config.yaml` -- MetalLB IP pool template
+- `.trivyignore` -- Trivy suppression rules for K8s manifest findings
 - `renovate.json` -- Renovate dependency update configuration
 - `version.txt` -- Current release version
 

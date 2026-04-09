@@ -15,7 +15,7 @@ HTTP web server running by default on port 8080, intended for testing. Features 
 | Container | Docker multi-arch (linux/amd64, linux/arm64) |
 | Orchestration | Kubernetes |
 | CI/CD | GitHub Actions, [Renovate](https://docs.renovatebot.com/) |
-| Code Quality | golangci-lint, gosec, govulncheck, gitleaks |
+| Code Quality | golangci-lint, gosec, govulncheck, gitleaks, Trivy |
 
 ## Quick Start
 
@@ -37,6 +37,7 @@ make run       # start the application on port 8080
 | [Docker](https://www.docker.com/) | latest | Container image builds |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | latest | Kubernetes deployment (optional) |
 | [KinD](https://kind.sigs.k8s.io/) | 0.31.0 | Local Kubernetes testing (optional, auto-installed by `make deps-kind`) |
+| [Trivy](https://trivy.dev/) | 0.69.3 | K8s manifest security scanning (auto-installed by `make deps-trivy`) |
 
 Install all required dependencies:
 
@@ -57,6 +58,7 @@ Run `make help` to see all available targets.
 | `make deps-act` | Install act for local CI runs |
 | `make deps-hadolint` | Install hadolint for Dockerfile linting |
 | `make deps-shellcheck` | Install shellcheck for shell script linting |
+| `make deps-trivy` | Install Trivy for security scanning |
 
 ### Build & Run
 
@@ -79,6 +81,7 @@ Run `make help` to see all available targets.
 | `make sec` | Run security scanner |
 | `make vulncheck` | Check for known vulnerabilities in dependencies |
 | `make secrets` | Scan for hardcoded secrets (gitleaks) |
+| `make trivy-config` | Scan K8s manifests for security misconfigurations |
 | `make coverage-check` | Verify test coverage meets threshold |
 
 ### Docker
@@ -140,7 +143,7 @@ Run `make help` to see all available targets.
 
 | Job | Runs after | Steps |
 |-----|------------|-------|
-| **static-check** | — | Lint, security scan, vulnerability check, secrets scan |
+| **static-check** | — | Lint, security scan, vulnerability check, secrets scan, K8s manifest scan (Trivy) |
 | **build** | static-check | Build Go binary |
 | **test** | static-check | Test with coverage |
 | **build-oci-image** | build + test (tags only) | Docker multi-arch build+push to GHCR |

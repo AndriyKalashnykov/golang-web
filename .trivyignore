@@ -1,0 +1,7 @@
+# KSV-0110: Deployment uses default namespace — intentional for this single-service
+# demo project. E2E tests deploy to default namespace via KinD.
+KSV-0110
+
+# KSV-0125: Image uses ghcr.io (GitHub Container Registry) — this is our own registry,
+# not untrusted. Trivy's default trusted registries list doesn't include ghcr.io.
+KSV-0125

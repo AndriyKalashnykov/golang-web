@@ -28,6 +28,8 @@ NODE_VERSION        := 24
 HADOLINT_VERSION    := 2.14.0
 # renovate: datasource=github-releases depName=koalaman/shellcheck
 SHELLCHECK_VERSION  := 0.11.0
+# renovate: datasource=github-releases depName=aquasecurity/trivy
+TRIVY_VERSION       := 0.69.3
 # renovate: datasource=npm depName=renovate
 RENOVATE_VERSION    := 43.110.5
 # renovate: datasource=github-releases depName=kubernetes-sigs/kind
@@ -89,6 +91,15 @@ deps-hadolint:
 		rm -f /tmp/hadolint; \
 	}
 
+#deps-trivy: @ Install Trivy for security scanning
+deps-trivy:
+	@command -v trivy >/dev/null 2>&1 || { echo "Installing trivy $(TRIVY_VERSION)..."; \
+		curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b $$(go env GOPATH)/bin v$(TRIVY_VERSION); }
+
+#trivy-config: @ Scan K8s manifests for security misconfigurations
+trivy-config: deps-trivy
+	@trivy config k8s/
+
 #test: @ Run tests with coverage
 test: deps
 	@go test --cover -parallel=1 -v -coverprofile=coverage.out ./...
@@ -120,7 +131,7 @@ secrets: deps
 	@gitleaks detect --source . --verbose --redact
 
 #static-check: @ Run all quality and security checks
-static-check: lint-ci lint sec vulncheck secrets
+static-check: lint-ci lint sec vulncheck secrets trivy-config
 	@echo "Static check passed."
 
 #format: @ Auto-format Go source files
@@ -307,7 +318,7 @@ e2e: kind-deploy
 	if [ $$FAIL -gt 0 ]; then exit 1; fi
 
 #ci: @ Run full local CI pipeline
-ci: deps format static-check test build deps-prune-check
+ci: deps format deps-prune-check static-check test build
 	@echo "Local CI pipeline passed."
 
 #ci-run: @ Run GitHub Actions workflow locally using act
@@ -367,8 +378,8 @@ deps-prune-check: deps
 	fi; \
 	echo "No prunable dependencies found."
 
-.PHONY: help deps deps-act deps-shellcheck deps-hadolint deps-kind test build lint lint-ci sec vulncheck secrets \
-	static-check format run coverage-check \
+.PHONY: help deps deps-act deps-shellcheck deps-hadolint deps-trivy deps-kind test build lint lint-ci sec vulncheck secrets \
+	trivy-config static-check format run coverage-check \
 	image-build clean update \
 	image-test-fg image-test-cli image-run-bg image-cli-bg \
 	image-logs image-stop image-push \

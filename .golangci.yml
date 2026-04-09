@@ -71,6 +71,7 @@ linters:
     gocritic:
       enabled-tags:
         - diagnostic
+        - experimental
         - style
         - performance
         - opinionated
