@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Go
@@ -109,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Go
@@ -138,7 +138,7 @@ jobs:
           path: coverage.out
           retention-days: 14
 
-  build-oci-image:
+  docker:
     if: startsWith(github.ref, 'refs/tags/')
     needs: [build, test]
     runs-on: ubuntu-latest
@@ -149,7 +149,7 @@ jobs:
       id-token: write       # cosign keyless OIDC (Sigstore Fulcio)
 
     steps:
-      - name: Check out repository code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up QEMU
@@ -164,7 +164,7 @@ jobs:
         env:
           OWNER: '${{ github.repository_owner }}'
 
-      - name: Extract metadata (tags, labels) for image ${{ env.FULL_IMAGE_NAME }}
+      - name: Docker metadata
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
         with:
@@ -192,7 +192,7 @@ jobs:
       # attestations in one step, so we build twice. The second build
       # is ~95% cache-hit via cache-from: type=gha.
       # ----------------------------------------------------------------
-      - name: Build image for scan (single-arch, load locally)
+      - name: Build image for scan
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
         with:
           context: .
@@ -210,7 +210,7 @@ jobs:
       # Catches CVEs in the base image and OS packages added during
       # build that filesystem-only scans (in static-check) cannot see.
       # ----------------------------------------------------------------
-      - name: Trivy image scan (CRITICAL/HIGH blocking)
+      - name: Trivy image scan
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           image-ref: 'golang-web:scan'
@@ -247,14 +247,14 @@ jobs:
       # ----------------------------------------------------------------
       # All gates passed → publish multi-arch with attestations.
       # ----------------------------------------------------------------
-      - name: Log in to the Github Container registry ${{ env.GH_REGISTRY }} as ${{ github.actor }}
+      - name: Log in to GHCR
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
           registry: ${{ env.GH_REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push docker image (multi-arch + provenance + SBOM)
+      - name: Build and push
         id: push
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
         with:
@@ -278,7 +278,7 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
 
-      - name: Sign image with cosign (keyless)
+      - name: Sign image with cosign
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
           DIGEST: ${{ steps.push.outputs.digest }}
