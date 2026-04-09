@@ -162,17 +162,22 @@ jobs:
       - name: Fix CI failure
         if: steps.guard.outputs.skip != 'true'
         uses: anthropics/claude-code-action@26ddc358fe3befff50c5ec2f80304c90c763f6f8 # v1
+        env:
+          CI_ERROR_LOGS: ${{ steps.logs.outputs.error_logs }}
+          CI_FAILED_JOBS: ${{ steps.logs.outputs.failed_jobs }}
+          CI_RUN_URL: ${{ steps.logs.outputs.run_url }}
+          CI_PR_NUMBER: ${{ steps.guard.outputs.pr_number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           use_sticky_comment: true
           direct_prompt: |
-            CI failed on PR #${{ steps.guard.outputs.pr_number }}.
-            Run: ${{ steps.logs.outputs.run_url }}
-            Failed jobs: ${{ steps.logs.outputs.failed_jobs }}
+            CI failed on PR #${CI_PR_NUMBER}.
+            Run: ${CI_RUN_URL}
+            Failed jobs: ${CI_FAILED_JOBS}
 
             ## Error logs
 
-            ${{ steps.logs.outputs.error_logs }}
+            ${CI_ERROR_LOGS}
 
             ## Instructions
 
@@ -183,7 +188,7 @@ jobs:
                - Commit and push the fix to this branch
                - CI will re-run automatically to verify your fix
             4. If you cannot fix it:
-               - Comment on PR #${{ steps.guard.outputs.pr_number }} explaining:
+               - Comment on PR #${CI_PR_NUMBER} explaining:
                  - What failed and why
                  - What manual action is needed (e.g., "upgrade Go to X.Y.Z", "wait for upstream fix")
                - Do NOT push any changes

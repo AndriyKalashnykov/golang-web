@@ -76,6 +76,10 @@ linters:
         - performance
         - opinionated
 
+    gosec:
+      excludes:
+        - G104  # unhandled errors — already covered by errcheck
+
     revive:
       rules:
         - name: exported

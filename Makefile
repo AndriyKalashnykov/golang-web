@@ -96,6 +96,10 @@ deps-trivy:
 	@command -v trivy >/dev/null 2>&1 || { echo "Installing trivy $(TRIVY_VERSION)..."; \
 		curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b $$(go env GOPATH)/bin v$(TRIVY_VERSION); }
 
+#trivy-fs: @ Scan filesystem for vulnerabilities, secrets, and misconfigurations
+trivy-fs: deps-trivy
+	@trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH .
+
 #trivy-config: @ Scan K8s manifests for security misconfigurations
 trivy-config: deps-trivy
 	@trivy config k8s/
@@ -131,12 +135,12 @@ secrets: deps
 	@gitleaks detect --source . --verbose --redact
 
 #static-check: @ Run all quality and security checks
-static-check: lint-ci lint sec vulncheck secrets trivy-config
+static-check: lint-ci lint sec vulncheck secrets trivy-fs trivy-config
 	@echo "Static check passed."
 
 #format: @ Auto-format Go source files
 format: deps
-	@gofmt -l -w .
+	@golangci-lint fmt ./...
 
 #run: @ Run the application locally
 run: deps
@@ -318,7 +322,7 @@ e2e: kind-deploy
 	if [ $$FAIL -gt 0 ]; then exit 1; fi
 
 #ci: @ Run full local CI pipeline
-ci: deps format deps-prune-check static-check test build
+ci: deps format deps-prune-check static-check coverage-check build
 	@echo "Local CI pipeline passed."
 
 #ci-run: @ Run GitHub Actions workflow locally using act
@@ -379,7 +383,7 @@ deps-prune-check: deps
 	echo "No prunable dependencies found."
 
 .PHONY: help deps deps-act deps-shellcheck deps-hadolint deps-trivy deps-kind test build lint lint-ci sec vulncheck secrets \
-	trivy-config static-check format run coverage-check \
+	trivy-fs trivy-config static-check format run coverage-check \
 	image-build clean update \
 	image-test-fg image-test-cli image-run-bg image-cli-bg \
 	image-logs image-stop image-push \

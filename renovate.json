@@ -8,6 +8,7 @@
     "gomod",
     "github-actions",
     "dockerfile",
+    "kubernetes",
     "custom.regex"
   ],
   "customManagers": [

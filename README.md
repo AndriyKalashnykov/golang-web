@@ -9,7 +9,7 @@ HTTP web server running by default on port 8080, intended for testing. Features 
 
 | Component | Technology |
 |-----------|-----------|
-| Language | Go 1.26+ |
+| Language | Go (see `go.mod` for version) |
 | HTTP | net/http (standard library) |
 | Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) v1.23+ |
 | Container | Docker multi-arch (linux/amd64, linux/arm64) |
@@ -33,7 +33,7 @@ make run       # start the application on port 8080
 |------|---------|---------|
 | [GNU Make](https://www.gnu.org/software/make/) | 3.81+ | Build orchestration |
 | [Git](https://git-scm.com/) | 2.0+ | Version control |
-| [Go](https://go.dev/dl/) | 1.26+ | Language runtime and compiler |
+| [Go](https://go.dev/dl/) | See `go.mod` | Language runtime and compiler |
 | [Docker](https://www.docker.com/) | latest | Container image builds |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | latest | Kubernetes deployment (optional) |
 | [KinD](https://kind.sigs.k8s.io/) | 0.31.0 | Local Kubernetes testing (optional, auto-installed by `make deps-kind`) |
@@ -77,10 +77,11 @@ Run `make help` to see all available targets.
 |--------|-------------|
 | `make static-check` | Run all quality and security checks |
 | `make lint` | Run static analysis |
+| `make trivy-fs` | Scan filesystem for vulnerabilities, secrets, and misconfigurations |
 | `make lint-ci` | Lint GitHub Actions workflows |
 | `make sec` | Run security scanner |
 | `make vulncheck` | Check for known vulnerabilities in dependencies |
-| `make secrets` | Scan for hardcoded secrets (gitleaks) |
+| `make secrets` | Scan for hardcoded secrets |
 | `make trivy-config` | Scan K8s manifests for security misconfigurations |
 | `make coverage-check` | Verify test coverage meets threshold |
 
@@ -134,16 +135,16 @@ Run `make help` to see all available targets.
 
 | Workflow | File | Triggers | Purpose |
 |----------|------|----------|---------|
-| CI | `ci.yml` | push to main, tags `v*`, PRs | Lint, test, build, Docker image (tag-only) |
-| Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual | Delete old workflow runs and untagged images |
-| Claude Code | `claude.yml` | issue/PR comments, PR opens | Interactive Claude agent and automated PR review |
-| Claude CI Fix | `claude-ci-fix.yml` | CI failure on PRs | Auto-analyze and fix CI failures via Claude |
+| CI | `ci.yml` | push to main, tags `v*`, PRs (paths-ignore for docs/images), `workflow_call` | Lint, test, build, Docker image (tag-only) |
+| Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual, `workflow_call` | Delete old workflow runs, stale caches, and untagged images |
+| Claude Code | `claude.yml` | issue/PR comments, PR review, PR opens/sync/ready, issues opened/assigned, `workflow_call` | Interactive Claude agent and automated PR review |
+| Claude CI Fix | `claude-ci-fix.yml` | CI workflow failure on PRs (via `workflow_run`) | Auto-analyze and fix CI failures via Claude |
 
 ### CI Jobs
 
 | Job | Runs after | Steps |
 |-----|------------|-------|
-| **static-check** | — | Lint, security scan, vulnerability check, secrets scan, K8s manifest scan (Trivy) |
+| **static-check** | — | Lint (CI + code + Dockerfile), security scan, vulnerability check, secrets scan, filesystem scan (Trivy), K8s manifest scan (Trivy) |
 | **build** | static-check | Build Go binary |
 | **test** | static-check | Test with coverage |
 | **build-oci-image** | build + test (tags only) | Docker multi-arch build+push to GHCR |

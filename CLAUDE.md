@@ -17,9 +17,9 @@ HTTP web server with Prometheus metrics written in Go. Serves a simple "Hello, W
 ```bash
 make build          # Build the Go binary
 make test           # Run tests with coverage
-make static-check   # Run all quality + security checks (lint, sec, vulncheck, secrets, trivy-config)
+make static-check   # Run all quality + security checks (lint-ci, lint, sec, vulncheck, secrets, trivy-fs, trivy-config)
 make format         # Auto-format Go source files
-make ci             # Full local CI pipeline (format, deps-prune-check, static-check, test, build)
+make ci             # Full local CI pipeline (deps, format, deps-prune-check, static-check, coverage-check, build)
 make ci-run         # Run GitHub Actions workflow locally via act
 make run            # Run locally on port 8080
 make image-build    # Build Docker image
@@ -35,26 +35,30 @@ make version        # Print current version tag
 
 | Workflow | File | Triggers | Purpose |
 |----------|------|----------|---------|
-| CI | `ci.yml` | push to main, tags `v*`, PRs | Lint, test, build, Docker image (tag-only) |
-| Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual | Delete old workflow runs (retain 7 days, keep 5 minimum) and untagged container images |
-| Claude Code | `claude.yml` | issue/PR comments, PR opens | Interactive Claude agent and automated PR review |
-| Claude CI Fix | `claude-ci-fix.yml` | CI workflow failure on PRs | Auto-analyze and fix CI failures via Claude |
+| CI | `ci.yml` | push to main, tags `v*`, PRs (paths-ignore for docs/images), `workflow_call` | Lint, test, build, Docker image (tag-only) |
+| Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual, `workflow_call` | Delete old workflow runs, stale caches, and untagged container images |
+| Claude Code | `claude.yml` | issue/PR comments, PR review, PR opens/sync/ready, issues opened/assigned, `workflow_call` | Interactive Claude agent and automated PR review |
+| Claude CI Fix | `claude-ci-fix.yml` | `workflow_run` on CI completion (filtered to PR failures) | Auto-analyze and fix CI failures via Claude |
 
 ### CI Jobs
 
-- **static-check**: All quality + security checks (`make static-check`: lint, sec, vulncheck, secrets, trivy-config) on ubuntu-latest
+- **static-check**: All quality + security checks (`make static-check`: lint-ci, lint, sec, vulncheck, secrets, trivy-fs, trivy-config) on ubuntu-latest
 - **build**: Build (`make build`) after static-check passes
-- **test**: Test with coverage (`make coverage-check`) after static-check passes (parallel with build)
+- **test**: Test with coverage threshold (`make coverage-check`) after static-check passes (parallel with build)
 - **build-oci-image**: Docker multi-arch build+push to GHCR (tag-gated, requires build+test to pass)
 
 ## Project Structure
 
 - `main.go` -- Application entry point and HTTP handlers
+- `go.mod` / `go.sum` -- Go module definition and checksums
 - `Makefile` -- Build automation and CI targets
+- `.golangci.yml` -- golangci-lint v2 configuration (linters, formatters, gocritic)
 - `Dockerfile` -- Multi-stage Docker build (with `.dockerignore`)
 - `k8s/golang-web.yaml` -- Kubernetes deployment manifest (with security context)
 - `k8s/kind-config.yaml` -- KinD cluster configuration
 - `k8s/metallb-config.yaml` -- MetalLB IP pool template
+- `.github/workflows/` -- CI, cleanup, Claude, and Claude CI fix workflows
+- `.github/CODEOWNERS` -- Workflow file protection (requires owner review)
 - `.trivyignore` -- Trivy suppression rules for K8s manifest findings
 - `renovate.json` -- Renovate dependency update configuration
 - `version.txt` -- Current release version

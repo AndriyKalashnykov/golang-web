@@ -1,0 +1,5 @@
+# Protect CI/CD workflow files — require owner approval for changes.
+# Prevents automated tools (Claude, bots) from modifying workflows
+# without human review, even when they have contents: write permission.
+/.github/workflows/ @AndriyKalashnykov
+/.github/actions/ @AndriyKalashnykov
