@@ -40,7 +40,6 @@ METALLB_VERSION     := 0.15.3
 KIND_CLUSTER_NAME   := golang-web
 KIND_IMAGE          := $(OPV)
 
-# if not a member of the 'docker' group, add yourself: sudo usermod -aG docker $USER
 DOCKERCMD := docker
 
 BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')

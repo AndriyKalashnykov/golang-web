@@ -9,9 +9,9 @@ HTTP web server running by default on port 8080, intended for testing. Features 
 
 | Component | Technology |
 |-----------|-----------|
-| Language | Go (see `go.mod` for version) |
+| Language | Go 1.26.2+ |
 | HTTP | net/http (standard library) |
-| Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) v1.23+ |
+| Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) v1.23.2 |
 | Container | Docker multi-arch (linux/amd64, linux/arm64) |
 | Orchestration | Kubernetes |
 | CI/CD | GitHub Actions, [Renovate](https://docs.renovatebot.com/) |
@@ -33,7 +33,7 @@ make run       # start the application on port 8080
 |------|---------|---------|
 | [GNU Make](https://www.gnu.org/software/make/) | 3.81+ | Build orchestration |
 | [Git](https://git-scm.com/) | 2.0+ | Version control |
-| [Go](https://go.dev/dl/) | See `go.mod` | Language runtime and compiler |
+| [Go](https://go.dev/dl/) | 1.26.2+ | Language runtime and compiler |
 | [Docker](https://www.docker.com/) | latest | Container image builds |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | latest | Kubernetes deployment (optional) |
 | [KinD](https://kind.sigs.k8s.io/) | 0.31.0 | Local Kubernetes testing (optional, auto-installed by `make deps-kind`) |
