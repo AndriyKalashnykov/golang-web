@@ -31,7 +31,7 @@ SHELLCHECK_VERSION  := 0.11.0
 # renovate: datasource=github-releases depName=aquasecurity/trivy
 TRIVY_VERSION       := 0.69.3
 # renovate: datasource=npm depName=renovate
-RENOVATE_VERSION    := 43.110.5
+RENOVATE_VERSION    := 43.110.12
 # renovate: datasource=github-releases depName=kubernetes-sigs/kind
 KIND_VERSION        := 0.31.0
 # renovate: datasource=github-releases depName=metallb/metallb
