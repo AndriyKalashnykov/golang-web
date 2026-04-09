@@ -7,6 +7,16 @@
 
 HTTP web server running by default on port 8080, intended for testing. Features Prometheus formatted metrics at `/metrics` with key `request_count_promtotal` using [prometheus/client_golang](https://github.com/prometheus/client_golang), and a Kubernetes compatible health check at `/healthz`.
 
+| Component | Technology |
+|-----------|-----------|
+| Language | Go 1.26+ |
+| HTTP | net/http (standard library) |
+| Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) v1.23+ |
+| Container | Docker multi-arch (linux/amd64, linux/arm64) |
+| Orchestration | Kubernetes |
+| CI/CD | GitHub Actions, [Renovate](https://docs.renovatebot.com/) |
+| Code Quality | golangci-lint, gosec, govulncheck, gitleaks |
+
 ## Quick Start
 
 ```bash
@@ -124,6 +134,7 @@ Run `make help` to see all available targets.
 | CI | `ci.yml` | push to main, tags `v*`, PRs | Lint, test, build, Docker image (tag-only) |
 | Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual | Delete old workflow runs and untagged images |
 | Claude Code | `claude.yml` | issue/PR comments, PR opens | Interactive Claude agent and automated PR review |
+| Claude CI Fix | `claude-ci-fix.yml` | CI failure on PRs | Auto-analyze and fix CI failures via Claude |
 
 ### CI Jobs
 
@@ -133,6 +144,15 @@ Run `make help` to see all available targets.
 | **build** | static-check | Build Go binary |
 | **test** | static-check | Test with coverage |
 | **build-oci-image** | build + test (tags only) | Docker multi-arch build+push to GHCR |
+
+### Required Secrets
+
+| Name | Type | Used by | How to obtain |
+|------|------|---------|---------------|
+| `ANTHROPIC_API_KEY` | Secret | claude-interactive, claude-pr-review, claude-ci-fix | [Anthropic Console](https://console.anthropic.com/) — create an API key |
+| `CLAUDE_CONFIG_TOKEN` | Secret | claude-interactive, claude-pr-review, claude-ci-fix | GitHub PAT with `repo` scope to read the private [claude-config](https://github.com/AndriyKalashnykov/claude-config) repo |
+
+Set secrets via **Settings > Secrets and variables > Actions > New repository secret**.
 
 [Renovate](https://docs.renovatebot.com/) keeps dependencies up to date with platform automerge enabled.
 
@@ -161,8 +181,8 @@ docker pull ghcr.io/andriykalashnykov/golang-web:latest
 
 ## References
 
-- https://ashishb.net/tech/docker-101-a-basic-web-server-displaying-hello-world/
-- https://tutorialedge.net/golang/creating-simple-web-server-with-golang/
-- https://blog.gopheracademy.com/advent-2017/kubernetes-ready-service/
-- https://semaphoreci.com/community/tutorials/how-to-deploy-a-go-web-application-with-docker
-- https://prometheus.io/docs/tutorials/instrumenting_http_server_in_go/
+- [Docker 101: A Basic Web Server Displaying Hello World](https://ashishb.net/tech/docker-101-a-basic-web-server-displaying-hello-world/)
+- [Creating a Simple Web Server with Go](https://tutorialedge.net/golang/creating-simple-web-server-with-golang/)
+- [Kubernetes-Ready Service in Go](https://blog.gopheracademy.com/advent-2017/kubernetes-ready-service/)
+- [How to Deploy a Go Web Application with Docker](https://semaphoreci.com/community/tutorials/how-to-deploy-a-go-web-application-with-docker)
+- [Instrumenting an HTTP Server in Go — Prometheus](https://prometheus.io/docs/tutorials/instrumenting_http_server_in_go/)
