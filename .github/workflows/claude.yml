@@ -70,8 +70,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # assignee_trigger: claude  # Uncomment to also trigger when issues are assigned to "claude"
-          claude_args: "--max-turns 50"
-          allowed_tools: "Bash,Edit,Read,Write,Glob,Grep,WebFetch,mcp__github_comment__update_claude_comment"
+          claude_args: "--max-turns 50 --allowedTools Bash,Edit,Read,Write,Glob,Grep,WebFetch,mcp__github_comment__update_claude_comment"
 
   # Automation mode: automatic code review on every non-draft PR open/update.
   # Prompt provided — runs in automation mode with scoped-down permissions (read-only content).
