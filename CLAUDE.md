@@ -89,6 +89,14 @@ make version        # Print current version tag
       happened once: 2.13 renamed `exhaustruct` to `exhaustruct_v5`,
       re-enabling a linter the project had opted out of. Consider an explicit
       `enable:` list, or budget a triage pass per bump.
+- [ ] **Coverage threshold recalibrated 80 -> 75, not earned back.** Go 1.27
+      changed statement counting: identical source and tests measure 84.8% on
+      go1.26.4 and 78.2% on go1.27.1. The same three functions are uncovered
+      under both — `StartWebServer` (blocks in `ListenAndServe`),
+      `handleShutdown` (calls `os.Exit(0)`) and `main`. Covering them needs a
+      testability refactor (extract an `*http.Server` constructor; make the
+      exit path injectable), which was deliberately out of scope for an
+      upgrade PR. Doing that refactor is what lets the threshold go back up.
 - [ ] mise `go:`-backend tools are COMPILED at install time and bind to the
       Go toolchain active then. After a Go bump, reinstall them
       (`mise uninstall`/`mise install`) or they fail with "application built
