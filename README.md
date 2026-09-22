@@ -12,7 +12,7 @@ Reference HTTP service in Go for exercising Kubernetes and observability plumbin
 | Language | Go 1.27.1 (pinned in `.mise.toml`, `go.mod`, `Dockerfile`) |
 | HTTP | net/http (standard library) |
 | Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) v1.24.1 |
-| Container | Docker multi-arch (linux/amd64, linux/arm64) |
+| Container | Multi-arch images (linux/amd64, linux/arm64); built with **podman or Docker** |
 | Orchestration | Kubernetes |
 | CI/CD | GitHub Actions, [Renovate](https://docs.renovatebot.com/) |
 | Toolchain | [mise](https://mise.jdx.dev/) (all tool versions pinned in `.mise.toml`) |
@@ -39,7 +39,7 @@ every linter, every scanner, KinD, act and Node -- is pinned in
 |------|---------|---------|
 | [GNU Make](https://www.gnu.org/software/make/) | 3.81+ | Build orchestration |
 | [Git](https://git-scm.com/) | 2.0+ | Version control |
-| [Docker](https://www.docker.com/) | latest | Container image builds, KinD, local runs |
+| [Podman](https://podman.io/) **or** [Docker](https://www.docker.com/) | latest | Container image builds and local runs. `make deps` installs **podman** if neither is present. |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | latest | Kubernetes deployment (optional) |
 
 ```bash
@@ -50,6 +50,24 @@ make deps
 is absent (no root required), then installs every pinned tool. It works the
 same on **Linux and macOS** (Intel and Apple Silicon) -- mise resolves the
 right binary per OS/arch.
+
+It also checks for a container engine and installs **podman** if neither podman
+nor Docker is present (`apt`/`dnf`/`pacman`/`zypper` on Linux, Homebrew on
+macOS). Podman is the default because it is rootless and needs no daemon;
+Docker is equally supported and is used automatically when it is the engine you
+already have.
+
+| You want | Run |
+|---|---|
+| Whatever is installed (podman preferred) | `make image-build` |
+| Force Docker for one command | `make image-build CONTAINER_ENGINE=docker` |
+| Force Docker for the whole shell | `export CONTAINER_ENGINE=docker` |
+| See which engine was picked | `make deps-engine` |
+
+> The **KinD targets specifically require Docker**. `cloud-provider-kind` is
+> started with `-v /var/run/docker.sock:/var/run/docker.sock`, and rootless
+> podman exposes its socket elsewhere. Everything else -- `image-build`,
+> `image-run-bg`, `diagrams` -- runs on either engine.
 
 On first run it will ask you to activate mise in your shell:
 
@@ -148,8 +166,11 @@ Run `make help` to see all available targets.
 |--------|-------------|
 | `make help` | List available tasks |
 | `make deps` | Install the pinned toolchain via mise (`.mise.toml`) |
+| `make deps-engine` | Ensure a container engine is present (installs podman if neither is) |
 | `make deps-verify` | Verify every pinned tool is on `PATH` |
 | `make check-toolchain-alignment` | Assert the Go version matches across `go.mod`, `Dockerfile` and `.mise.toml` |
+| `make diagrams` | Render `docs/diagrams/*.puml` to PNG |
+| `make diagrams-check` | Verify the committed diagram PNGs match their `.puml` sources |
 
 ### Build & Run
 
@@ -195,7 +216,7 @@ Run `make help` to see all available targets.
 |--------|-------------|
 | `make k8s-apply` | Deploy to Kubernetes cluster |
 | `make k8s-delete` | Delete from Kubernetes cluster |
-| `make deps-kind` | Verify KinD and kubectl are available |
+| `make deps-kind` | Verify KinD, kubectl and a KinD-capable engine (Docker) are available |
 | `make kind-cloud-provider-start` | Start cloud-provider-kind (supplies LoadBalancer IPs to KinD) |
 | `make kind-cloud-provider-stop` | Prune this cluster's `kindccm-*` sidecars (and the controller if unused) |
 | `make kind-create` | Create local KinD cluster with cloud-provider-kind LoadBalancer support |
