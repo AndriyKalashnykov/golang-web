@@ -101,6 +101,11 @@ CONTAINER_ENGINE ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || 
 # Back-compat alias: earlier revisions hardcoded DOCKERCMD.
 DOCKERCMD := $(CONTAINER_ENGINE)
 
+# KIND_ENGINE manages KIND'S OWN containers -- the cloud-provider-kind controller
+# and its kindccm sidecars -- and must match the provider kind itself uses
+# (docker, since KIND_EXPERIMENTAL_PROVIDER is unset). It does NOT dictate which
+# engine BUILDS the image: that stays $(CONTAINER_ENGINE), and kind-create
+# bridges the two stores with `save` + `kind load image-archive` when they differ.
 # The KinD path is pinned to DOCKER and is deliberately NOT $(CONTAINER_ENGINE).
 # deps-kind already states the requirement (cloud-provider-kind mounts
 # /var/run/docker.sock, and `kind load docker-image` reads DOCKER's image store)
@@ -523,9 +528,7 @@ kind-cloud-provider-stop:
 	fi
 
 #kind-create: @ Create local KinD cluster with cloud-provider-kind LoadBalancer support
-kind-create: deps-kind
-	@# Build with the engine `kind load` reads from, not $(CONTAINER_ENGINE).
-	@$(MAKE) --no-print-directory image-build CONTAINER_ENGINE=$(KIND_ENGINE)
+kind-create: deps-kind image-build
 	@if kind get clusters 2>/dev/null | grep -q "^$(KIND_CLUSTER_NAME)$$"; then \
 		echo "KinD cluster '$(KIND_CLUSTER_NAME)' already exists, switching context..."; \
 		kubectl config use-context kind-$(KIND_CLUSTER_NAME); \
@@ -534,8 +537,21 @@ kind-create: deps-kind
 		kind create cluster --config=k8s/kind-config.yaml --name $(KIND_CLUSTER_NAME) --wait 60s; \
 	fi
 	@$(MAKE) --no-print-directory kind-cloud-provider-start
-	@echo "Loading image $(KIND_IMAGE) into cluster..."
-	@kind load docker-image $(KIND_IMAGE) --name $(KIND_CLUSTER_NAME)
+	@echo "Loading image $(KIND_IMAGE) into cluster (built with $(DOCKERCMD))..."
+	@# `kind load docker-image` reads the store of the engine kind is USING
+	@# ($(KIND_ENGINE)). When the image was built by a DIFFERENT engine -- the
+	@# normal case here, since CONTAINER_ENGINE prefers podman -- that store does
+	@# not have it, and the load silently pulls/fails instead of using your build.
+	@# `save` + `image-archive` bridges the two stores and is engine-neutral.
+	@# Measured: a podman-built image lands in the docker-based node this way.
+	@if [ "$(DOCKERCMD)" = "$(KIND_ENGINE)" ]; then \
+		kind load docker-image $(KIND_IMAGE) --name $(KIND_CLUSTER_NAME); \
+	else \
+		archive=$$(mktemp -t kind-image-XXXXXX.tar); \
+		trap 'rm -f "$$archive"' EXIT; \
+		$(DOCKERCMD) save -o "$$archive" $(KIND_IMAGE); \
+		kind load image-archive "$$archive" --name $(KIND_CLUSTER_NAME); \
+	fi
 	@echo "KinD cluster ready (LoadBalancer via cloud-provider-kind)."
 
 #kind-deploy: @ Deploy application to KinD cluster and wait for rollout + routable LB
