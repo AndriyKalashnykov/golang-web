@@ -2,8 +2,15 @@
 
 OWNER := andriykalashnykov
 PROJECT := golang-web
-VERSION := v0.0.1
-OPV := $(OWNER)/$(PROJECT):$(VERSION)
+# version.txt is the single source of truth -- `make release` writes it and
+# tags from it. It was previously duplicated here as a literal and drifted
+# (version.txt said v0.0.3 while this said v0.0.1).
+VERSION := $(shell cat version.txt 2>/dev/null || echo v0.0.1)
+# Registry must match k8s/golang-web.yaml and the CI publish target, or
+# `kind load` puts the image under a name the manifest never requests and the
+# pod goes ImagePullBackOff against a tag that does not exist remotely.
+IMAGE_REGISTRY ?= ghcr.io
+OPV := $(IMAGE_REGISTRY)/$(OWNER)/$(PROJECT):$(VERSION)
 WEBPORT := 8080:8080
 CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 
@@ -236,7 +243,7 @@ image-push:
 
 #k8s-apply: @ Deploy to Kubernetes cluster
 k8s-apply:
-	@sed -e 's/v0.0.1/$(VERSION)/' k8s/golang-web.yaml | kubectl apply -f -
+	@sed -e 's|image: .*/$(PROJECT):.*|image: $(OPV)|' k8s/golang-web.yaml | kubectl apply -f -
 
 #k8s-delete: @ Delete from Kubernetes cluster
 k8s-delete:
@@ -271,18 +278,33 @@ kind-cloud-provider-start: deps-kind
 	fi; \
 	echo "cloud-provider-kind running."
 
-#kind-cloud-provider-stop: @ Stop cloud-provider-kind and prune its kindccm-* sidecars
+#kind-cloud-provider-stop: @ Prune this cluster's kindccm-* sidecars (and the controller if unused)
 kind-cloud-provider-stop:
-	@$(DOCKERCMD) rm -f cloud-provider-kind >/dev/null 2>&1 || true
 	@# cloud-provider-kind spawns a per-Service Envoy sidecar named
 	@# kindccm-<hash>. These SURVIVE `kind delete cluster` and keep holding
 	@# IPs in the kind Docker subnet; a later kind-create can land on an
 	@# orphan's IP and inherit its stale Envoy config (pointed at pods from
 	@# the previous run) -> "connection reset by peer" on the first curl.
-	@ORPHANS=$$($(DOCKERCMD) ps -aq --filter name=kindccm- 2>/dev/null); \
+	@#
+	@# Scope the prune by the cluster LABEL that cloud-provider-kind stamps
+	@# on each sidecar. A bare `--filter name=kindccm-` would also delete the
+	@# sidecars of every OTHER KinD cluster on this host -- this box routinely
+	@# has more than one, and a teardown must remove only what it created.
+	@ORPHANS=$$($(DOCKERCMD) ps -aq \
+		--filter "label=io.x-k8s.cloud-provider-kind.cluster=$(KIND_CLUSTER_NAME)" 2>/dev/null); \
 	if [ -n "$$ORPHANS" ]; then \
-		echo "Removing kindccm-* orphan sidecars..."; \
+		echo "Removing kindccm-* sidecars for cluster '$(KIND_CLUSTER_NAME)'..."; \
 		$(DOCKERCMD) rm -f $$ORPHANS >/dev/null 2>&1 || true; \
+	fi
+	@# The controller is a HOST-WIDE SINGLETON shared by every KinD cluster on
+	@# this machine. Only stop it once no KinD clusters remain, or tearing this
+	@# one down would strip LoadBalancer support from the others.
+	@REMAINING=$$(kind get clusters 2>/dev/null | grep -v "^$(KIND_CLUSTER_NAME)$$" | grep -c . || true); \
+	if [ "$${REMAINING:-0}" -eq 0 ]; then \
+		$(DOCKERCMD) rm -f cloud-provider-kind >/dev/null 2>&1 || true; \
+		echo "No KinD clusters remain; cloud-provider-kind stopped."; \
+	else \
+		echo "$$REMAINING other KinD cluster(s) present; leaving cloud-provider-kind running."; \
 	fi
 
 #kind-create: @ Create local KinD cluster with cloud-provider-kind LoadBalancer support
@@ -302,7 +324,7 @@ kind-create: deps-kind image-build
 #kind-deploy: @ Deploy application to KinD cluster and wait for rollout + routable LB
 kind-deploy: kind-create
 	@echo "Deploying to KinD cluster..."
-	@sed -e 's/v0.0.1/$(VERSION)/' k8s/golang-web.yaml | kubectl apply -f -
+	@sed -e 's|image: .*/$(PROJECT):.*|image: $(OPV)|' k8s/golang-web.yaml | kubectl apply -f -
 	@echo "Waiting for deployment rollout..."
 	@kubectl rollout status deployment/golang-web --timeout=$(ROLLOUT_TIMEOUT)
 	@# Two-phase LoadBalancer readiness. Phase 1 waits for cloud-provider-kind
