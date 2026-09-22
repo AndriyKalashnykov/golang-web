@@ -10,6 +10,14 @@ VERSION := $(shell cat version.txt 2>/dev/null || echo v0.0.1)
 # `kind load` puts the image under a name the manifest never requests and the
 # pod goes ImagePullBackOff against a tag that does not exist remotely.
 IMAGE_REGISTRY ?= ghcr.io
+# Registry credentials are REGISTRY-neutral: this may be GHCR, Harbor, Docker Hub,
+# ECR, Quay... Only the DEFAULT happens to be GHCR. GH_ACCESS_TOKEN / CR_PAT are
+# accepted as fallbacks purely so an already-exported GitHub PAT works out of the
+# box against the default registry -- they are NOT the canonical name.
+# (Contrast `renovate-validate`, which keeps GH_ACCESS_TOKEN deliberately: that
+# credential must be a GitHub token, so the provider belongs in its name.)
+REGISTRY_USERNAME ?= $(OWNER)
+REGISTRY_TOKEN    ?= $(or $(GH_ACCESS_TOKEN),$(CR_PAT))
 OPV := $(IMAGE_REGISTRY)/$(OWNER)/$(PROJECT):$(VERSION)
 WEBPORT := 8080:8080
 CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
@@ -137,6 +145,7 @@ deps-engine:
 	@# is picked up automatically if it is the one already installed.
 	@if [ "$(CONTAINER_ENGINE)" != "none" ]; then \
 		echo "Container engine: $(CONTAINER_ENGINE) ($$($(CONTAINER_ENGINE) --version 2>/dev/null | head -1))"; \
+		$(MAKE) --no-print-directory deps-buildx; \
 		exit 0; \
 	fi; \
 	echo "No container engine found (looked for podman, then docker)."; \
@@ -160,6 +169,47 @@ deps-engine:
 	esac; \
 	command -v podman >/dev/null 2>&1 || { echo "ERROR: podman install did not put podman on PATH."; exit 1; }; \
 	echo "podman installed: $$(podman --version)"
+
+#deps-buildx: @ Verify the engine can run `buildx build` (image-build depends on it)
+deps-buildx:
+	@# `image-build` runs `<engine> buildx build --load`. podman provides buildx via a
+	@# built-in buildah shim, but for DOCKER on Debian/Ubuntu buildx is a SEPARATE
+	@# package (`docker-buildx-plugin`) -- a plain `apt-get install docker.io` yields a
+	@# docker that cannot build this image. Check it here rather than failing mid-build.
+	@$(CONTAINER_ENGINE) buildx version >/dev/null 2>&1 && exit 0; \
+	echo "ERROR: '$(CONTAINER_ENGINE) buildx' is not available -- 'make image-build' cannot run."; \
+	if [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
+		case "$(HOST_OS)" in \
+		  Darwin) echo "  Docker Desktop bundles buildx; update it, or: brew install docker-buildx";; \
+		  Linux)  echo "  Install the plugin:  sudo apt-get install -y docker-buildx-plugin"; \
+		          echo "                  or:  sudo dnf install -y docker-buildx-plugin"; \
+		          echo "  Or switch engines:   make image-build CONTAINER_ENGINE=podman";; \
+		esac; \
+	else \
+		echo "  podman provides buildx via buildah; upgrade podman (>= 4.0)."; \
+	fi; \
+	exit 1
+
+#registry-login: @ Log in to $(IMAGE_REGISTRY) so `make image-push` can publish
+registry-login:
+	@# The token is passed on STDIN, never on the command line -- anything in argv is
+	@# visible to any local user via `ps` / /proc/<pid>/cmdline for the life of the call.
+	@tok="$(REGISTRY_TOKEN)"; \
+	if [ -z "$$tok" ]; then \
+		echo "ERROR: no credential for $(IMAGE_REGISTRY) in the environment."; \
+		echo "    export REGISTRY_TOKEN=<token-or-password>"; \
+		echo "    export REGISTRY_USERNAME=<user>   # optional; defaults to $(OWNER)"; \
+		echo "    make registry-login"; \
+		case "$(IMAGE_REGISTRY)" in \
+		  ghcr.io) echo "  For ghcr.io this is a GitHub PAT with 'write:packages':"; \
+		           echo "  https://github.com/settings/tokens"; \
+		           echo "  (GH_ACCESS_TOKEN / CR_PAT are also accepted for convenience.)";; \
+		  *)       echo "  Use whatever credential $(IMAGE_REGISTRY) issues (Harbor robot"; \
+		           echo "  account, Docker Hub access token, ECR password, ...).";; \
+		esac; \
+		exit 1; \
+	fi; \
+	printf '%s' "$$tok" | $(CONTAINER_ENGINE) login $(IMAGE_REGISTRY) -u "$(REGISTRY_USERNAME)" --password-stdin
 
 #deps-verify: @ Verify every pinned tool is on PATH (fails with a pointer to `make deps`)
 deps-verify: deps
@@ -328,8 +378,15 @@ image-stop:
 	@$(DOCKERCMD) stop $(PROJECT)
 
 #image-push: @ Push image to Docker Hub
-image-push:
-	@$(DOCKERCMD) push $(OPV)
+image-push: image-build
+	@# A bare `push` against an unauthenticated engine fails with `denied` / `unauthorized`
+	@# and no hint about what to do. Say it here instead.
+	@$(CONTAINER_ENGINE) push $(OPV) || { \
+		echo ""; \
+		echo "Push failed. If this was an auth error, log in first:"; \
+		echo "    export REGISTRY_TOKEN=<credential for $(IMAGE_REGISTRY)>"; \
+		echo "    make registry-login"; \
+		exit 1; }
 
 #k8s-apply: @ Deploy to Kubernetes cluster
 k8s-apply:
@@ -578,7 +635,7 @@ deps-prune-check: deps
 	fi; \
 	echo "No prunable dependencies found."
 
-.PHONY: help deps deps-engine deps-verify deps-kind check-toolchain-alignment \
+.PHONY: help deps deps-engine deps-buildx registry-login deps-verify deps-kind check-toolchain-alignment \
 	diagrams diagrams-check \
 	test build lint lint-ci sec vulncheck secrets \
 	trivy-fs trivy-config static-check format run coverage-check \
