@@ -70,14 +70,30 @@ make version        # Print current version tag
 
 ## Upgrade Backlog
 
-- [ ] **Renovate is not running** — the Mend GitHub App has not run since
-      2026-04-08 (Dependency Dashboard frozen, last bot PR #104 on
-      2026-04-03, zero `renovate/*` branches). Every dependency is unmanaged
-      and all `renovate.json` config is inert until it is reinstalled at
-      <https://github.com/apps/renovate> (check the repo's status at
-      developer.mend.io). **This fix is external — it cannot be done from the
-      repo.** Until then, "Renovate will handle it" is false for this repo.
-      Verify recovery: the dashboard's `updatedAt` starts moving again.
+- [x] **Renovate is running again (2026-09-22).** It had been dormant since
+      2026-04-08; the Dependency Dashboard's `updatedAt` started moving again
+      on 2026-09-22 and PRs #121–#123 opened the same day. No repo-side change
+      caused this and none was needed — the entry is kept so the next reader
+      does not re-diagnose a dormancy that has ended.
+- [ ] **`main` has NO branch protection, so automerge does not engage.**
+      `gh api repos/.../branches/main/protection` -> 404 and
+      `gh api repos/.../rulesets` -> 0, while the repo itself has
+      `allow_auto_merge: true`. With no required checks a Renovate PR reaches
+      `mergeStateStatus: CLEAN` immediately, GitHub's native auto-merge never
+      engages (`autoMergeRequest: null` on every PR, measured), and the merge
+      waits for Renovate's own next cycle. It is also the safety gap: automerge
+      is only as safe as the checks it is *required* to wait for. Fix (owner
+      decision — a repo-settings mutation):
+      ```
+      gh api -X PUT repos/AndriyKalashnykov/golang-web/branches/main/protection \
+        -F required_status_checks.strict=true \
+        -f 'required_status_checks.contexts[]=static-check' \
+        -f 'required_status_checks.contexts[]=build' \
+        -f 'required_status_checks.contexts[]=test' \
+        -F enforce_admins=false -F required_pull_request_reviews=null -F restrictions=null
+      ```
+      Do NOT require `docker` — it is tag-gated (`if: startsWith(github.ref,
+      'refs/tags/')`), so it reports `skipping` on every PR and would block them all.
 - [ ] **Claude workflows are DISABLED** (`claude.yml.disabled`,
       `claude-ci-fix.yml.disabled`). GitHub only loads
       `.github/workflows/*.yml`, so the suffix stops them running while
