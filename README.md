@@ -63,6 +63,33 @@ already have.
 | Force Docker for one command | `make image-build CONTAINER_ENGINE=docker` |
 | Force Docker for the whole shell | `export CONTAINER_ENGINE=docker` |
 | See which engine was picked | `make deps-engine` |
+| Log in before pushing an image | `export REGISTRY_TOKEN=<credential>` then `make registry-login` |
+
+`make deps` covers everything needed to **build** an image locally on Linux and
+macOS: it installs an engine if none exists and verifies the engine can actually
+run `buildx build` (on Debian/Ubuntu, Docker's buildx is a separate
+`docker-buildx-plugin` package, so a plain `apt-get install docker.io` produces a
+Docker that cannot build this image).
+
+**Pushing needs one thing `make deps` cannot do for you:** a registry credential.
+
+```bash
+export REGISTRY_TOKEN=<credential>    # piped on stdin at login, never in argv
+make registry-login
+make image-push
+```
+
+| Variable | Default | Notes |
+|---|---|---|
+| `IMAGE_REGISTRY` | `ghcr.io` | Any OCI registry — GHCR, Harbor, Docker Hub, ECR, Quay |
+| `REGISTRY_USERNAME` | the repo owner | Override for registries where the user differs |
+| `REGISTRY_TOKEN` | — | Whatever credential the registry issues |
+
+The credential is whatever `IMAGE_REGISTRY` issues: a GitHub PAT with
+`write:packages` for the `ghcr.io` default, a robot account for Harbor, an access
+token for Docker Hub. `make registry-login` prints the right guidance for the
+registry you have configured. For convenience against the default registry,
+`GH_ACCESS_TOKEN` and `CR_PAT` are accepted as fallbacks for `REGISTRY_TOKEN`.
 
 > The **KinD targets specifically require Docker**. `cloud-provider-kind` is
 > started with `-v /var/run/docker.sock:/var/run/docker.sock`, and rootless
@@ -167,6 +194,7 @@ Run `make help` to see all available targets.
 | `make help` | List available tasks |
 | `make deps` | Install the pinned toolchain via mise (`.mise.toml`) |
 | `make deps-engine` | Ensure a container engine is present (installs podman if neither is) |
+| `make deps-buildx` | Verify the engine can run `buildx build` |
 | `make deps-verify` | Verify every pinned tool is on `PATH` |
 | `make check-toolchain-alignment` | Assert the Go version matches across `go.mod`, `Dockerfile` and `.mise.toml` |
 | `make diagrams` | Render `docs/diagrams/*.puml` to PNG |
@@ -208,7 +236,8 @@ Run `make help` to see all available targets.
 | `make image-cli-bg` | Get shell in running background container |
 | `make image-logs` | Tail container logs |
 | `make image-stop` | Stop background container |
-| `make image-push` | Push image to Docker Hub |
+| `make registry-login` | Log in to the image registry so `image-push` can publish |
+| `make image-push` | Build and push the image to the configured registry |
 
 ### Kubernetes
 
