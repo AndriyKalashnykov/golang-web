@@ -92,9 +92,13 @@ registry you have configured. For convenience against the default registry,
 `GH_ACCESS_TOKEN` and `CR_PAT` are accepted as fallbacks for `REGISTRY_TOKEN`.
 
 > The **KinD targets specifically require Docker**. `cloud-provider-kind` is
-> started with `-v /var/run/docker.sock:/var/run/docker.sock`, and rootless
-> podman exposes its socket elsewhere. Everything else -- `image-build`,
-> `image-run-bg`, `diagrams` -- runs on either engine.
+> started with `-v /var/run/docker.sock:/var/run/docker.sock`, rootless podman
+> exposes its socket elsewhere, and `kind load docker-image` reads Docker's
+> image store. You do **not** need to set anything: those targets pin
+> `KIND_ENGINE` (default `docker`) for both the build and the sidecar
+> management, so `make e2e` works unchanged on a box where podman is the
+> preferred engine. Everything else -- `image-build`, `image-run-bg`,
+> `diagrams` -- still follows `CONTAINER_ENGINE` and runs on either engine.
 
 On first run it will ask you to activate mise in your shell:
 
