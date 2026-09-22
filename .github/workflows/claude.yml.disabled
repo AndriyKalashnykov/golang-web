@@ -1,3 +1,20 @@
+# ============================================================================
+# DISABLED. GitHub Actions only loads `.github/workflows/*.yml`, so the
+# `.disabled` suffix keeps this file in the repo while stopping it running.
+#
+# Re-enable with:
+#     git mv .github/workflows/claude.yml.disabled .github/workflows/claude.yml
+#
+# Why it was disabled: the "Setup Claude config" step checks out the private
+# AndriyKalashnykov/claude-config repo using CLAUDE_CONFIG_TOKEN, which has
+# expired -- every run since 2026-07-01 failed with `Bad credentials`.
+# Regenerate that secret before re-enabling, or this will just fail again:
+#     gh secret set CLAUDE_CONFIG_TOKEN --repo AndriyKalashnykov/golang-web
+# (needs read access to the private claude-config repo: fine-grained PAT with
+# Contents:Read, or a classic PAT with `repo` scope. Prefer a long expiry or a
+# GitHub App token -- a 90-day PAT is what lapsed silently last time.)
+# ============================================================================
+
 name: Claude Code
 
 on:

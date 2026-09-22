@@ -186,8 +186,6 @@ Two details worth knowing if you run more than one KinD cluster:
 |----------|------|----------|---------|
 | CI | `ci.yml` | push to main, tags `v*`, PRs (paths-ignore for docs/images), `workflow_call` | Lint, test, build, Docker image (tag-only) |
 | Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual, `workflow_call` | Delete old workflow runs, stale caches, and untagged images |
-| Claude Code | `claude.yml` | issue/PR comments, PR review, PR opens/sync/ready, issues opened/assigned, `workflow_call` | Interactive Claude agent and automated PR review |
-| Claude CI Fix | `claude-ci-fix.yml` | CI workflow failure on PRs (via `workflow_run`) | Auto-analyze and fix CI failures via Claude |
 
 ### CI Jobs
 

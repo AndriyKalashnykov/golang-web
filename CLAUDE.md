@@ -43,8 +43,6 @@ make version        # Print current version tag
 |----------|------|----------|---------|
 | CI | `ci.yml` | push to main, tags `v*`, PRs (paths-ignore for docs/images), `workflow_call` | Lint, test, build, Docker image (tag-only) |
 | Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual, `workflow_call` | Delete old workflow runs, stale caches, and untagged container images |
-| Claude Code | `claude.yml` | issue/PR comments, PR review, PR opens/sync/ready, issues opened/assigned, `workflow_call` | Interactive Claude agent and automated PR review |
-| Claude CI Fix | `claude-ci-fix.yml` | `workflow_run` on CI completion (filtered to PR failures) | Auto-analyze and fix CI failures via Claude |
 
 ### CI Jobs
 
@@ -63,7 +61,8 @@ make version        # Print current version tag
 - `k8s/golang-web.yaml` -- Kubernetes deployment manifest (with security context)
 - `k8s/kind-config.yaml` -- KinD cluster configuration
 - `.mise.toml` -- **tool version single source of truth** (Renovate-tracked)
-- `.github/workflows/` -- CI, cleanup, Claude, and Claude CI fix workflows
+- `.github/workflows/` -- CI and cleanup. The two Claude workflows are
+  present but `.disabled` (see the Upgrade Backlog for why and how to restore)
 - `.github/CODEOWNERS` -- Workflow file protection (requires owner review)
 - `.trivyignore` -- Trivy suppression rules for K8s manifest findings
 - `renovate.json` -- Renovate dependency update configuration
@@ -79,17 +78,23 @@ make version        # Print current version tag
       developer.mend.io). **This fix is external — it cannot be done from the
       repo.** Until then, "Renovate will handle it" is false for this repo.
       Verify recovery: the dashboard's `updatedAt` starts moving again.
-- [ ] **`CLAUDE_CONFIG_TOKEN` is expired — `claude.yml` fails on every run.**
-      The "Setup Claude config" step checks out the private
-      `AndriyKalashnykov/claude-config` repo and gets `Bad credentials`, so
-      both `claude-pr-review` and `claude-interactive` are dead. The secret
-      exists but was last set 2026-04-09; the failures begin 2026-07-01,
-      consistent with a 90-day PAT expiry. Confirmed pre-existing: 4 of 4
-      runs of that workflow have failed since 2026-07-01, on branches
-      unrelated to any current work. **External fix** — regenerate the PAT
-      (needs `repo` scope to read the private config repo) and update the
-      secret. Consider a longer expiry or a GitHub App token so it stops
-      silently lapsing.
+- [ ] **Claude workflows are DISABLED** (`claude.yml.disabled`,
+      `claude-ci-fix.yml.disabled`). GitHub only loads
+      `.github/workflows/*.yml`, so the suffix stops them running while
+      keeping them in the repo. They were failing on every run since
+      2026-07-01: the "Setup Claude config" step checks out the private
+      `AndriyKalashnykov/claude-config` repo with `CLAUDE_CONFIG_TOKEN`,
+      which has expired (`Bad credentials`; secret last set 2026-04-09,
+      ~90 days before the failures began).
+      To bring them back: regenerate the secret FIRST, then rename back.
+      ```
+      gh secret set CLAUDE_CONFIG_TOKEN --repo AndriyKalashnykov/golang-web
+      git mv .github/workflows/claude.yml.disabled .github/workflows/claude.yml
+      git mv .github/workflows/claude-ci-fix.yml.disabled .github/workflows/claude-ci-fix.yml
+      ```
+      The token needs read access to the private config repo (fine-grained
+      PAT with Contents:Read, or classic PAT with `repo`). Prefer a long
+      expiry or a GitHub App token -- a 90-day PAT is what lapsed silently.
 - [ ] After Renovate is revived, expect a large first batch (automerge +
       `prConcurrentLimit: 50`). Consider lowering the limit for the first run.
 - [ ] `munnerz/goautoneg` — bus factor of 1, no releases, last commit 2019.
