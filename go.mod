@@ -1,6 +1,6 @@
 module github.com/AndriyKalashnykov/golang-web
 
-go 1.26.4
+go 1.26.8
 
 require (
 	github.com/prometheus/client_golang v1.24.1
