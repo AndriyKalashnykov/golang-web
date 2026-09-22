@@ -79,6 +79,17 @@ make version        # Print current version tag
       developer.mend.io). **This fix is external — it cannot be done from the
       repo.** Until then, "Renovate will handle it" is false for this repo.
       Verify recovery: the dashboard's `updatedAt` starts moving again.
+- [ ] **`CLAUDE_CONFIG_TOKEN` is expired — `claude.yml` fails on every run.**
+      The "Setup Claude config" step checks out the private
+      `AndriyKalashnykov/claude-config` repo and gets `Bad credentials`, so
+      both `claude-pr-review` and `claude-interactive` are dead. The secret
+      exists but was last set 2026-04-09; the failures begin 2026-07-01,
+      consistent with a 90-day PAT expiry. Confirmed pre-existing: 4 of 4
+      runs of that workflow have failed since 2026-07-01, on branches
+      unrelated to any current work. **External fix** — regenerate the PAT
+      (needs `repo` scope to read the private config repo) and update the
+      secret. Consider a longer expiry or a GitHub App token so it stops
+      silently lapsing.
 - [ ] After Renovate is revived, expect a large first batch (automerge +
       `prConcurrentLimit: 50`). Consider lowering the limit for the first run.
 - [ ] `munnerz/goautoneg` — bus factor of 1, no releases, last commit 2019.
