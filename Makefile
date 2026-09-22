@@ -11,7 +11,7 @@ CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_VERSION    := 2.11.4
 # renovate: datasource=go depName=golang.org/x/vuln/cmd/govulncheck
-GOVULNCHECK_VERSION := 1.1.4
+GOVULNCHECK_VERSION := 1.8.0
 # renovate: datasource=github-releases depName=securego/gosec
 GOSEC_VERSION       := 2.25.0
 # renovate: datasource=github-releases depName=zricethezav/gitleaks
