@@ -101,6 +101,18 @@ CONTAINER_ENGINE ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || 
 # Back-compat alias: earlier revisions hardcoded DOCKERCMD.
 DOCKERCMD := $(CONTAINER_ENGINE)
 
+# The KinD path is pinned to DOCKER and is deliberately NOT $(CONTAINER_ENGINE).
+# deps-kind already states the requirement (cloud-provider-kind mounts
+# /var/run/docker.sock, and `kind load docker-image` reads DOCKER's image store)
+# -- but it only asserted docker was INSTALLED, which passes on a box that has
+# BOTH engines while every recipe still ran podman. Measured on such a box:
+#   podman ps --filter name=cloud-provider-kind -> 0   docker -> 1
+#   podman image exists <built tag>             -> no  docker -> yes
+# so the image built by $(CONTAINER_ENGINE)=podman is invisible to `kind load`.
+# Pinning the engine for this path makes the code match its own documented
+# contract. Image targets stay dual-engine via $(DOCKERCMD).
+KIND_ENGINE ?= docker
+
 # uname is used only to pick the right podman install command in `deps`.
 HOST_OS := $(shell uname -s)
 
@@ -283,21 +295,64 @@ secrets: deps
 	@gitleaks detect --source . --verbose --redact
 
 #diagrams: @ Render docs/diagrams/*.puml to PNG
+# How to map the invoking user into the plantuml container, per engine.
+# ROOTLESS PODMAN maps `-u <uid>` to a SUBUID, not the host uid, so the container
+# cannot write the host-owned bind mount -- plantuml prints "Cannot write to file"
+# and STILL EXITS 0, so the render silently produces nothing. --userns=keep-id
+# maps the host uid through instead. Measured with the pinned tag:
+#   -u uid:gid      -> "Cannot write to file", rc=0, PNG untouched
+#   --userns=keep-id-> renders, byte-identical to docker's output
+# The plantuml render is pinned to DOCKER, for the same reason the KinD path is.
+# Measured: docker with -u uid:gid renders byte-identically here; rootless podman
+# needs --userns=keep-id locally and STILL fails on the GitHub runner -- run
+# 35798784796 logged "Cannot write to file" with keep-id applied and JAVA_TOOL_OPTIONS
+# picked up, because the runner's podman maps uids differently again. Docker is
+# present on ubuntu-latest and on this box, so pinning removes the variability
+# instead of chasing a third uid-mapping. podman stays the fallback where docker
+# is absent, with the keep-id mapping that does work locally.
+DIAGRAMS_ENGINE ?= $(if $(shell command -v docker 2>/dev/null),docker,$(DOCKERCMD))
+PLANTUML_RUN_FLAGS := $(if $(filter podman,$(DIAGRAMS_ENGINE)),--userns=keep-id,-u "$$(id -u):$$(id -g)")
+
+# The container user has no passwd entry, so OpenJDK resolves user.home to "?"
+# and writes its fontconfig cache into the BIND MOUNT -- littering the repo with
+# docs/diagrams/?/.java/fonts and docs/diagrams/.java/fonts. `-e HOME=/tmp` does
+# NOT fix it: OpenJDK derives user.home from getpwuid(), not $HOME. Only
+# -Duser.home redirects it.
+
 diagrams:
 	@# Pre-create the output dir AS THE INVOKING USER: `docker run -v` creates a
 	@# missing bind-mount source as root, and the next non-root write then fails.
 	@mkdir -p docs/diagrams/out
-	@$(DOCKERCMD) run --rm -u "$$(id -u):$$(id -g)" \
+	@# The marker predates the render, so every expected PNG must end up NEWER
+	@# than it. plantuml exits 0 even when it cannot write, so an exit-code check
+	@# alone cannot catch a silent no-op -- and a no-op makes diagrams-check pass
+	@# VACUOUSLY (nothing rewritten => nothing for `git diff` to see).
+	@marker=$$(mktemp); \
+	$(DIAGRAMS_ENGINE) run --rm $(PLANTUML_RUN_FLAGS) \
+		-e JAVA_TOOL_OPTIONS=-Duser.home=/tmp \
 		-v "$$PWD/docs/diagrams:/data" \
 		plantuml/plantuml:$(PLANTUML_VERSION) \
-		-tpng -o /data/out /data/*.puml
-	@echo "Diagrams rendered to docs/diagrams/out/."
+		-tpng -o /data/out /data/*.puml; \
+	rc=$$?; \
+	if [ $$rc -ne 0 ]; then rm -f "$$marker"; echo "ERROR: plantuml exited $$rc"; exit 1; fi; \
+	for puml in docs/diagrams/*.puml; do \
+		png="docs/diagrams/out/$$(basename "$$puml" .puml).png"; \
+		if [ ! -f "$$png" ]; then rm -f "$$marker"; echo "ERROR: $$png was not produced"; exit 1; fi; \
+		if [ ! "$$png" -nt "$$marker" ]; then \
+			rm -f "$$marker"; \
+			echo "ERROR: $$png was NOT written by this run (engine=$(DIAGRAMS_ENGINE))."; \
+			echo "  plantuml exits 0 even when it cannot write the bind mount."; \
+			exit 1; \
+		fi; \
+	done; \
+	rm -f "$$marker"; \
+	echo "Diagrams rendered to docs/diagrams/out/."
 
 #diagrams-check: @ Verify committed diagram PNGs match their .puml sources
 diagrams-check:
 	@# Drift gate: re-render and diff. A committed PNG that no longer matches its
 	@# source means the README is advertising a stale architecture.
-	@command -v $(DOCKERCMD) >/dev/null 2>&1 || { echo "Skipping diagrams-check: $(DOCKERCMD) not available."; exit 0; }
+	@command -v $(DIAGRAMS_ENGINE) >/dev/null 2>&1 || { echo "Skipping diagrams-check: $(DIAGRAMS_ENGINE) not available."; exit 0; }
 	@grep -q "C4-PlantUML/$(C4_PLANTUML_VERSION)/" docs/diagrams/*.puml || { \
 		echo "ERROR: a .puml !include does not pin C4-PlantUML $(C4_PLANTUML_VERSION)"; \
 		grep -n 'C4-PlantUML' docs/diagrams/*.puml; exit 1; }
@@ -422,18 +477,18 @@ kind-cloud-provider-start: deps-kind
 	@# IPAddressPool/L2Advertisement YAML, and none of MetalLB's nftables
 	@# fragility on recent kindest/node images. Idempotent.
 	@IMAGE="registry.k8s.io/cloud-provider-kind/cloud-controller-manager:v$(CLOUD_PROVIDER_KIND_VERSION)"; \
-	if [ -n "$$($(DOCKERCMD) ps -aq --filter name=^cloud-provider-kind$$)" ]; then \
-		$(DOCKERCMD) start cloud-provider-kind >/dev/null 2>&1 || true; \
+	if [ -n "$$($(KIND_ENGINE) ps -aq --filter name=^cloud-provider-kind$$)" ]; then \
+		$(KIND_ENGINE) start cloud-provider-kind >/dev/null 2>&1 || true; \
 	else \
 		echo "Starting cloud-provider-kind v$(CLOUD_PROVIDER_KIND_VERSION)..."; \
-		$(DOCKERCMD) run -d --name cloud-provider-kind --restart unless-stopped \
+		$(KIND_ENGINE) run -d --name cloud-provider-kind --restart unless-stopped \
 			--network kind \
 			-v /var/run/docker.sock:/var/run/docker.sock \
 			"$$IMAGE" >/dev/null; \
 	fi; \
-	if [ -z "$$($(DOCKERCMD) ps -q --filter name=^cloud-provider-kind$$)" ]; then \
+	if [ -z "$$($(KIND_ENGINE) ps -q --filter name=^cloud-provider-kind$$)" ]; then \
 		echo "ERROR: cloud-provider-kind container failed to start"; \
-		$(DOCKERCMD) logs cloud-provider-kind 2>&1 | tail -20 || true; \
+		$(KIND_ENGINE) logs cloud-provider-kind 2>&1 | tail -20 || true; \
 		exit 1; \
 	fi; \
 	echo "cloud-provider-kind running."
@@ -450,25 +505,27 @@ kind-cloud-provider-stop:
 	@# on each sidecar. A bare `--filter name=kindccm-` would also delete the
 	@# sidecars of every OTHER KinD cluster on this host -- this box routinely
 	@# has more than one, and a teardown must remove only what it created.
-	@ORPHANS=$$($(DOCKERCMD) ps -aq \
+	@ORPHANS=$$($(KIND_ENGINE) ps -aq \
 		--filter "label=io.x-k8s.cloud-provider-kind.cluster=$(KIND_CLUSTER_NAME)" 2>/dev/null); \
 	if [ -n "$$ORPHANS" ]; then \
 		echo "Removing kindccm-* sidecars for cluster '$(KIND_CLUSTER_NAME)'..."; \
-		$(DOCKERCMD) rm -f $$ORPHANS >/dev/null 2>&1 || true; \
+		$(KIND_ENGINE) rm -f $$ORPHANS >/dev/null 2>&1 || true; \
 	fi
 	@# The controller is a HOST-WIDE SINGLETON shared by every KinD cluster on
 	@# this machine. Only stop it once no KinD clusters remain, or tearing this
 	@# one down would strip LoadBalancer support from the others.
 	@REMAINING=$$(kind get clusters 2>/dev/null | grep -v "^$(KIND_CLUSTER_NAME)$$" | grep -c . || true); \
 	if [ "$${REMAINING:-0}" -eq 0 ]; then \
-		$(DOCKERCMD) rm -f cloud-provider-kind >/dev/null 2>&1 || true; \
+		$(KIND_ENGINE) rm -f cloud-provider-kind >/dev/null 2>&1 || true; \
 		echo "No KinD clusters remain; cloud-provider-kind stopped."; \
 	else \
 		echo "$$REMAINING other KinD cluster(s) present; leaving cloud-provider-kind running."; \
 	fi
 
 #kind-create: @ Create local KinD cluster with cloud-provider-kind LoadBalancer support
-kind-create: deps-kind image-build
+kind-create: deps-kind
+	@# Build with the engine `kind load` reads from, not $(CONTAINER_ENGINE).
+	@$(MAKE) --no-print-directory image-build CONTAINER_ENGINE=$(KIND_ENGINE)
 	@if kind get clusters 2>/dev/null | grep -q "^$(KIND_CLUSTER_NAME)$$"; then \
 		echo "KinD cluster '$(KIND_CLUSTER_NAME)' already exists, switching context..."; \
 		kubectl config use-context kind-$(KIND_CLUSTER_NAME); \
