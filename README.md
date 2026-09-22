@@ -9,13 +9,15 @@ HTTP web server running by default on port 8080, intended for testing. Features 
 
 | Component | Technology |
 |-----------|-----------|
-| Language | Go 1.26.2+ |
+| Language | Go 1.27.1 (pinned in `.mise.toml`, `go.mod`, `Dockerfile`) |
 | HTTP | net/http (standard library) |
-| Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) v1.23.2 |
+| Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) v1.24.1 |
 | Container | Docker multi-arch (linux/amd64, linux/arm64) |
 | Orchestration | Kubernetes |
 | CI/CD | GitHub Actions, [Renovate](https://docs.renovatebot.com/) |
-| Code Quality | golangci-lint, gosec, govulncheck, gitleaks, Trivy |
+| Toolchain | [mise](https://mise.jdx.dev/) (all tool versions pinned in `.mise.toml`) |
+| Local Kubernetes | KinD + [cloud-provider-kind](https://github.com/kubernetes-sigs/cloud-provider-kind) |
+| Code Quality | golangci-lint, gosec, govulncheck, gitleaks, Trivy, hadolint, actionlint, shellcheck |
 
 ## Quick Start
 
@@ -29,21 +31,51 @@ make run       # start the application on port 8080
 
 ## Prerequisites
 
+Only three things must be installed by hand. Everything else -- Go itself,
+every linter, every scanner, KinD, act and Node -- is pinned in
+[`.mise.toml`](.mise.toml) and installed by `make deps`.
+
 | Tool | Version | Purpose |
 |------|---------|---------|
 | [GNU Make](https://www.gnu.org/software/make/) | 3.81+ | Build orchestration |
 | [Git](https://git-scm.com/) | 2.0+ | Version control |
-| [Go](https://go.dev/dl/) | 1.26.2+ | Language runtime and compiler |
-| [Docker](https://www.docker.com/) | latest | Container image builds |
+| [Docker](https://www.docker.com/) | latest | Container image builds, KinD, local runs |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | latest | Kubernetes deployment (optional) |
-| [KinD](https://kind.sigs.k8s.io/) | 0.31.0 | Local Kubernetes testing (optional, auto-installed by `make deps-kind`) |
-| [Trivy](https://trivy.dev/) | 0.69.3 | K8s manifest security scanning (auto-installed by `make deps-trivy`) |
-
-Install all required dependencies:
 
 ```bash
 make deps
 ```
+
+`make deps` bootstraps [mise](https://mise.jdx.dev/) into `~/.local/bin` if it
+is absent (no root required), then installs every pinned tool. It works the
+same on **Linux and macOS** (Intel and Apple Silicon) -- mise resolves the
+right binary per OS/arch.
+
+On first run it will ask you to activate mise in your shell:
+
+```bash
+echo 'eval "$(mise activate bash)"' >> ~/.bashrc   # or the zsh equivalent
+```
+
+The Makefile also puts mise's shim directory on `PATH` for every recipe, so
+`make` targets work even without shell activation.
+
+> **Why mise rather than `go install`?** The previous `deps` guarded each tool
+> with `command -v <tool> || go install ...`, which short-circuits whenever any
+> build of the tool is already on `PATH` -- so the pinned version was never
+> actually installed and local tools silently drifted from the pins. `mise
+> install` is idempotent and always converges on the pinned version.
+
+Tool versions live in exactly one place:
+
+| Pinned in | What |
+|---|---|
+| [`.mise.toml`](.mise.toml) | Go, Node, golangci-lint, gosec, gitleaks, actionlint, shellcheck, hadolint, trivy, govulncheck, kind, act |
+| `Makefile` | cloud-provider-kind (an image tag) and the Renovate CLI (run via `npx`) |
+| `version.txt` | the release version, which `make release` writes and `VERSION` reads |
+
+`make check-toolchain-alignment` (part of `make static-check`) fails the build
+if the Go version in `go.mod`, `Dockerfile` and `.mise.toml` ever disagree.
 
 ## Available Make Targets
 
@@ -54,11 +86,9 @@ Run `make help` to see all available targets.
 | Target | Description |
 |--------|-------------|
 | `make help` | List available tasks |
-| `make deps` | Check and install required dependencies |
-| `make deps-act` | Install act for local CI runs |
-| `make deps-hadolint` | Install hadolint for Dockerfile linting |
-| `make deps-shellcheck` | Install shellcheck for shell script linting |
-| `make deps-trivy` | Install Trivy for security scanning |
+| `make deps` | Install the pinned toolchain via mise (`.mise.toml`) |
+| `make deps-verify` | Verify every pinned tool is on `PATH` |
+| `make check-toolchain-alignment` | Assert the Go version matches across `go.mod`, `Dockerfile` and `.mise.toml` |
 
 ### Build & Run
 
@@ -104,12 +134,31 @@ Run `make help` to see all available targets.
 |--------|-------------|
 | `make k8s-apply` | Deploy to Kubernetes cluster |
 | `make k8s-delete` | Delete from Kubernetes cluster |
-| `make deps-kind` | Install KinD for local Kubernetes testing |
-| `make kind-create` | Create local KinD cluster with MetalLB |
-| `make kind-deploy` | Deploy application to KinD cluster and wait for rollout |
+| `make deps-kind` | Verify KinD and kubectl are available |
+| `make kind-cloud-provider-start` | Start cloud-provider-kind (supplies LoadBalancer IPs to KinD) |
+| `make kind-cloud-provider-stop` | Prune this cluster's `kindccm-*` sidecars (and the controller if unused) |
+| `make kind-create` | Create local KinD cluster with cloud-provider-kind LoadBalancer support |
+| `make kind-deploy` | Deploy to KinD and wait for rollout **and** a routable LoadBalancer |
 | `make kind-undeploy` | Remove application from KinD cluster |
-| `make kind-delete` | Delete KinD cluster |
+| `make kind-delete` | Delete KinD cluster and prune this cluster's sidecars |
 | `make e2e` | Run end-to-end tests against KinD cluster |
+
+LoadBalancer Services in the local cluster are served by
+[cloud-provider-kind](https://github.com/kubernetes-sigs/cloud-provider-kind),
+which runs on the host, watches the `kind` Docker network and allocates IPs
+from its subnet. There is no in-cluster controller and no IP pool to
+configure. (This replaced MetalLB, which needs an `IPAddressPool` /
+`L2Advertisement` and hits nftables issues on recent `kindest/node` images.)
+
+Two details worth knowing if you run more than one KinD cluster:
+
+- cloud-provider-kind spawns a per-Service Envoy sidecar named `kindccm-*`.
+  These **survive `kind delete cluster`** and keep holding IPs in the kind
+  subnet, so a later `kind-create` can inherit a stale one and get
+  "connection reset by peer". `make kind-delete` prunes them — filtered by
+  this cluster's label, so other clusters' sidecars are left alone.
+- The controller itself is a host-wide singleton shared by every KinD
+  cluster, so it is only stopped once no KinD clusters remain.
 
 ### CI
 
@@ -126,7 +175,7 @@ Run `make help` to see all available targets.
 | `make version` | Print current version (tag) |
 | `make deps-prune` | Remove unused dependencies |
 | `make deps-prune-check` | Verify no prunable dependencies (CI gate) |
-| `make renovate-bootstrap` | Install nvm and Node.js for Renovate |
+| `make renovate-bootstrap` | Verify Node (installed via mise) is available for `npx renovate` |
 | `make renovate-validate` | Validate Renovate configuration |
 
 ## CI/CD

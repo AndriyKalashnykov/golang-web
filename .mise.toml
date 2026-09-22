@@ -1,0 +1,33 @@
+# mise tool pins -- the single source of truth for local dev AND CI.
+#
+# Renovate has first-class `mise` manager support, so every pin below is
+# tracked automatically. Do NOT add inline `# renovate:` comments here:
+# that would invite a duplicate custom.regex customManager and
+# cross-manager drift (the Makefile constants these replaced are gone).
+#
+# `go` is ALSO declared in go.mod (`go X.Y.Z`) and in the Dockerfile
+# builder stage. All three MUST agree -- `make check-toolchain-alignment`
+# is the gate that enforces it.
+
+[tools]
+# === Language toolchains ===
+go = "1.27.1"
+# Node exists solely to run `npx renovate` (make renovate). The Renovate
+# CLI requires Node >= 24; a renovate.json rule holds this on major 24.
+node = "24"
+
+# === Linters / quality gates ===
+"aqua:golangci/golangci-lint" = "2.13.2"
+"aqua:rhysd/actionlint"       = "1.7.12"
+"aqua:koalaman/shellcheck"    = "0.11.0"
+"aqua:hadolint/hadolint"      = "2.15.1"
+
+# === Security scanners ===
+"aqua:securego/gosec"         = "2.29.0"
+"aqua:gitleaks/gitleaks"      = "8.30.1"
+"aqua:aquasecurity/trivy"     = "0.74.0"
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.8.0"
+
+# === Local Kubernetes / CI ===
+"aqua:kubernetes-sigs/kind"   = "0.33.0"
+"aqua:nektos/act"             = "0.2.89"

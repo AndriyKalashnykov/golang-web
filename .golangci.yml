@@ -10,6 +10,14 @@ linters:
     # Too noisy / opinionated for this project size
     - varnamelen        # Short var names are fine in a small codebase
     - wsl_v5            # Overly opinionated whitespace rules
+    - exhaustruct_v5    # Successor name for `exhaustruct` (already disabled
+                        # below). golangci-lint 2.13 ships it under the new
+                        # name, and `linters.default: all` therefore
+                        # re-enabled a linter this project had already opted
+                        # out of. Same rationale: for third-party option
+                        # structs (prometheus.CounterOpts, dto.Metric) the
+                        # zero value IS the intended config, so satisfying it
+                        # means padding literals with explicit empty fields.
     - nlreturn          # Blank-line-before-return is stylistic noise
     - exhaustruct       # Not all struct fields need explicit init
     - gochecknoglobals  # messageTo, Version, BuildTime are valid globals
