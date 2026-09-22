@@ -6,25 +6,31 @@ HTTP web server with Prometheus metrics written in Go. Serves a simple "Hello, W
 
 ## Tech Stack
 
-- **Language**: Go (version from `go.mod`)
+- **Language**: Go — pinned in THREE places that must agree (`go.mod`,
+  `Dockerfile`, `.mise.toml`); `make check-toolchain-alignment` enforces it
 - **Framework**: `net/http` (standard library) + `prometheus/client_golang`
 - **Container**: Docker multi-arch (`linux/amd64`, `linux/arm64`)
+- **Toolchain**: [mise](https://mise.jdx.dev/) — every tool version lives in
+  `.mise.toml`; `make deps` installs them. Works on Linux and macOS.
+- **Local Kubernetes**: KinD + cloud-provider-kind (host-side LoadBalancer
+  controller; no in-cluster MetalLB DaemonSet)
 - **CI/CD**: GitHub Actions
 - **Dependency Management**: Go modules, Renovate
 
 ## Build & Development
 
 ```bash
+make deps           # Install the pinned toolchain via mise (.mise.toml)
 make build          # Build the Go binary
 make test           # Run tests with coverage
-make static-check   # Run all quality + security checks (lint-ci, lint, sec, vulncheck, secrets, trivy-fs, trivy-config)
+make static-check   # All quality + security checks (check-toolchain-alignment, lint-ci, lint, sec, vulncheck, secrets, trivy-fs, trivy-config)
 make format         # Auto-format Go source files
-make ci             # Full local CI pipeline (deps, format, deps-prune-check, static-check, coverage-check, build)
+make ci             # Full local CI pipeline (deps, deps-verify, format, deps-prune-check, static-check, coverage-check, build)
 make ci-run         # Run GitHub Actions workflow locally via act
 make run            # Run locally on port 8080
 make image-build    # Build Docker image
-make e2e            # Run e2e tests (KinD + MetalLB + curl checks)
-make kind-delete    # Clean up KinD cluster
+make e2e            # Run e2e tests (KinD + cloud-provider-kind + curl checks)
+make kind-delete    # Clean up KinD cluster (prunes this cluster's sidecars only)
 make release        # Create and push a new semver tag
 make version        # Print current version tag
 ```
@@ -56,7 +62,7 @@ make version        # Print current version tag
 - `Dockerfile` -- Multi-stage Docker build (with `.dockerignore`)
 - `k8s/golang-web.yaml` -- Kubernetes deployment manifest (with security context)
 - `k8s/kind-config.yaml` -- KinD cluster configuration
-- `k8s/metallb-config.yaml` -- MetalLB IP pool template
+- `.mise.toml` -- **tool version single source of truth** (Renovate-tracked)
 - `.github/workflows/` -- CI, cleanup, Claude, and Claude CI fix workflows
 - `.github/CODEOWNERS` -- Workflow file protection (requires owner review)
 - `.trivyignore` -- Trivy suppression rules for K8s manifest findings
@@ -65,8 +71,28 @@ make version        # Print current version tag
 
 ## Upgrade Backlog
 
-- [ ] `munnerz/goautoneg` — bus factor of 1, no releases, last commit 2019. Monitor for a maintained fork if prometheus/common drops it.
-- [ ] Run `go get -u ./... && go mod tidy` periodically to keep indirect deps fresh — Renovate handles direct deps but indirect-only bumps may lag.
+- [ ] **Renovate is not running** — the Mend GitHub App has not run since
+      2026-04-08 (Dependency Dashboard frozen, last bot PR #104 on
+      2026-04-03, zero `renovate/*` branches). Every dependency is unmanaged
+      and all `renovate.json` config is inert until it is reinstalled at
+      <https://github.com/apps/renovate> (check the repo's status at
+      developer.mend.io). **This fix is external — it cannot be done from the
+      repo.** Until then, "Renovate will handle it" is false for this repo.
+      Verify recovery: the dashboard's `updatedAt` starts moving again.
+- [ ] After Renovate is revived, expect a large first batch (automerge +
+      `prConcurrentLimit: 50`). Consider lowering the limit for the first run.
+- [ ] `munnerz/goautoneg` — bus factor of 1, no releases, last commit 2019.
+      Transitive via `prometheus/common`; nothing actionable here. Monitor for
+      a maintained fork if prometheus/common drops it.
+- [ ] `linters.default: all` in `.golangci.yml` means every golangci-lint
+      bump can auto-enable new linters and fail unchanged code. This already
+      happened once: 2.13 renamed `exhaustruct` to `exhaustruct_v5`,
+      re-enabling a linter the project had opted out of. Consider an explicit
+      `enable:` list, or budget a triage pass per bump.
+- [ ] mise `go:`-backend tools are COMPILED at install time and bind to the
+      Go toolchain active then. After a Go bump, reinstall them
+      (`mise uninstall`/`mise install`) or they fail with "application built
+      with go1.<old>". Only `govulncheck` is affected today.
 
 ## Skills
 
