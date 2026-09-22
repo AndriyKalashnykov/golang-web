@@ -7,35 +7,50 @@ OPV := $(OWNER)/$(PROJECT):$(VERSION)
 WEBPORT := 8080:8080
 CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 
-# === Tool Versions (pinned) ===
-# renovate: datasource=github-releases depName=golangci/golangci-lint
-GOLANGCI_VERSION    := 2.11.4
-# renovate: datasource=go depName=golang.org/x/vuln/cmd/govulncheck
-GOVULNCHECK_VERSION := 1.8.0
-# renovate: datasource=github-releases depName=securego/gosec
-GOSEC_VERSION       := 2.25.0
-# renovate: datasource=github-releases depName=zricethezav/gitleaks
-GITLEAKS_VERSION    := 8.30.1
-# renovate: datasource=github-releases depName=rhysd/actionlint
-ACTIONLINT_VERSION  := 1.7.12
-# renovate: datasource=github-releases depName=nektos/act
-ACT_VERSION         := 0.2.87
-# renovate: datasource=github-releases depName=nvm-sh/nvm
-NVM_VERSION         := 0.40.4
-# NODE_VERSION tracks major only — pinned manually (Renovate cannot track major-only values)
-NODE_VERSION        := 24
-# renovate: datasource=github-releases depName=hadolint/hadolint
-HADOLINT_VERSION    := 2.14.0
-# renovate: datasource=github-releases depName=koalaman/shellcheck
-SHELLCHECK_VERSION  := 0.11.0
-# renovate: datasource=github-releases depName=aquasecurity/trivy
-TRIVY_VERSION       := 0.69.3
+# === Tool Versions ===
+# Tool versions live in .mise.toml (single source of truth, Renovate-tracked
+# via its native `mise` manager). `make deps` installs them all, at the pinned
+# version, on Linux and macOS alike. Only versions mise cannot own stay here.
+#
+# cloud-provider-kind is consumed ONLY as a container-image tag (see
+# kind-cloud-provider-start). Track the REGISTRY (datasource=docker), NOT
+# github-releases: registry.k8s.io is fed by the k8s image-promotion pipeline,
+# which lags the upstream GitHub release by hours-to-days. A github-releases
+# datasource would propose a tag the moment the release is cut -- before the
+# image is promoted -- so `docker run` 404s with `manifest unknown`. The docker
+# datasource can only ever propose a tag that is actually published.
+#
+# NOTE: each `# renovate:` line must be IMMEDIATELY followed by its variable --
+# the customManager matchString in renovate.json anchors on `\n` with no blank
+# or comment line between. Do not insert commentary in that gap.
+# renovate: datasource=docker depName=registry.k8s.io/cloud-provider-kind/cloud-controller-manager extractVersion=^v(?<version>.*)$
+CLOUD_PROVIDER_KIND_VERSION := 0.11.1
+# Renovate CLI, run via `npx renovate@$(RENOVATE_VERSION)`; not a mise tool.
 # renovate: datasource=npm depName=renovate
 RENOVATE_VERSION    := 43.110.12
-# renovate: datasource=github-releases depName=kubernetes-sigs/kind
-KIND_VERSION        := 0.31.0
-# renovate: datasource=github-releases depName=metallb/metallb
-METALLB_VERSION     := 0.15.3
+
+# Ensure mise-managed binaries are on PATH for every recipe, regardless of
+# whether the invoking shell has `mise activate` wired up (and inside the act
+# runner container, where it is not).
+#
+# ORDER IS LOAD-BEARING: the mise shims dir must come FIRST, ahead of
+# ~/.local/bin and ~/go/bin. Those hold ad-hoc `go install` / manual binaries
+# from before this repo used mise, and a stale one there will shadow the
+# pinned version -- which is exactly the drift `make deps` now exists to end.
+# (Measured: a leftover ~/.local/bin/golangci-lint 2.11.4 built with go1.26
+# shadowed the pinned 2.13.2 and failed `make lint` with "the Go language
+# version (go1.26) used to build golangci-lint is lower than the targeted
+# Go version".)
+export PATH := $(HOME)/.local/share/mise/shims:$(HOME)/.local/bin:$(PATH)
+
+# === Tunables (override on the command line or via the environment) ===
+APP_PORT           ?= 8080
+ROLLOUT_TIMEOUT    ?= 120s
+LB_WAIT_TIMEOUT    ?= 120s
+LB_ROUTE_RETRIES   ?= 60
+LB_POLL_INTERVAL   ?= 2
+CURL_MAX_TIME      ?= 3
+COVERAGE_THRESHOLD ?= 80
 
 KIND_CLUSTER_NAME   := golang-web
 KIND_IMAGE          := $(OPV)
@@ -52,55 +67,69 @@ help:
 	@echo "Commands :"
 	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-22s\033[0m - %s\n", $$1, $$2}'
 
-#deps: @ Check and install required dependencies
+#deps: @ Install the pinned toolchain via mise (.mise.toml)
 deps:
-	@command -v go >/dev/null 2>&1 || { echo "Error: Go required. See https://go.dev/doc/install"; exit 1; }
+	@# mise owns every tool version. This replaces the old
+	@# `command -v <tool> >/dev/null || go install ...@$(VERSION)` guards,
+	@# which SHORT-CIRCUITED whenever any version of the tool was already on
+	@# PATH -- so the pinned version was never actually installed and local
+	@# tools silently drifted from the pins. `mise install` is idempotent and
+	@# always converges on the pinned version, on Linux and macOS alike.
 	@command -v docker >/dev/null 2>&1 || { echo "Error: Docker required. See https://docs.docker.com/get-docker/"; exit 1; }
-	@command -v golangci-lint >/dev/null 2>&1 || { echo "Installing golangci-lint $(GOLANGCI_VERSION)..."; \
-		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_VERSION); }
-	@command -v govulncheck >/dev/null 2>&1 || { echo "Installing govulncheck $(GOVULNCHECK_VERSION)..."; \
-		go install golang.org/x/vuln/cmd/govulncheck@v$(GOVULNCHECK_VERSION); }
-	@command -v gosec >/dev/null 2>&1 || { echo "Installing gosec $(GOSEC_VERSION)..."; \
-		go install github.com/securego/gosec/v2/cmd/gosec@v$(GOSEC_VERSION); }
-	@command -v gitleaks >/dev/null 2>&1 || { echo "Installing gitleaks $(GITLEAKS_VERSION)..."; \
-		go install github.com/zricethezav/gitleaks/v8@v$(GITLEAKS_VERSION); }
-	@command -v actionlint >/dev/null 2>&1 || { echo "Installing actionlint $(ACTIONLINT_VERSION)..."; \
-		go install github.com/rhysd/actionlint/cmd/actionlint@v$(ACTIONLINT_VERSION); }
+	@if ! command -v mise >/dev/null 2>&1; then \
+		if [ -n "$$CI" ]; then \
+			echo "Error: mise not installed in CI. Ensure jdx/mise-action runs before 'make deps'."; \
+			exit 1; \
+		fi; \
+		echo "Installing mise (no root; installs to ~/.local/bin)..."; \
+		curl -fsSL https://mise.run | sh; \
+		echo ""; \
+		echo "mise installed. Activate it in your shell (one-time setup):"; \
+		echo "  echo 'eval \"\$$(mise activate bash)\"' >> ~/.bashrc   # or the zsh equivalent"; \
+		echo "Then re-run 'make deps'."; \
+		exit 0; \
+	fi
+	@mise install --yes
 
-#deps-act: @ Install act for local CI runs
-deps-act: deps
-	@command -v act >/dev/null 2>&1 || { echo "Installing act $(ACT_VERSION)..."; \
-		curl -sSfL https://raw.githubusercontent.com/nektos/act/master/install.sh | bash -s -- -b "$$(go env GOPATH)/bin" v$(ACT_VERSION); \
-	}
+#deps-verify: @ Verify every pinned tool is on PATH (fails with a pointer to `make deps`)
+deps-verify: deps
+	@missing=""; \
+	for t in go golangci-lint gosec gitleaks actionlint shellcheck hadolint trivy govulncheck; do \
+		command -v "$$t" >/dev/null 2>&1 || missing="$$missing $$t"; \
+	done; \
+	if [ -n "$$missing" ]; then \
+		echo "Error: not on PATH:$$missing"; \
+		echo "Run 'make deps', and ensure mise is activated in your shell:"; \
+		echo "  eval \"\$$(mise activate bash)\"   # or the zsh equivalent"; \
+		exit 1; \
+	fi; \
+	echo "All pinned tools present."
 
-#deps-shellcheck: @ Install shellcheck for shell script linting
-deps-shellcheck:
-	@command -v shellcheck >/dev/null 2>&1 || { echo "Installing shellcheck $(SHELLCHECK_VERSION)..."; \
-		curl -sSfL -o /tmp/shellcheck.tar.xz https://github.com/koalaman/shellcheck/releases/download/v$(SHELLCHECK_VERSION)/shellcheck-v$(SHELLCHECK_VERSION).linux.x86_64.tar.xz && \
-		tar -xJf /tmp/shellcheck.tar.xz -C /tmp && \
-		install -m 755 /tmp/shellcheck-v$(SHELLCHECK_VERSION)/shellcheck "$$(go env GOPATH)/bin/shellcheck" && \
-		rm -rf /tmp/shellcheck-v$(SHELLCHECK_VERSION) /tmp/shellcheck.tar.xz; \
-	}
-
-#deps-hadolint: @ Install hadolint for Dockerfile linting
-deps-hadolint:
-	@command -v hadolint >/dev/null 2>&1 || { echo "Installing hadolint $(HADOLINT_VERSION)..."; \
-		curl -sSfL -o /tmp/hadolint https://github.com/hadolint/hadolint/releases/download/v$(HADOLINT_VERSION)/hadolint-Linux-x86_64 && \
-		install -m 755 /tmp/hadolint "$$(go env GOPATH)/bin/hadolint" && \
-		rm -f /tmp/hadolint; \
-	}
-
-#deps-trivy: @ Install Trivy for security scanning
-deps-trivy:
-	@command -v trivy >/dev/null 2>&1 || { echo "Installing trivy $(TRIVY_VERSION)..."; \
-		curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b $$(go env GOPATH)/bin v$(TRIVY_VERSION); }
+#check-toolchain-alignment: @ Verify the Go version agrees across go.mod, Dockerfile and .mise.toml
+check-toolchain-alignment:
+	@gomod=$$(grep -oE '^go [0-9]+\.[0-9]+(\.[0-9]+)?' go.mod | awk '{print $$2}'); \
+	docker=$$(grep -oE '^FROM golang:[0-9]+\.[0-9]+(\.[0-9]+)?' Dockerfile | head -1 | sed 's/^FROM golang://'); \
+	misev=$$(grep -oE '^go = "[0-9]+\.[0-9]+(\.[0-9]+)?"' .mise.toml | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?'); \
+	if [ -z "$$gomod" ] || [ -z "$$docker" ] || [ -z "$$misev" ]; then \
+		echo "ERROR: could not parse a Go version (go.mod='$$gomod' Dockerfile='$$docker' .mise.toml='$$misev')"; \
+		exit 1; \
+	fi; \
+	if [ "$$gomod" != "$$docker" ] || [ "$$gomod" != "$$misev" ]; then \
+		echo "ERROR: Go toolchain versions disagree:"; \
+		echo "  go.mod       $$gomod"; \
+		echo "  Dockerfile   $$docker"; \
+		echo "  .mise.toml   $$misev"; \
+		echo "All three must match; bump them together."; \
+		exit 1; \
+	fi; \
+	echo "Go toolchain aligned at $$gomod (go.mod, Dockerfile, .mise.toml)."
 
 #trivy-fs: @ Scan filesystem for vulnerabilities, secrets, and misconfigurations
-trivy-fs: deps-trivy
+trivy-fs: deps
 	@trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH .
 
 #trivy-config: @ Scan K8s manifests for security misconfigurations
-trivy-config: deps-trivy
+trivy-config: deps
 	@trivy config k8s/
 
 #test: @ Run tests with coverage
@@ -113,12 +142,12 @@ build: deps
 	@CGO_ENABLED=0 go build -ldflags "-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME}" -a -o manager main.go
 
 #lint: @ Run static analysis
-lint: deps deps-hadolint
+lint: deps
 	@golangci-lint run ./...
 	@hadolint Dockerfile
 
 #lint-ci: @ Lint GitHub Actions workflows
-lint-ci: deps deps-shellcheck
+lint-ci: deps
 	@actionlint
 
 #sec: @ Run security scanner
@@ -134,7 +163,7 @@ secrets: deps
 	@gitleaks detect --source . --verbose --redact
 
 #static-check: @ Run all quality and security checks
-static-check: lint-ci lint sec vulncheck secrets trivy-fs trivy-config
+static-check: check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config
 	@echo "Static check passed."
 
 #format: @ Auto-format Go source files
@@ -213,13 +242,50 @@ k8s-apply:
 k8s-delete:
 	@kubectl delete -f k8s/golang-web.yaml --ignore-not-found=true
 
-#deps-kind: @ Install KinD for local Kubernetes testing
+#deps-kind: @ Verify KinD and kubectl are available
 deps-kind: deps
-	@command -v kind >/dev/null 2>&1 || { echo "Installing kind $(KIND_VERSION)..."; \
-		go install sigs.k8s.io/kind@v$(KIND_VERSION); }
+	@command -v kind >/dev/null 2>&1 || { echo "Error: kind not found. Run 'make deps' (installs via .mise.toml)."; exit 1; }
 	@command -v kubectl >/dev/null 2>&1 || { echo "Error: kubectl required. See https://kubernetes.io/docs/tasks/tools/"; exit 1; }
 
-#kind-create: @ Create local KinD cluster with MetalLB
+#kind-cloud-provider-start: @ Start cloud-provider-kind (supplies LoadBalancer IPs to KinD)
+kind-cloud-provider-start: deps-kind
+	@# cloud-provider-kind runs on the HOST (not in the cluster), watches
+	@# type=LoadBalancer Services on the `kind` Docker network, and allocates
+	@# IPs from that network's subnet. No in-cluster DaemonSet, no
+	@# IPAddressPool/L2Advertisement YAML, and none of MetalLB's nftables
+	@# fragility on recent kindest/node images. Idempotent.
+	@IMAGE="registry.k8s.io/cloud-provider-kind/cloud-controller-manager:v$(CLOUD_PROVIDER_KIND_VERSION)"; \
+	if [ -n "$$($(DOCKERCMD) ps -aq --filter name=^cloud-provider-kind$$)" ]; then \
+		$(DOCKERCMD) start cloud-provider-kind >/dev/null 2>&1 || true; \
+	else \
+		echo "Starting cloud-provider-kind v$(CLOUD_PROVIDER_KIND_VERSION)..."; \
+		$(DOCKERCMD) run -d --name cloud-provider-kind --restart unless-stopped \
+			--network kind \
+			-v /var/run/docker.sock:/var/run/docker.sock \
+			"$$IMAGE" >/dev/null; \
+	fi; \
+	if [ -z "$$($(DOCKERCMD) ps -q --filter name=^cloud-provider-kind$$)" ]; then \
+		echo "ERROR: cloud-provider-kind container failed to start"; \
+		$(DOCKERCMD) logs cloud-provider-kind 2>&1 | tail -20 || true; \
+		exit 1; \
+	fi; \
+	echo "cloud-provider-kind running."
+
+#kind-cloud-provider-stop: @ Stop cloud-provider-kind and prune its kindccm-* sidecars
+kind-cloud-provider-stop:
+	@$(DOCKERCMD) rm -f cloud-provider-kind >/dev/null 2>&1 || true
+	@# cloud-provider-kind spawns a per-Service Envoy sidecar named
+	@# kindccm-<hash>. These SURVIVE `kind delete cluster` and keep holding
+	@# IPs in the kind Docker subnet; a later kind-create can land on an
+	@# orphan's IP and inherit its stale Envoy config (pointed at pods from
+	@# the previous run) -> "connection reset by peer" on the first curl.
+	@ORPHANS=$$($(DOCKERCMD) ps -aq --filter name=kindccm- 2>/dev/null); \
+	if [ -n "$$ORPHANS" ]; then \
+		echo "Removing kindccm-* orphan sidecars..."; \
+		$(DOCKERCMD) rm -f $$ORPHANS >/dev/null 2>&1 || true; \
+	fi
+
+#kind-create: @ Create local KinD cluster with cloud-provider-kind LoadBalancer support
 kind-create: deps-kind image-build
 	@if kind get clusters 2>/dev/null | grep -q "^$(KIND_CLUSTER_NAME)$$"; then \
 		echo "KinD cluster '$(KIND_CLUSTER_NAME)' already exists, switching context..."; \
@@ -228,42 +294,46 @@ kind-create: deps-kind image-build
 		echo "Creating KinD cluster '$(KIND_CLUSTER_NAME)'..."; \
 		kind create cluster --config=k8s/kind-config.yaml --name $(KIND_CLUSTER_NAME) --wait 60s; \
 	fi
-	@echo "Installing MetalLB $(METALLB_VERSION)..."
-	@kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v$(METALLB_VERSION)/config/manifests/metallb-native.yaml
-	@echo "Waiting for MetalLB controller..."
-	@kubectl rollout status deployment/controller -n metallb-system --timeout=180s
-	@echo "Waiting for MetalLB speaker..."
-	@kubectl rollout status daemonset/speaker -n metallb-system --timeout=180s
-	@echo "Configuring MetalLB IP pool..."
-	@ip_sub=$$(docker network inspect kind -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1 | awk -F. '{printf "%d.%d", $$1, $$2}'); \
-	sed "s/METALLB_IP_SUB/$$ip_sub/g" k8s/metallb-config.yaml | kubectl apply -f -
+	@$(MAKE) --no-print-directory kind-cloud-provider-start
 	@echo "Loading image $(KIND_IMAGE) into cluster..."
 	@kind load docker-image $(KIND_IMAGE) --name $(KIND_CLUSTER_NAME)
-	@echo "KinD cluster ready with MetalLB."
+	@echo "KinD cluster ready (LoadBalancer via cloud-provider-kind)."
 
-#kind-deploy: @ Deploy application to KinD cluster and wait for rollout
+#kind-deploy: @ Deploy application to KinD cluster and wait for rollout + routable LB
 kind-deploy: kind-create
 	@echo "Deploying to KinD cluster..."
 	@sed -e 's/v0.0.1/$(VERSION)/' k8s/golang-web.yaml | kubectl apply -f -
 	@echo "Waiting for deployment rollout..."
-	@kubectl rollout status deployment/golang-web --timeout=120s
-	@echo "Waiting for service external IP..."
-	@for i in $$(seq 1 30); do \
-		EXTERNAL_IP=$$(kubectl get svc golang-web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
-		if [ -n "$$EXTERNAL_IP" ] && [ "$$EXTERNAL_IP" != "<pending>" ]; then \
-			echo "Service available at http://$$EXTERNAL_IP:8080"; \
-			break; \
+	@kubectl rollout status deployment/golang-web --timeout=$(ROLLOUT_TIMEOUT)
+	@# Two-phase LoadBalancer readiness. Phase 1 waits for cloud-provider-kind
+	@# to ASSIGN an IP. Phase 2 waits for the data path to be ROUTABLE: the IP
+	@# appears in status.loadBalancer.ingress before the kindccm Envoy sidecar
+	@# has wired its rules, so an immediate curl gets "connection reset by
+	@# peer". Asserting only phase 1 makes the first e2e assertion flaky.
+	@echo "Waiting for LoadBalancer IP (phase 1/2)..."
+	@kubectl wait --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' \
+		svc/golang-web-service --timeout=$(LB_WAIT_TIMEOUT)
+	@EXTERNAL_IP=$$(kubectl get svc golang-web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}'); \
+	echo "Waiting for LoadBalancer route (phase 2/2) at $$EXTERNAL_IP..."; \
+	for i in $$(seq 1 $(LB_ROUTE_RETRIES)); do \
+		CODE=$$(curl -s -o /dev/null -w '%{http_code}' --max-time $(CURL_MAX_TIME) "http://$$EXTERNAL_IP:$(APP_PORT)/healthz" 2>/dev/null || echo 000); \
+		if [ "$$CODE" = "200" ]; then \
+			echo "Service routable at http://$$EXTERNAL_IP:$(APP_PORT)"; \
+			exit 0; \
 		fi; \
-		echo "  waiting for LoadBalancer IP... ($$i/30)"; \
-		sleep 2; \
-	done
+		sleep $(LB_POLL_INTERVAL); \
+	done; \
+	echo "ERROR: LoadBalancer $$EXTERNAL_IP not routable after $(LB_ROUTE_RETRIES) attempts"; \
+	kubectl get svc golang-web-service -o wide; \
+	kubectl get pods -l app=golang-web; \
+	exit 1
 
 #kind-undeploy: @ Remove application from KinD cluster
 kind-undeploy:
 	@kubectl delete -f k8s/golang-web.yaml --ignore-not-found=true
 
-#kind-delete: @ Delete KinD cluster
-kind-delete:
+#kind-delete: @ Delete KinD cluster, stop cloud-provider-kind, prune kindccm-* sidecars
+kind-delete: kind-cloud-provider-stop
 	@kind delete cluster --name $(KIND_CLUSTER_NAME) 2>/dev/null || true
 	@echo "KinD cluster '$(KIND_CLUSTER_NAME)' deleted."
 
@@ -321,11 +391,11 @@ e2e: kind-deploy
 	if [ $$FAIL -gt 0 ]; then exit 1; fi
 
 #ci: @ Run full local CI pipeline
-ci: deps format deps-prune-check static-check coverage-check build
+ci: deps deps-verify format deps-prune-check static-check coverage-check build
 	@echo "Local CI pipeline passed."
 
 #ci-run: @ Run GitHub Actions workflow locally using act
-ci-run: deps-act
+ci-run: deps
 	@docker container prune -f 2>/dev/null || true
 	@act push --container-architecture linux/amd64 \
 		--artifact-server-path /tmp/act-artifacts
@@ -349,14 +419,14 @@ release: deps
 version:
 	@echo $(shell git describe --tags --abbrev=0)
 
-#renovate-bootstrap: @ Install nvm and Node.js for Renovate
-renovate-bootstrap:
+#renovate-bootstrap: @ Verify Node (installed via mise) is available for `npx renovate`
+renovate-bootstrap: deps
+	@# Node is pinned in .mise.toml and installed by `make deps`. This
+	@# replaces the previous nvm bootstrap, which sourced ~/.nvm/nvm.sh
+	@# inside the recipe shell and pinned Node in a second place.
 	@command -v node >/dev/null 2>&1 || { \
-		echo "Installing nvm $(NVM_VERSION)..."; \
-		curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v$(NVM_VERSION)/install.sh | bash; \
-		export NVM_DIR="$$HOME/.nvm"; \
-		[ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh"; \
-		nvm install $(NODE_VERSION); \
+		echo "Error: node not found. Run 'make deps' to install it via mise (.mise.toml)."; \
+		exit 1; \
 	}
 
 #renovate-validate: @ Validate Renovate configuration
@@ -383,12 +453,14 @@ deps-prune-check: deps
 	fi; \
 	echo "No prunable dependencies found."
 
-.PHONY: help deps deps-act deps-shellcheck deps-hadolint deps-trivy deps-kind test build lint lint-ci sec vulncheck secrets \
+.PHONY: help deps deps-verify deps-kind check-toolchain-alignment \
+	test build lint lint-ci sec vulncheck secrets \
 	trivy-fs trivy-config static-check format run coverage-check \
 	image-build clean update \
 	image-test-fg image-test-cli image-run-bg image-cli-bg \
 	image-logs image-stop image-push \
 	k8s-apply k8s-delete \
+	kind-cloud-provider-start kind-cloud-provider-stop \
 	kind-create kind-deploy kind-undeploy kind-delete e2e \
 	ci ci-run release version \
 	renovate-bootstrap renovate-validate \

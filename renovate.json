@@ -9,6 +9,7 @@
     "github-actions",
     "dockerfile",
     "kubernetes",
+    "mise",
     "custom.regex"
   ],
   "customManagers": [
@@ -19,7 +20,7 @@
         "/^Makefile$/"
       ],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)( versioning=(?<versioning>[^\\s]+))?\\n[A-Z_]+\\s*:=\\s*(?<currentValue>[^\\s]+)"
+        "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)( versioning=(?<versioning>[^\\s]+))?( extractVersion=(?<extractVersion>[^\\s]+))?\\n[A-Z_]+\\s*:=\\s*(?<currentValue>[^\\s]+)"
       ]
     }
   ],
@@ -89,11 +90,49 @@
       ]
     },
     {
-      "description": "Group Makefile tool version updates",
+      "description": "Group tool-version bumps (.mise.toml + the remaining Makefile pins) into one PR. minimumReleaseAge 3 days covers the aqua tag-before-publish race: aqua-backed tools get a git tag before their GitHub Release artifacts publish, so `mise install` 404s on a same-day bump.",
+      "matchManagers": [
+        "mise",
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "!go"
+      ],
+      "groupName": "Tool versions",
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "cloud-provider-kind is tracked by a custom.regex manager with datasource=docker, but the value is a bare version consumed as an image TAG, not a digest-pinnable image reference. config:best-practices' docker:pinDigests would try to append @sha256 and error the branch on every run.",
       "matchManagers": [
         "custom.regex"
       ],
-      "groupName": "Makefile tools"
+      "matchDatasources": [
+        "docker"
+      ],
+      "pinDigests": false
+    },
+    {
+      "description": "Hold Node on major 24. The Renovate CLI (`make renovate-validate`) requires Node >= 24, and Node 25+ dropped bundled corepack. matchDepNames (not matchPackageNames) is required for the mise manager. Bump this rule and .mise.toml together once the CLI supports a newer major.",
+      "matchManagers": [
+        "mise"
+      ],
+      "matchDepNames": [
+        "node"
+      ],
+      "allowedVersions": "/^24\\./"
+    },
+    {
+      "description": "Group Go toolchain bumps into a single PR: the go.mod directive, the Dockerfile golang base image, and the .mise.toml `go` pin MUST land together or `make check-toolchain-alignment` fails. Must stay LAST so this groupName overrides the per-manager groups above.",
+      "matchManagers": [
+        "gomod",
+        "dockerfile",
+        "mise"
+      ],
+      "matchDepNames": [
+        "go",
+        "golang"
+      ],
+      "groupName": "Go toolchain"
     }
   ]
 }

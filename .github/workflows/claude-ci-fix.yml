@@ -140,11 +140,10 @@ jobs:
           ref: ${{ steps.guard.outputs.head_branch }}
           fetch-depth: 0
 
-      - name: Install Go
+      - name: Set up toolchain (mise)
         if: steps.guard.outputs.skip != 'true'
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
-          go-version-file: 'go.mod'
           cache: true
 
       - name: Setup Claude config
