@@ -1,0 +1,41 @@
+@startuml c4-container
+' C4 Container diagram for golang-web.
+' Pinned include — never `master`, which changes under us without warning.
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/v2.14.0/C4_Container.puml
+
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+skinparam roundCorner 4
+skinparam defaultFontName "Inter, Helvetica, Arial, sans-serif"
+skinparam defaultFontSize 13
+skinparam ArrowColor #37474F
+skinparam ArrowThickness 1.2
+skinparam rectangleBorderThickness 1.3
+
+UpdateElementStyle("person",       $fontColor="#FFFFFF", $bgColor="#0F766E", $borderColor="#134E4A")
+UpdateElementStyle("container",    $fontColor="#FFFFFF", $bgColor="#2563EB", $borderColor="#1E3A8A")
+UpdateElementStyle("external_system", $fontColor="#FFFFFF", $bgColor="#64748B", $borderColor="#475569")
+UpdateBoundaryStyle($bgColor="#F1F5F9", $borderColor="#94A3B8", $fontColor="#1E293B")
+
+LAYOUT_LEFT_RIGHT()
+
+title golang-web — Container view
+
+Person(operator, "Operator / client", "Curls the service, scrapes metrics, runs the e2e suite")
+System_Ext(prometheus, "Prometheus", "Scrapes /metrics on an interval")
+
+System_Boundary(cluster, "Kubernetes cluster (KinD locally, any cluster in production)") {
+    Container(svc, "golang-web-service", "Service type=LoadBalancer", "Exposes port 8080; the external IP is allocated by cloud-provider-kind on KinD")
+    Container(app, "golang-web", "Go 1.27 · net/http · distroless nonroot", "Single static binary /manager. Serves the greeting page, /healthz, /metrics and /shutdown. Runs as uid 65532 with a read-only rootfs and ALL capabilities dropped.")
+}
+
+System_Ext(ghcr, "GHCR", "ghcr.io/andriykalashnykov/golang-web — multi-arch image, cosign keyless-signed on tag builds")
+
+Rel(operator, svc, "HTTP :8080", "GET /, /healthz, /shutdown")
+Rel(prometheus, svc, "Scrapes", "GET /metrics")
+Rel(svc, app, "Routes to targetPort 8080", "TCP")
+Rel_Back(app, ghcr, "Image pulled from", "OCI")
+Rel(app, app, "Kubernetes Downward API injects pod identity", "MY_POD_NAME, MY_POD_IP, MY_NODE_NAME, …")
+
+SHOW_LEGEND()
+@enduml

@@ -5,14 +5,14 @@
 
 # HTTP web server with Prometheus metrics in Go
 
-HTTP web server running by default on port 8080, intended for testing. Features Prometheus formatted metrics at `/metrics` with key `request_count_promtotal` using [prometheus/client_golang](https://github.com/prometheus/client_golang), and a Kubernetes compatible health check at `/healthz`.
+Reference HTTP service in Go for exercising Kubernetes and observability plumbing end to end. The **runtime surface** is a `net/http` server with [prometheus/client_golang](https://github.com/prometheus/client_golang) instrumentation, a Kubernetes-compatible health check, Downward-API pod identity, and a non-root, read-only-rootfs, all-capabilities-dropped pod spec; the **delivery surface** covers a `mise`-pinned toolchain, an eight-gate `static-check` (toolchain alignment, golangci-lint, hadolint, actionlint, gosec, govulncheck, gitleaks, Trivy filesystem + manifest scans), multi-arch images signed with cosign keyless OIDC, and a KinD + cloud-provider-kind end-to-end harness, all Renovate-managed.
 
 | Component | Technology |
 |-----------|-----------|
 | Language | Go 1.27.1 (pinned in `.mise.toml`, `go.mod`, `Dockerfile`) |
 | HTTP | net/http (standard library) |
 | Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) v1.24.1 |
-| Container | Docker multi-arch (linux/amd64, linux/arm64) |
+| Container | Multi-arch images (linux/amd64, linux/arm64); built with **podman or Docker** |
 | Orchestration | Kubernetes |
 | CI/CD | GitHub Actions, [Renovate](https://docs.renovatebot.com/) |
 | Toolchain | [mise](https://mise.jdx.dev/) (all tool versions pinned in `.mise.toml`) |
@@ -22,7 +22,7 @@ HTTP web server running by default on port 8080, intended for testing. Features 
 ## Quick Start
 
 ```bash
-make deps      # check required dependencies
+make deps      # install the pinned toolchain (mise)
 make build     # build the Go binary
 make test      # run tests with coverage
 make run       # start the application on port 8080
@@ -39,7 +39,7 @@ every linter, every scanner, KinD, act and Node -- is pinned in
 |------|---------|---------|
 | [GNU Make](https://www.gnu.org/software/make/) | 3.81+ | Build orchestration |
 | [Git](https://git-scm.com/) | 2.0+ | Version control |
-| [Docker](https://www.docker.com/) | latest | Container image builds, KinD, local runs |
+| [Podman](https://podman.io/) **or** [Docker](https://www.docker.com/) | latest | Container image builds and local runs. `make deps` installs **podman** if neither is present. |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | latest | Kubernetes deployment (optional) |
 
 ```bash
@@ -50,6 +50,24 @@ make deps
 is absent (no root required), then installs every pinned tool. It works the
 same on **Linux and macOS** (Intel and Apple Silicon) -- mise resolves the
 right binary per OS/arch.
+
+It also checks for a container engine and installs **podman** if neither podman
+nor Docker is present (`apt`/`dnf`/`pacman`/`zypper` on Linux, Homebrew on
+macOS). Podman is the default because it is rootless and needs no daemon;
+Docker is equally supported and is used automatically when it is the engine you
+already have.
+
+| You want | Run |
+|---|---|
+| Whatever is installed (podman preferred) | `make image-build` |
+| Force Docker for one command | `make image-build CONTAINER_ENGINE=docker` |
+| Force Docker for the whole shell | `export CONTAINER_ENGINE=docker` |
+| See which engine was picked | `make deps-engine` |
+
+> The **KinD targets specifically require Docker**. `cloud-provider-kind` is
+> started with `-v /var/run/docker.sock:/var/run/docker.sock`, and rootless
+> podman exposes its socket elsewhere. Everything else -- `image-build`,
+> `image-run-bg`, `diagrams` -- runs on either engine.
 
 On first run it will ask you to activate mise in your shell:
 
@@ -77,6 +95,67 @@ Tool versions live in exactly one place:
 `make check-toolchain-alignment` (part of `make static-check`) fails the build
 if the Go version in `go.mod`, `Dockerfile` and `.mise.toml` ever disagree.
 
+## Architecture
+
+A single statically-linked Go binary (`CGO_ENABLED=0`) in a distroless image, fronted by a
+LoadBalancer Service. There is no database, cache, or sidecar — the interesting parts are the
+supply chain and the Kubernetes contract, not the topology.
+
+<p align="center"><img src="docs/diagrams/out/c4-container.png" alt="C4 Container diagram for golang-web" width="800"></p>
+
+Source: [`docs/diagrams/c4-container.puml`](docs/diagrams/c4-container.puml) — regenerate with
+`make diagrams`; `make diagrams-check` (part of `make static-check`) fails if the committed PNG
+has drifted from it.
+
+Locally the LoadBalancer IP is supplied by
+[cloud-provider-kind](https://github.com/kubernetes-sigs/cloud-provider-kind), which runs on the
+host and allocates from the `kind` Docker network — no in-cluster controller and no address pool to
+configure.
+
+## Endpoints
+
+| Path | Method | Purpose |
+|------|--------|---------|
+| `$APP_CONTEXT` (default `/`) | GET | Greeting page; echoes request headers and the Downward-API pod identity |
+| `/healthz` | GET | Liveness/readiness probe — returns `{"health":"ok", "Version":…, "BuildTime":…}` |
+| `/metrics` | GET | Prometheus exposition; counter key `request_count_promtotal` |
+| `/shutdown` | GET | **Terminates the process immediately** (`os.Exit(0)`). Intended for restart/probe testing — it is unauthenticated, so do not expose it outside a throwaway cluster. |
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Listen port | `8080` |
+| `APP_CONTEXT` | Base context path | `/` |
+
+### Kubernetes Downward API Variables
+
+| Variable | Description |
+|----------|-------------|
+| `MY_NODE_NAME` | Name of Kubernetes node |
+| `MY_POD_NAME` | Name of Kubernetes pod |
+| `MY_POD_NAMESPACE` | Namespace of Kubernetes pod |
+| `MY_POD_IP` | Kubernetes pod IP |
+| `MY_POD_SERVICE_ACCOUNT` | Service account of Kubernetes pod |
+
+## Container Image
+
+Multi-arch (`linux/amd64`, `linux/arm64`), published to GHCR on tag builds only.
+
+```bash
+docker pull ghcr.io/andriykalashnykov/golang-web:latest
+```
+
+Every published digest is signed with cosign keyless OIDC (no long-lived key). Verify before running it:
+
+```bash
+cosign verify ghcr.io/andriykalashnykov/golang-web:latest \
+  --certificate-identity-regexp 'https://github.com/AndriyKalashnykov/golang-web/.github/workflows/ci.yml@refs/tags/v.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Both flags are required: the identity regexp binds the signature to this repo's workflow, and the issuer confirms the certificate came from GitHub Actions OIDC rather than a leaked key.
+
 ## Available Make Targets
 
 Run `make help` to see all available targets.
@@ -87,8 +166,11 @@ Run `make help` to see all available targets.
 |--------|-------------|
 | `make help` | List available tasks |
 | `make deps` | Install the pinned toolchain via mise (`.mise.toml`) |
+| `make deps-engine` | Ensure a container engine is present (installs podman if neither is) |
 | `make deps-verify` | Verify every pinned tool is on `PATH` |
 | `make check-toolchain-alignment` | Assert the Go version matches across `go.mod`, `Dockerfile` and `.mise.toml` |
+| `make diagrams` | Render `docs/diagrams/*.puml` to PNG |
+| `make diagrams-check` | Verify the committed diagram PNGs match their `.puml` sources |
 
 ### Build & Run
 
@@ -134,7 +216,7 @@ Run `make help` to see all available targets.
 |--------|-------------|
 | `make k8s-apply` | Deploy to Kubernetes cluster |
 | `make k8s-delete` | Delete from Kubernetes cluster |
-| `make deps-kind` | Verify KinD and kubectl are available |
+| `make deps-kind` | Verify KinD, kubectl and a KinD-capable engine (Docker) are available |
 | `make kind-cloud-provider-start` | Start cloud-provider-kind (supplies LoadBalancer IPs to KinD) |
 | `make kind-cloud-provider-stop` | Prune this cluster's `kindccm-*` sidecars (and the controller if unused) |
 | `make kind-create` | Create local KinD cluster with cloud-provider-kind LoadBalancer support |
@@ -185,50 +267,24 @@ Two details worth knowing if you run more than one KinD cluster:
 | Workflow | File | Triggers | Purpose |
 |----------|------|----------|---------|
 | CI | `ci.yml` | push to main, tags `v*`, PRs (paths-ignore for docs/images), `workflow_call` | Lint, test, build, Docker image (tag-only) |
-| Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual, `workflow_call` | Delete old workflow runs, stale caches, and untagged images |
+| Cleanup | `cleanup-runs.yml` | Weekly (Sunday midnight), manual, `workflow_call` | Delete old workflow runs, stale caches, and untagged images. **Currently auto-disabled by GitHub** (`disabled_inactivity` — scheduled workflows are suspended after 60 days without repo activity); re-enable with `gh workflow enable cleanup-runs.yml`. |
 
 ### CI Jobs
 
 | Job | Runs after | Steps |
 |-----|------------|-------|
-| **static-check** | — | Lint (CI + code + Dockerfile), security scan, vulnerability check, secrets scan, filesystem scan (Trivy), K8s manifest scan (Trivy) |
+| **static-check** | — | Go-toolchain alignment, lint (CI + code + Dockerfile), security scan, vulnerability check, secrets scan, filesystem scan (Trivy), K8s manifest scan (Trivy) |
 | **build** | static-check | Build Go binary |
 | **test** | static-check | Test with coverage |
-| **build-oci-image** | build + test (tags only) | Docker multi-arch build+push to GHCR |
+| **docker** | build + test (tags only) | Multi-arch build, Trivy image scan, push to GHCR, cosign keyless signing |
 
 ### Required Secrets
 
-| Name | Type | Used by | How to obtain |
-|------|------|---------|---------------|
-| `ANTHROPIC_API_KEY` | Secret | claude-interactive, claude-pr-review, claude-ci-fix | [Anthropic Console](https://console.anthropic.com/) — create an API key |
-| `CLAUDE_CONFIG_TOKEN` | Secret | claude-interactive, claude-pr-review, claude-ci-fix | GitHub PAT with `repo` scope to read the private [claude-config](https://github.com/AndriyKalashnykov/claude-config) repo |
+None. The active workflows authenticate with the automatic `GITHUB_TOKEN`; image signing uses cosign keyless OIDC, so there is no signing key to store.
 
-Set secrets via **Settings > Secrets and variables > Actions > New repository secret**.
+`ANTHROPIC_API_KEY` and `CLAUDE_CONFIG_TOKEN` are set on the repository but are **not consumed by any active workflow** — the two Claude workflows that used them are disabled (see `.github/workflows/*.yml.disabled`). They become required again only if those are re-enabled.
 
 [Renovate](https://docs.renovatebot.com/) keeps dependencies up to date with platform automerge enabled.
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Listen port | `8080` |
-| `APP_CONTEXT` | Base context path | `/` |
-
-### Kubernetes Downward API Variables
-
-| Variable | Description |
-|----------|-------------|
-| `MY_NODE_NAME` | Name of Kubernetes node |
-| `MY_POD_NAME` | Name of Kubernetes pod |
-| `MY_POD_NAMESPACE` | Namespace of Kubernetes pod |
-| `MY_POD_IP` | Kubernetes pod IP |
-| `MY_POD_SERVICE_ACCOUNT` | Service account of Kubernetes pod |
-
-## Pulling Image from GitHub Container Registry
-
-```bash
-docker pull ghcr.io/andriykalashnykov/golang-web:latest
-```
 
 ## References
 

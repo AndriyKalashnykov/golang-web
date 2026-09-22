@@ -35,6 +35,14 @@ CLOUD_PROVIDER_KIND_VERSION := 0.11.1
 # Renovate CLI, run via `npx renovate@$(RENOVATE_VERSION)`; not a mise tool.
 # renovate: datasource=npm depName=renovate
 RENOVATE_VERSION    := 43.110.12
+# PlantUML renderer for docs/diagrams/*.puml. Runs as a container (not a mise
+# tool) so no JRE is needed on the host.
+# renovate: datasource=docker depName=plantuml/plantuml
+PLANTUML_VERSION    := 1.2026.8
+# C4-PlantUML macro library, pinned in each .puml `!include`. MUST be a tagged
+# release -- `master` changes upstream without warning and breaks rendering.
+# renovate: datasource=github-releases depName=plantuml-stdlib/C4-PlantUML
+C4_PLANTUML_VERSION := v2.14.0
 
 # Ensure mise-managed binaries are on PATH for every recipe, regardless of
 # whether the invoking shell has `mise activate` wired up (and inside the act
@@ -72,7 +80,21 @@ COVERAGE_THRESHOLD ?= 75
 KIND_CLUSTER_NAME   := golang-web
 KIND_IMAGE          := $(OPV)
 
-DOCKERCMD := docker
+# === Container engine ===
+# podman is preferred (rootless by default, no daemon); docker is fully supported.
+# Override explicitly:  make image-build CONTAINER_ENGINE=docker
+#
+# Auto-detection prefers podman, then docker, then `none` so `deps` can report a
+# actionable message instead of a bare "command not found" at the first build.
+# `podman buildx build --load` is verified working on podman 4.9.3 (podman ships a
+# buildx compatibility shim), so image-build takes the same flags on both engines.
+CONTAINER_ENGINE ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || { command -v docker >/dev/null 2>&1 && echo docker; } || echo none)
+
+# Back-compat alias: earlier revisions hardcoded DOCKERCMD.
+DOCKERCMD := $(CONTAINER_ENGINE)
+
+# uname is used only to pick the right podman install command in `deps`.
+HOST_OS := $(shell uname -s)
 
 BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 # unique id from last git commit
@@ -92,7 +114,7 @@ deps:
 	@# PATH -- so the pinned version was never actually installed and local
 	@# tools silently drifted from the pins. `mise install` is idempotent and
 	@# always converges on the pinned version, on Linux and macOS alike.
-	@command -v docker >/dev/null 2>&1 || { echo "Error: Docker required. See https://docs.docker.com/get-docker/"; exit 1; }
+	@$(MAKE) --no-print-directory deps-engine
 	@if ! command -v mise >/dev/null 2>&1; then \
 		if [ -n "$$CI" ]; then \
 			echo "Error: mise not installed in CI. Ensure jdx/mise-action runs before 'make deps'."; \
@@ -107,6 +129,37 @@ deps:
 		exit 0; \
 	fi
 	@mise install --yes
+
+#deps-engine: @ Ensure a container engine is present (installs podman if neither is)
+deps-engine:
+	@# Either engine works. podman is installed when neither is present because it
+	@# is rootless by default and needs no daemon; docker is equally supported and
+	@# is picked up automatically if it is the one already installed.
+	@if [ "$(CONTAINER_ENGINE)" != "none" ]; then \
+		echo "Container engine: $(CONTAINER_ENGINE) ($$($(CONTAINER_ENGINE) --version 2>/dev/null | head -1))"; \
+		exit 0; \
+	fi; \
+	echo "No container engine found (looked for podman, then docker)."; \
+	echo "Installing podman. To use Docker instead, install it from"; \
+	echo "https://docs.docker.com/get-docker/ and re-run 'make deps' --"; \
+	echo "or force it per-invocation with 'make <target> CONTAINER_ENGINE=docker'."; \
+	case "$(HOST_OS)" in \
+	  Darwin) \
+	    command -v brew >/dev/null 2>&1 || { echo "ERROR: Homebrew required to install podman on macOS. See https://brew.sh"; exit 1; }; \
+	    brew install podman && podman machine init 2>/dev/null; podman machine start 2>/dev/null || true; \
+	    echo "NOTE: on macOS podman runs in a VM. 'podman machine start' must be running before any image target."; \
+	    ;; \
+	  Linux) \
+	    if   command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y podman; \
+	    elif command -v dnf     >/dev/null 2>&1; then sudo dnf install -y podman; \
+	    elif command -v pacman  >/dev/null 2>&1; then sudo pacman -S --noconfirm podman; \
+	    elif command -v zypper  >/dev/null 2>&1; then sudo zypper install -y podman; \
+	    else echo "ERROR: unsupported Linux distribution. Install podman or docker manually: https://podman.io/docs/installation"; exit 1; fi; \
+	    ;; \
+	  *) echo "ERROR: unsupported OS '$(HOST_OS)'. Install podman or docker manually."; exit 1;; \
+	esac; \
+	command -v podman >/dev/null 2>&1 || { echo "ERROR: podman install did not put podman on PATH."; exit 1; }; \
+	echo "podman installed: $$(podman --version)"
 
 #deps-verify: @ Verify every pinned tool is on PATH (fails with a pointer to `make deps`)
 deps-verify: deps
@@ -179,8 +232,35 @@ vulncheck: deps
 secrets: deps
 	@gitleaks detect --source . --verbose --redact
 
+#diagrams: @ Render docs/diagrams/*.puml to PNG
+diagrams:
+	@# Pre-create the output dir AS THE INVOKING USER: `docker run -v` creates a
+	@# missing bind-mount source as root, and the next non-root write then fails.
+	@mkdir -p docs/diagrams/out
+	@$(DOCKERCMD) run --rm -u "$$(id -u):$$(id -g)" \
+		-v "$$PWD/docs/diagrams:/data" \
+		plantuml/plantuml:$(PLANTUML_VERSION) \
+		-tpng -o /data/out /data/*.puml
+	@echo "Diagrams rendered to docs/diagrams/out/."
+
+#diagrams-check: @ Verify committed diagram PNGs match their .puml sources
+diagrams-check:
+	@# Drift gate: re-render and diff. A committed PNG that no longer matches its
+	@# source means the README is advertising a stale architecture.
+	@command -v $(DOCKERCMD) >/dev/null 2>&1 || { echo "Skipping diagrams-check: $(DOCKERCMD) not available."; exit 0; }
+	@grep -q "C4-PlantUML/$(C4_PLANTUML_VERSION)/" docs/diagrams/*.puml || { \
+		echo "ERROR: a .puml !include does not pin C4-PlantUML $(C4_PLANTUML_VERSION)"; \
+		grep -n 'C4-PlantUML' docs/diagrams/*.puml; exit 1; }
+	@$(MAKE) --no-print-directory diagrams >/dev/null
+	@if ! git diff --quiet -- docs/diagrams/out/; then \
+		echo "ERROR: committed diagram PNGs are stale. Run 'make diagrams' and commit the result:"; \
+		git diff --stat -- docs/diagrams/out/; \
+		exit 1; \
+	fi
+	@echo "Diagrams up to date with their .puml sources."
+
 #static-check: @ Run all quality and security checks
-static-check: check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config
+static-check: check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config diagrams-check
 	@echo "Static check passed."
 
 #format: @ Auto-format Go source files
@@ -259,10 +339,23 @@ k8s-apply:
 k8s-delete:
 	@kubectl delete -f k8s/golang-web.yaml --ignore-not-found=true
 
-#deps-kind: @ Verify KinD and kubectl are available
+#deps-kind: @ Verify KinD, kubectl and a KinD-capable engine are available
 deps-kind: deps
 	@command -v kind >/dev/null 2>&1 || { echo "Error: kind not found. Run 'make deps' (installs via .mise.toml)."; exit 1; }
 	@command -v kubectl >/dev/null 2>&1 || { echo "Error: kubectl required. See https://kubernetes.io/docs/tasks/tools/"; exit 1; }
+	@# The KinD path specifically needs DOCKER, unlike the image targets which run on
+	@# either engine. cloud-provider-kind is started with
+	@#     -v /var/run/docker.sock:/var/run/docker.sock
+	@# so it can watch Services and manage its Envoy sidecars; rootless podman exposes
+	@# its socket at /run/user/$$(id -u)/podman/podman.sock instead. kind itself can run
+	@# on podman via KIND_EXPERIMENTAL_PROVIDER=podman, but that combination is NOT
+	@# verified here -- so this gate states the requirement rather than guessing.
+	@command -v docker >/dev/null 2>&1 || { \
+		echo "Error: the KinD targets require Docker."; \
+		echo "  Image targets (image-build, image-run-bg, ...) work on podman OR docker;"; \
+		echo "  the KinD path does not, because cloud-provider-kind mounts the Docker socket."; \
+		echo "  Install Docker: https://docs.docker.com/get-docker/"; \
+		exit 1; }
 
 #kind-cloud-provider-start: @ Start cloud-provider-kind (supplies LoadBalancer IPs to KinD)
 kind-cloud-provider-start: deps-kind
@@ -485,7 +578,8 @@ deps-prune-check: deps
 	fi; \
 	echo "No prunable dependencies found."
 
-.PHONY: help deps deps-verify deps-kind check-toolchain-alignment \
+.PHONY: help deps deps-engine deps-verify deps-kind check-toolchain-alignment \
+	diagrams diagrams-check \
 	test build lint lint-ci sec vulncheck secrets \
 	trivy-fs trivy-config static-check format run coverage-check \
 	image-build clean update \
