@@ -420,16 +420,11 @@ KUBECONFIG="$SUPERVISOR_KUBECONFIG" \
 `SUPERVISOR_CA` is the **vCenter VMCA root**, not Harbor's CA. vCenter serves it:
 
 ```sh
-# getent does not exist on macOS, hence the fallback.
-getent hosts "$VCENTER_FQDN" 2>/dev/null \
-  || python3 -c 'import socket,sys; print(socket.gethostbyname(sys.argv[1]))' "$VCENTER_FQDN" \
-  || echo "this machine cannot resolve $VCENTER_FQDN — fix DNS before continuing"
-
 mkdir -p "$(dirname "$SUPERVISOR_CA")"
 # A fresh directory every time: unzip MERGES, so a stale one would add a foreign CA.
 VCTMP="$(mktemp -d)"
 curl -fsSk --max-time 60 -o "$VCTMP/certs.zip" "https://${VCENTER_FQDN}/certs/download.zip"
-unzip -o -j "$VCTMP/certs.zip" -d "$VCTMP/certs"
+unzip -oqj "$VCTMP/certs.zip" -d "$VCTMP/certs"
 cat "$VCTMP"/certs/*.0 > "$SUPERVISOR_CA"
 rm -rf "$VCTMP"
 
