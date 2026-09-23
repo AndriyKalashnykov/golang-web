@@ -1,5 +1,5 @@
 === macOS check for vks/README.md ===
-generated : 2026-09-23T04:23:43Z
+generated : 2026-09-23T04:29:26Z
 macOS     : 26.6.2 (25G83)
 arch      : arm64
 shell     : /opt/homebrew/bin/zsh
@@ -28,8 +28,8 @@ lab vars  : UNSET - lab probes will report SKIPPED
     daemon   : DOWN - the CLI alone cannot build or push on macOS
     error    : failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
   -- which VM provider is running? --
-    podman machine: NAME                     VM TYPE     CREATED             LAST UP            CPUS        MEMORY      DISK SIZE
-    podman machine: podman-machine-default*  applehv     About a minute ago  Currently running  9           2GiB        100GiB
+    podman machine: NAME                     VM TYPE     CREATED        LAST UP            CPUS        MEMORY      DISK SIZE
+    podman machine: podman-machine-default*  applehv     7 minutes ago  Currently running  9           2GiB        100GiB
     /var/run/docker.sock: ABSENT
 
 --- S4  can this Mac build linux/amd64? ---
@@ -58,6 +58,7 @@ lab vars  : UNSET - lab probes will report SKIPPED
   security(1)          : present
   --import-native-ca   : supported by this podman
   podman machine ssh   : available (VM-side trust is reachable)
+  group "root"         : NOT FOUND - `install -g root` would fail here
   /usr/local/bin on PATH: yes
 
 --- S7  lab-dependent probes ---
