@@ -1,5 +1,5 @@
 === macOS check for vks/README.md ===
-generated : 2026-09-23T03:58:07Z
+generated : 2026-09-23T04:23:43Z
 macOS     : 26.6.2 (25G83)
 arch      : arm64
 shell     : /opt/homebrew/bin/zsh
@@ -19,17 +19,23 @@ lab vars  : UNSET - lab probes will report SKIPPED
   Rosetta 2 : PRESENT - an x86_64 binary runs here
 
 --- S3  container engine, and is it a VM client? ---
-  podman present : NO
+  podman present : /opt/homebrew/bin/podman
+    daemon   : UP
+    host     : linux/arm64 remote=true v6.1.2
+    machine  : state=running
+    machine  : rootful=false
   docker present : /opt/homebrew/bin/docker
     daemon   : DOWN - the CLI alone cannot build or push on macOS
-    error    : Client: Docker Engine - Community
-./macosx.sh: line 88: 46931 Terminated: 15          ( sleep "$_s"; kill -TERM "$_p" 2> /dev/null; sleep 3; kill -KILL "$_p" 2> /dev/null ) > /dev/null 2>&1
+    error    : failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
   -- which VM provider is running? --
+    podman machine: NAME                     VM TYPE     CREATED             LAST UP            CPUS        MEMORY      DISK SIZE
+    podman machine: podman-machine-default*  applehv     About a minute ago  Currently running  9           2GiB        100GiB
     /var/run/docker.sock: ABSENT
-    VERDICT: no working engine - brew install docker gives the CLIENT only.
 
 --- S4  can this Mac build linux/amd64? ---
-  SKIPPED - no engine with a live daemon
+  podman buildx: buildah 1.45.1
+  --platform linux/amd64 : BUILDS (offline, FROM scratch)
+    resulting image: linux/amd64
 
 --- S5  VCF CLI on this Mac ---
   entitled archives for this Mac:
@@ -50,6 +56,8 @@ lab vars  : UNSET - lab probes will report SKIPPED
   sed image rewrite    : OK
   -- macOS trust-path prerequisites --
   security(1)          : present
+  --import-native-ca   : supported by this podman
+  podman machine ssh   : available (VM-side trust is reachable)
   /usr/local/bin on PATH: yes
 
 --- S7  lab-dependent probes ---
@@ -62,18 +70,22 @@ lab vars  : UNSET - lab probes will report SKIPPED
 arch=arm64
 macos=26.6.2
 rosetta2=yes
-engine=none
-daemon_up=no
-vm_provider=none
-engine_remote=unknown
-buildx=no
+engine=podman
+daemon_up=yes
+vm_provider=podman-machine
+engine_remote=true
+buildx=yes
 vcf_cli=yes
 vcf_plugin_list=listed(rc=143)
 base64_flag=-d ok
 install_D=no
 sed_rewrite=ok
 security_cmd=yes
-import_native_ca=unknown
+import_native_ca=yes
+podman_machine=exists
+machine_state=running
+machine_rootful=false
+xarch_build=ok
 usr_local_bin=yes
 lab_probes=skipped
 === end ===
