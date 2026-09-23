@@ -306,7 +306,7 @@ deps-verify: deps
 #check-toolchain-alignment: @ Verify the Go version agrees across go.mod, Dockerfile and .mise.toml
 check-toolchain-alignment:
 	@gomod=$$(grep -oE '^go [0-9]+\.[0-9]+(\.[0-9]+)?' go.mod | awk '{print $$2}'); \
-	docker=$$(grep -oE '^FROM golang:[0-9]+\.[0-9]+(\.[0-9]+)?' Dockerfile | head -1 | sed 's/^FROM golang://'); \
+	docker=$$(grep -oE '^FROM( --platform=[^ ]+)? golang:[0-9]+\.[0-9]+(\.[0-9]+)?' Dockerfile | head -1 | sed 's/.*golang://'); \
 	misev=$$(grep -oE '^go = "[0-9]+\.[0-9]+(\.[0-9]+)?"' .mise.toml | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?'); \
 	if [ -z "$$gomod" ] || [ -z "$$docker" ] || [ -z "$$misev" ]; then \
 		echo "ERROR: could not parse a Go version (go.mod='$$gomod' Dockerfile='$$docker' .mise.toml='$$misev')"; \
