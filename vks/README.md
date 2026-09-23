@@ -77,19 +77,76 @@ brew install kubectl jq git make
 **Linux (Debian/Ubuntu)**
 
 ```sh
-sudo apt-get install -y jq git make
+sudo apt-get install -y jq git make unzip
 ```
 
 ⚠️ **`kubectl` is NOT in the Debian/Ubuntu repositories** — `apt-get install kubectl` fails with
-*"Unable to locate package"*. Install the official binary:
+*"Unable to locate package"*. Two ways to get it; set `SUPERVISOR_ENDPOINT` first (section 2
+collects the rest):
 
 ```sh
-KVER="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"     # e.g. v1.37.0
-curl -fsSLO "https://dl.k8s.io/release/${KVER}/bin/linux/amd64/kubectl"
+export SUPERVISOR_ENDPOINT="10.0.0.10"     # your Supervisor API endpoint
+```
+
+**From the Supervisor** — it serves the binary itself, so you get the build your platform ships:
+
+```sh
+curl -fsSkO "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip"
+unzip -o vsphere-plugin.zip
+sudo install ./bin/kubectl /usr/local/bin/kubectl
+kubectl version --client
+```
+
+> macOS: `linux-amd64` -> `darwin-amd64` (Intel) or `darwin-arm64` (Apple Silicon).
+> **We pull this zip ONLY to get `kubectl` out of it.** It is called *vsphere-plugin* because it
+> also contains `kubectl-vsphere` — the plugin this guide **never uses**, deprecated as of vSphere
+> 9.1.0 and replaced by the VCF CLI. Install `./bin/kubectl` and nothing else; delete the rest so
+> it cannot be picked up by accident:
+>
+> ```sh
+> rm -rf ./bin ./vsphere-plugin.zip
+> ```
+>
+> ⚠️ **`-k` skips TLS verification, and you are about to `sudo install` what it downloads.**
+> The Supervisor's certificate is signed by the vCenter VMCA, which your machine does not trust
+> yet — that is why every published version of this command disables the check. If you have
+> already fetched the VMCA root (step 8a), verify instead of skipping:
+>
+> ```sh
+> curl -fsSO --cacert "$SUPERVISOR_CA" "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip"
+> ```
+
+**From upstream, pinned to your cluster** — use this if the Supervisor's build is too old (see
+below):
+
+```sh
+export KUBECTL_VERSION="v1.36.2"            # match your GUEST cluster's minor
+curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && rm -f kubectl
 ```
 
-> On arm64 replace `linux/amd64` with `linux/arm64`.
+> On arm64 replace `linux/amd64` with `linux/arm64`. `curl -fsSL https://dl.k8s.io/release/stable.txt`
+> prints the newest upstream release, but newest is not necessarily what you want — read on.
+
+⚠️ **Check the skew before you pick.** Kubernetes supports `kubectl` within **one minor** of the
+API server it talks to. This guide's `kubectl` talks to **two different** API servers, and on the
+lab it was written against, all three versions differed:
+
+| | version | skew vs Supervisor | skew vs guest cluster |
+|---|---|---|---|
+| Supervisor API server | `v1.34.9+vmware.1` | — | — |
+| guest cluster API server | `v1.36.2+vmware.2` | — | — |
+| kubectl from the Supervisor zip | `v1.32.9+vmware.2-fips` | **2 minors behind** | **4 minors behind** |
+| kubectl from `dl.k8s.io/stable` | `v1.37.0` | 3 minors ahead | 1 minor ahead ✅ |
+
+Neither source was in policy for *both* servers. **Match the guest cluster** — that is where every
+command from section 9 onward runs, and the only Supervisor calls are two trivial reads in step 8
+that tolerate skew. Find your two versions with:
+
+```sh
+kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" version -o json | jq -r .serverVersion.gitVersion
+kubectl --kubeconfig "$GUEST_KUBECONFIG"      version -o json | jq -r .serverVersion.gitVersion
+```
 
 ### Confirm the engine before going further
 
@@ -326,8 +383,19 @@ sed -e 's|image: .*/golang-web:.*|image: harbor.example.test/apps/golang-web:v0.
 
 ## 6. Provide Harbor credentials
 
-The Makefile reads `REGISTRY_USERNAME` and `REGISTRY_TOKEN`, and passes the token on **stdin** —
-never on the command line, where any local user could read it from `ps`.
+**`export` these — do not pass them as `make VAR=...`.** The Makefile reads
+`REGISTRY_USERNAME` and `REGISTRY_TOKEN` from the environment and passes the token to the engine
+on **stdin**, so it never reaches argv, where any local user could read it from `ps`
+(`/proc/<pid>/cmdline` is world-readable).
+
+> ⚠️ **`make REGISTRY_TOKEN=... registry-login` defeats that.** A variable given on make's own
+> command line is in make's argv before the Makefile can do anything about it. Measured with a
+> canary: `export` -> **0** argv hits; `make VAR=` -> **1**.
+>
+> A Harbor robot is named `robot$project+name`, and until recently the `$` was **eaten**: make
+> expanded `$a` (an empty single-character variable), so `robot$apps+golang-web-push` reached the
+> engine as `robotpps+golang-web-push` and Harbor answered `unauthorized`. Both were fixed by
+> deferring the expansion to the recipe shell (`$$VAR` instead of `$(VAR)`).
 
 ### Option A — a robot account (recommended)
 
@@ -435,7 +503,9 @@ from the Supervisor. Neither hop needs Pinniped.
 ```sh
 export SUPERVISOR_KUBECONFIG="$HOME/.kube/supervisor.kubeconfig"
 
-VCF_CLI_VSPHERE_PASSWORD='<your-sso-password>' \
+read -rsp 'vCenter SSO password: ' VCF_CLI_VSPHERE_PASSWORD; echo
+export VCF_CLI_VSPHERE_PASSWORD
+
 KUBECONFIG="$SUPERVISOR_KUBECONFIG" \
   vcf context create supervisor --type k8s \
     --endpoint "https://${SUPERVISOR_ENDPOINT}" \
@@ -475,9 +545,20 @@ openssl x509 -in "$SUPERVISOR_CA" -noout -fingerprint -sha256
 Compare that with the fingerprint your platform administrator gives you. If you cannot, ask them
 for the file directly — do **not** reach for `--insecure-skip-tls-verify` on a shared cluster.
 
-> ⚠️ Passing the password in the environment as above keeps it out of `ps` output. Omit
-> `VCF_CLI_VSPHERE_PASSWORD` entirely and the CLI prompts for it instead, which is safer on a
-> shared machine. **vCenter SSO locks the account after repeated failures — type it carefully.**
+Then clear it as soon as the context exists:
+
+```sh
+unset VCF_CLI_VSPHERE_PASSWORD
+```
+
+> ⚠️ **Do not type the password inline** (`VCF_CLI_VSPHERE_PASSWORD='...' vcf context create ...`).
+> An environment prefix does keep it out of `ps`, but the whole line lands in your **shell
+> history** in cleartext, where it outlives the session. `read -rs` does not echo it and does not
+> record it. Omitting the variable entirely also works — the CLI prompts — but then it is not
+> exported to the `vcf` child on every shell.
+>
+> ⚠️ **vCenter SSO locks the account after repeated failed attempts.** Type it carefully; this is
+> not a credential to guess at.
 
 Check it worked:
 
