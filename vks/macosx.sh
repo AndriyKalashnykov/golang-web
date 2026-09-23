@@ -22,14 +22,25 @@ _t() {
   if   command -v timeout  >/dev/null 2>&1; then timeout  "$_s" "$@"
   elif command -v gtimeout >/dev/null 2>&1; then gtimeout "$_s" "$@"
   else
-    # MEASURED on the target Mac: `vcf plugin list` hangs until ^C. macOS ships no
-    # timeout(1), so this fallback is what actually runs there -- it must escalate to
-    # KILL, or a process that ignores TERM hangs the run and no .res is ever written.
+    # MEASURED on the target Mac: `vcf plugin list` hangs until ^C, and macOS ships no
+    # timeout(1), so this fallback is what actually runs there. Two requirements:
+    #  1. it must escalate to KILL, or a process ignoring TERM hangs the run and no
+    #     .res is ever written - the script failing silently at its whole purpose;
+    #  2. nothing may kill the WATCHDOG, because bash 3.2 (macOS) reports a killed job
+    #     as "Terminated: 15" INTO THE MIDDLE OF THE REPORT, where it reads like a crash.
+    #     Measured on macOS 26.6.2 / bash 3.2.57; bash 5.2 does not emit it, so it cannot
+    #     be reproduced on Linux. The watchdog therefore EXITS BY ITSELF once the child is
+    #     gone and is never killed, which removes the notification at its source.
     "$@" & _p=$!
-    ( sleep "$_s"; kill -TERM "$_p" 2>/dev/null; sleep 3; kill -KILL "$_p" 2>/dev/null ) \
-      >/dev/null 2>&1 & _w=$!
+    ( _n=0
+      while [ "$_n" -lt "$_s" ]; do
+        kill -0 "$_p" 2>/dev/null || exit 0
+        sleep 1; _n=$((_n + 1))
+      done
+      kill -TERM "$_p" 2>/dev/null; sleep 3; kill -KILL "$_p" 2>/dev/null ) >/dev/null 2>&1 &
+    _w=$!
+    disown "$_w" 2>/dev/null || :
     wait "$_p" 2>/dev/null; _r=$?
-    kill "$_w" 2>/dev/null
     return "$_r"
   fi
 }
@@ -108,7 +119,12 @@ for e in podman docker; do
       fi
     else
       printf '    daemon   : DOWN - the CLI alone cannot build or push on macOS\n'
-      _t 25 "$e" info 2>&1 | sed 's/^/    error    : /' | head -1
+      # head -1 printed docker's BANNER ('Client: Docker Engine - Community'), not the
+      # error. Pick the line that actually says what failed.
+      _di="$(_t 25 "$e" info 2>&1)"
+      _de="$(printf '%s\n' "$_di" | command grep -iE 'cannot connect|refused|no such file|daemon running|permission denied' | head -1)"
+      [ -n "$_de" ] || _de="$(printf '%s\n' "$_di" | tail -1)"
+      printf '    error    : %s\n' "$_de"
     fi
   else
     printf '  %s present : NO\n' "$e"
