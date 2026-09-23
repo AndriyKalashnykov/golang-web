@@ -134,6 +134,15 @@ make version        # Print current version tag
       (`mise uninstall`/`mise install`) or they fail with "application built
       with go1.<old>". Only `govulncheck` is affected today.
 
+## `vks/` — deploying this app to a VKS guest cluster
+
+`vks/README.md` is an end-user runbook: build locally, push to Harbor, deploy to a named VKS
+guest cluster. Proven on Linux with podman and docker; the macOS half is verified by
+`vks/macosx.sh`, which writes `vks/macosx.res`.
+
+**Read `vks/HANDOFF.md` before changing anything under `vks/`** — it holds the resume point,
+what is already measured, and the traps that have already been paid for.
+
 ## Skills
 
 Use the following skills when working on related files:
