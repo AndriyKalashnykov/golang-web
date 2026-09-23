@@ -91,14 +91,20 @@ token for Docker Hub. `make registry-login` prints the right guidance for the
 registry you have configured. For convenience against the default registry,
 `GH_ACCESS_TOKEN` and `CR_PAT` are accepted as fallbacks for `REGISTRY_TOKEN`.
 
-> The **KinD targets specifically require Docker**. `cloud-provider-kind` is
-> started with `-v /var/run/docker.sock:/var/run/docker.sock`, rootless podman
-> exposes its socket elsewhere, and `kind load docker-image` reads Docker's
-> image store. You do **not** need to set anything: those targets pin
-> `KIND_ENGINE` (default `docker`) for both the build and the sidecar
-> management, so `make e2e` works unchanged on a box where podman is the
-> preferred engine. Everything else -- `image-build`, `image-run-bg`,
-> `diagrams` -- still follows `CONTAINER_ENGINE` and runs on either engine.
+> **KinD needs Docker for its own containers -- but your image is still built by
+> whichever engine you chose.** Two different things:
+>
+> | what | engine | why |
+> |---|---|---|
+> | the app image | `CONTAINER_ENGINE` (podman by default) | your choice, honoured |
+> | kind's nodes, `cloud-provider-kind`, its `kindccm` sidecars | `KIND_ENGINE` (`docker`) | kind runs on the Docker provider here, and the LB controller mounts `/var/run/docker.sock` |
+>
+> When the two differ, `kind-create` bridges the stores with `<engine> save` +
+> `kind load image-archive`, because `kind load docker-image` only reads the
+> store of the engine kind is using. So `make e2e` builds with podman and still
+> deploys your build -- no override needed. Docker must be installed for kind
+> itself; making kind run its *nodes* on podman is a separate thing this repo
+> does not do (it needs rootless systemd `Delegate=yes`).
 
 On first run it will ask you to activate mise in your shell:
 
