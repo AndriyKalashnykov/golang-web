@@ -651,7 +651,7 @@ kubectl config use-context "$VKS_CLUSTER"
 kubectl get nodes
 ```
 
-> ⚠️ **This requires Pinniped and fails on many Supervisors.** It builds a *Pinniped-backed*
+> ⚠️ **This requires Pinniped.** It builds a *Pinniped-backed*
 > kubeconfig, so it reads the `pinniped-info` ConfigMap from the Supervisor's `kube-public`
 > namespace. If that ConfigMap is absent the command exits **1** with:
 >
@@ -666,7 +666,14 @@ kubectl get nodes
 > ```
 >
 > Nothing you can do from your machine fixes this; ask your platform administrator. **Use 8b
-> instead** — it needs no Pinniped and works on every Supervisor.
+> instead** — it reads a secret the Supervisor already holds, so it does not depend on Pinniped
+> being wired up.
+>
+> **How common is this?** Unknown. It was measured on exactly one Supervisor (VCF 9.1.1, API
+> `v1.34.9+vmware.1`), where `kube-public` held `cluster-info`, `kube-root-ca.crt` and
+> `vip-cluster-info` and no `pinniped-info`, and the command exited **1**. One data point
+> supports no claim about how often this happens — check yours with the command above rather
+> than assuming either way.
 
 The two kubeconfigs differ in how they authenticate: 8b is a CAPI-minted cluster-admin
 certificate, 8c is an OIDC token brokered by Pinniped that honours your SSO identity and its
