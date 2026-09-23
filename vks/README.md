@@ -117,7 +117,7 @@ brew install jq git make
 **Linux (Debian/Ubuntu)**
 
 ```sh
-sudo apt-get install -y jq git make unzip
+sudo apt-get install -y jq git make unzip curl openssl
 ```
 
 ### kubectl — get it from the Supervisor
@@ -169,6 +169,10 @@ After you check out the repo (section 4), `make engines` prints the selection it
 ## Verify the installation
 
 ```sh
+for t in curl unzip openssl jq git make kubectl vcf; do
+  command -v "$t" >/dev/null 2>&1 || echo "MISSING: $t"
+done
+
 command -v podman >/dev/null 2>&1 && podman --version
 command -v docker >/dev/null 2>&1 && docker --version
 kubectl version --client
@@ -184,8 +188,9 @@ vcf version | head -1
   version: v9.1.1.0.25662425
 ```
 
-An engine you installed that prints nothing here is not on your `PATH`. If neither prints,
-go back and install one.
+Nothing should print `MISSING`. `curl`, `unzip` and `openssl` ship with macOS and are installed
+above on Linux; if one is named here, install it before going on. An engine that prints nothing
+is not on your `PATH` — if neither prints, go back and install one.
 
 ---
 
@@ -402,7 +407,34 @@ from the Supervisor. Neither hop needs Pinniped.
 
 ### 8a. Supervisor kubeconfig
 
-`vcf context create` writes to the path in `KUBECONFIG`, so set it on the command:
+**First the CA** — `vcf context create` verifies against it, so it has to exist before you run it.
+`SUPERVISOR_CA` is the **vCenter VMCA root**, not Harbor's. vCenter serves it:
+
+```sh
+mkdir -p "$(dirname "$SUPERVISOR_CA")"
+# A fresh directory every time: unzip MERGES, so a stale one would add a foreign CA.
+VCTMP="$(mktemp -d)"
+curl -fsSk --max-time 60 -o "$VCTMP/certs.zip" "https://${VCENTER_FQDN}/certs/download.zip"
+unzip -oqj "$VCTMP/certs.zip" -d "$VCTMP/certs"
+cat "$VCTMP"/certs/*.0 > "$SUPERVISOR_CA"
+rm -rf "$VCTMP"
+
+[ -s "$SUPERVISOR_CA" ] || echo "FAILED: $SUPERVISOR_CA is empty — the fetch above did not work"
+awk '/BEGIN CERT/{n++} END{print n+0" certificate(s)"}' "$SUPERVISOR_CA"
+openssl x509 -in "$SUPERVISOR_CA" -noout -subject -fingerprint -sha256
+```
+
+```
+## Sample output
+  1 certificate(s)
+  subject=CN = CA, DC = vsphere, DC = local, C = US, ST = California, O = vcsa.example.test, OU = VMware Engineering
+  sha256 Fingerprint=7A:A5:12:54:4F:38:...
+```
+
+That fetch skipped TLS verification — you had no CA yet. If your administrator can give you the
+expected fingerprint, compare it with the one printed above.
+
+**Then create the context.** `vcf context create` writes to the path in `KUBECONFIG`:
 
 ```sh
 export SUPERVISOR_KUBECONFIG="$HOME/.kube/supervisor.kubeconfig"
@@ -415,49 +447,7 @@ KUBECONFIG="$SUPERVISOR_KUBECONFIG" \
     --endpoint "https://${SUPERVISOR_ENDPOINT}" \
     --username "$SSO_USERNAME" \
     --ca-certificate "$SUPERVISOR_CA"
-```
 
-`SUPERVISOR_CA` is the **vCenter VMCA root**, not Harbor's CA. vCenter serves it:
-
-```sh
-mkdir -p "$(dirname "$SUPERVISOR_CA")"
-# A fresh directory every time: unzip MERGES, so a stale one would add a foreign CA.
-VCTMP="$(mktemp -d)"
-curl -fsSk --max-time 60 -o "$VCTMP/certs.zip" "https://${VCENTER_FQDN}/certs/download.zip"
-unzip -oqj "$VCTMP/certs.zip" -d "$VCTMP/certs"
-cat "$VCTMP"/certs/*.0 > "$SUPERVISOR_CA"
-rm -rf "$VCTMP"
-
-[ -s "$SUPERVISOR_CA" ] || { echo "FAILED: $SUPERVISOR_CA is empty — the fetch above did not work"; }
-```
-
-```
-## Sample output
-  subject=CN = CA, DC = vsphere, DC = local, C = US, ST = California, O = vcsa.example.test, OU = VMware Engineering
-  notAfter=Sep 11 18:13:40 2036 GMT
-```
-
-⚠️ That fetch skipped TLS verification — it has to, you have no CA yet. So the fingerprint
-is the only thing making this file trustworthy. Confirm it with your platform administrator:
-
-```sh
-awk '/BEGIN CERT/{n++} END{print n+0" certificate(s)"}' "$SUPERVISOR_CA"
-openssl x509 -in "$SUPERVISOR_CA" -noout -subject -fingerprint -sha256
-```
-
-Expect **one** certificate. If the count is higher, `openssl x509` is showing you only the first —
-list them all before trusting any:
-
-```sh
-openssl crl2pkcs7 -nocrl -certfile "$SUPERVISOR_CA" | openssl pkcs7 -print_certs -noout
-```
-
-If your administrator cannot give you a fingerprint, ask them for the CA file directly. Do **not**
-fall back to `--insecure-skip-tls-verify`.
-
-Then clear it as soon as the context exists:
-
-```sh
 unset VCF_CLI_VSPHERE_PASSWORD
 ```
 
