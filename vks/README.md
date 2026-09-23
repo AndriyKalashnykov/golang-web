@@ -107,7 +107,18 @@ endpoint first (section 2 collects the rest):
 
 ```sh
 export SUPERVISOR_ENDPOINT="10.0.0.10"     # your Supervisor API endpoint
-export PLUGIN_OS="linux-amd64"             # macOS: darwin-arm64 (Apple Silicon) or darwin-amd64
+
+case "$(uname -s)" in
+  Linux)  export PLUGIN_OS=linux-amd64  ;;
+  Darwin) export PLUGIN_OS=darwin-amd64 ;;
+  *)      echo "unsupported OS: $(uname -s)" ;;
+esac
+case "$(uname -m)" in
+  arm64|aarch64)
+    [ "$(uname -s)" = Darwin ] \
+      && echo "arm64 Mac: using the amd64 build, which runs under Rosetta 2." \
+      || echo "arm64 Linux: the Supervisor serves no arm64 build — use the upstream kubectl below." ;;
+esac
 
 curl -fsSkO "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${PLUGIN_OS}/vsphere-plugin.zip"
 unzip -o vsphere-plugin.zip
@@ -118,6 +129,10 @@ kubectl version --client
 
 > This zip is only a way to get `kubectl`. It also contains `kubectl-vsphere` — deprecated, never
 > used here — which is why the last step deletes the rest.
+>
+> ⚠️ **The Supervisor serves no arm64 builds.** Measured: `linux-amd64`, `darwin-amd64` and
+> `windows-amd64` return 200; `linux-arm64` and `darwin-arm64` return **404**. Apple Silicon uses
+> the amd64 build under Rosetta 2; arm64 Linux must take the upstream kubectl below.
 >
 > ⚠️ `-k` skips TLS verification on a binary you then `sudo install`. If you already have the CA
 > (step 8a), use `--cacert "$SUPERVISOR_CA"` instead.
@@ -137,21 +152,37 @@ Check yours once you have the two kubeconfigs from step 8:
 kubectl --kubeconfig "$GUEST_KUBECONFIG" version -o json | jq -r .serverVersion.gitVersion
 ```
 
-### Confirm the engine before going further
+### Which engine will be used?
 
-This must print a server line, not a socket error:
+**podman, if it is installed. Otherwise docker.** The Makefile picks it for you:
+
+```make
+CONTAINER_ENGINE ?= podman if present, else docker, else none
+```
+
+To force the other one, pass it on the `make` command line or export it:
 
 ```sh
-podman info --format '{{.Host.Arch}} remote={{.Host.ServiceIsRemote}} v{{.Version.Version}}' 2>/dev/null \
-  || docker info --format '{{.OperatingSystem}}/{{.Architecture}} server={{.ServerVersion}}'
+make image-build CONTAINER_ENGINE=docker
+export CONTAINER_ENGINE=docker          # for the whole shell
+```
+
+Confirm each engine separately — a fallback chain would hide which one you actually have:
+
+```sh
+podman info --format 'podman: {{.Host.Arch}} v{{.Version.Version}}' 2>/dev/null || echo "podman: NOT AVAILABLE"
+docker info --format 'docker: {{.OperatingSystem}}/{{.Architecture}} v{{.ServerVersion}}' 2>/dev/null || echo "docker: NOT AVAILABLE"
 ```
 
 ```
-## Sample output — podman on Linux
-  amd64 remote=false v4.9.3
-## Sample output — docker
-  Ubuntu 24.04.5 LTS/x86_64 server=29.8.1
+## Sample output — both installed, so the build will use podman
+  podman: amd64 v4.9.3
+  docker: Ubuntu 24.04.5 LTS/x86_64 v29.8.1
 ```
+
+A line reading `NOT AVAILABLE` for the engine you intend to use means no daemon is running
+for it, not that the CLI is missing. After you have checked out the repo (section 4),
+`make engines` prints the selection it made.
 
 ### Install the VCF CLI
 
