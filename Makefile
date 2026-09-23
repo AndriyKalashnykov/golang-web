@@ -237,7 +237,7 @@ deps-buildx:
 	echo "ERROR: '$(CONTAINER_ENGINE) buildx' is not available -- 'make image-build' cannot run."; \
 	if [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
 		case "$(HOST_OS)" in \
-		  Darwin) echo "  Docker Desktop bundles buildx; update it, or: brew install docker-buildx";; \
+		  Darwin) echo "  Install buildx:  brew install docker-buildx";; \
 		  Linux)  echo "  Install the plugin:  sudo apt-get install -y docker-buildx-plugin"; \
 		          echo "                  or:  sudo dnf install -y docker-buildx-plugin"; \
 		          echo "  Or switch engines:   make image-build CONTAINER_ENGINE=podman";; \
