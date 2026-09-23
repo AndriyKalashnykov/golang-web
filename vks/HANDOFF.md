@@ -11,6 +11,47 @@ standalone. Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`
 `vks/macosx.sh` checks the macOS-specific claims and writes `vks/macosx.res` beside itself.
 Run it, commit the `.res`. It needs **no lab** — lab probes report SKIPPED.
 
+## ⏸ BLOCKED ON A MAC — renting one (state as of 2026-09-23)
+
+The Mac that produced `macosx.res` is not available, so a cloud Mac is being rented for P4.
+
+**Requirements** (why most offers fail): a *physical* Mac, not a macOS VM (`podman machine`
+runs its own Linux VM); **admin/sudo** (README section 3 trust step, `/etc/hosts`, binding
+:443); SSH; **macOS Tahoe 26.x**; hourly/daily billing. Every vendor has a 24 h minimum
+(Apple's macOS licence).
+
+**Rejected:** MacinCloud *Managed* — "These plans DO NOT provide you administrator/root
+access." HostMyApple — shared VM, no admin. MacRent — VM-based.
+
+**Chosen: Scaleway Apple silicon M4-S** (16 GB, from €0.22/h, ~€5.28 for the 24 h minimum).
+**Fallback: AWS `mac-m4.metal`**, ~$29.50/24 h, with a macOS 26.6.2 AMI that matches the
+last run exactly (AWS macOS AMI release notes list 26.0.1 … 26.6.2).
+
+**Where it stopped:**
+
+| | |
+|---|---|
+| Scaleway org | `yars`, project `vks`, created 2026-09-23 |
+| payment method | card added |
+| identity | **Pending verification** |
+| SSH key | `udesk` = this lab host's `~/.ssh/id_ed25519.pub` (MD5 `32:99:9f:20:…:d1:68`), added to project `vks` |
+| create page | **every Mac type OUT OF STOCK in both PARIS 1 and PARIS 3** — cannot tell stock from zero quota for an unverified account |
+| support ticket | **#1619590**, opened 2026-09-23, "Awaiting agent" — asks stock vs quota, requests 1 × M4-S, asks which Tahoe 26.x is offered |
+
+**Resume:** on a ticket reply or ID approval, reload Bare Metal → Apple silicon → Create. If
+M4-S is available: M4-S, zone PAR, newest Tahoe 26.x, **hourly**, key `udesk`, accept the
+24 h minimum. Then give the session the public IP + SSH user. If still out of stock or days
+away → AWS fallback (new AWS accounts often have 0 quota for mac Dedicated Hosts; request it).
+
+**Once on the Mac, pre-flight BEFORE any real work** (a failure here costs only the 24 h):
+`sw_vers`; `sudo -n true`; `security add-trusted-cert` into the System keychain works despite
+Scaleway's MDM profiles; sshd allows remote forwarding. Then — because the Mac cannot reach
+the lab host — open the tunnel **from the lab host**:
+`ssh -N -R 443:192.168.101.130:443 <mac>` (`-R` binding :443 needs a root login on the Mac;
+otherwise forward a high port and redirect 443 to it with `pf` — unverified on Scaleway), plus `127.0.0.1 harbor.env1.lab.test` in the Mac's
+`/etc/hosts`. This **replaces** the `-L` recipe in section 2 below, which assumed the Mac can
+SSH into the lab host. Then section 3's two runs. Delete the Mac when done.
+
 ## ▶ THE NEXT ACTION — one claim is still unverified, and it needs the lab reachable FROM THE MAC
 
 **P4, the login baseline:** that `podman login` fails with `x509: certificate signed by
