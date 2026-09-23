@@ -229,8 +229,9 @@ install -D -m0644 "$HARBOR_CA" "$HOME/.config/containers/certs.d/${HARBOR_FQDN}/
 
 ```sh
 sudo install -D -m0644 "$HARBOR_CA" "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt"
-sudo systemctl restart docker
 ```
+
+No daemon restart is needed — docker reads `certs.d` per request.
 
 **macOS + podman** — import the Mac's trust store into the machine VM, then restart it:
 
@@ -250,7 +251,8 @@ colima ssh -- sudo tee "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt" < "$HARBOR_CA
 colima restart
 ```
 
-> ⚠️ **Restart the engine afterwards**, or the login keeps failing.
+> ⚠️ **On macOS, restart the engine afterwards** — the VM does not re-read trust material while
+> running, so the login keeps failing until you do. Linux needs no restart.
 
 ## Verify
 
@@ -444,6 +446,10 @@ KUBECONFIG="$SUPERVISOR_KUBECONFIG" \
     --ca-certificate "$SUPERVISOR_CA"
 
 unset VCF_CLI_VSPHERE_PASSWORD
+
+# vcf writes the context but does NOT make it current; without this every kubectl
+# below falls back to localhost:8080.
+kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" config use-context supervisor
 ```
 
 > ⚠️ **Repeated failures lock the SSO account**, and unlocking it needs an administrator. If this
@@ -510,6 +516,24 @@ sed "s|image: .*/golang-web:.*|image: ${IMAGE}|" k8s/golang-web.yaml | kubectl a
 kubectl rollout status deploy/golang-web --timeout=150s
 ```
 
+⚠️ **Rebuilding without changing `version.txt` will redeploy the OLD image.** The manifest sets
+`imagePullPolicy: IfNotPresent`, so a node that already has that tag keeps its cached copy — the
+rollout reports success and serves the previous build. Bump `version.txt` (and rebuild, repush,
+re-export `IMAGE`), or pin the digest:
+
+```sh
+D="$(curl -s --cacert "$HARBOR_CA" \
+  "https://${HARBOR_FQDN}/api/v2.0/projects/${HARBOR_PROJECT}/repositories/golang-web/artifacts" \
+  | jq -r '.[0].digest')"
+kubectl set image deploy/golang-web golang-web="${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web@${D}"
+```
+
+Confirm which image is actually running — `.items[0]` can be a terminating pod, so list them all:
+
+```sh
+kubectl get pods -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,IMAGEID:.status.containerStatuses[0].imageID'
+```
+
 > **No `imagePullSecret` is needed** for a *public* Harbor project. For a **private** one:
 > ```sh
 > # Not `--docker-password=...`: that puts the token in argv.
@@ -543,13 +567,20 @@ curl -s "http://${APP_IP}:8080/myhello/"
 
 ```
 ## Sample output
-pod/golang-web-6b99d48b78-4d65g   1/1   Running   0   11s
-service/golang-web-service   LoadBalancer   10.96.140.12     203.0.113.40   8080:30605/TCP
+NAME                              READY   STATUS    RESTARTS   AGE
+pod/golang-web-7f4b97d4dd-8bwtm   1/1     Running   0          20s
+
+NAME                         TYPE           CLUSTER-IP      EXTERNAL-IP       PORT(S)          AGE
+service/golang-web-service   LoadBalancer   172.21.64.186   192.168.101.138   8080:30463/TCP   20s
 
 Hello, World
 request 0 GET /myhello/
-MY_POD_NAME: golang-web-6b99d48b78-4d65g
+Host: 192.168.101.138:8080
+MY_NODE_NAME: lab-gc1-np1-mjdnz-z8zw4-gmk9v
+MY_POD_NAME: golang-web-7f4b97d4dd-8bwtm
 MY_POD_NAMESPACE: golang-web
+MY_POD_IP: 172.20.2.8
+MY_POD_SERVICE_ACCOUNT: default
 ```
 
 The path is `/myhello/` because the manifest sets `APP_CONTEXT=/myhello/`. Any other path returns
