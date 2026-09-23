@@ -32,7 +32,29 @@ Boxed notes marked ⚠️ are the steps that fail quietly if skipped — they ar
 
 ```sh
 brew install podman kubectl jq git make
-podman machine init && podman machine start      # podman only; Docker Desktop needs no equivalent
+podman machine init && podman machine start
+```
+
+⚠️ **On macOS a container CLI cannot build or push on its own — it needs a Linux VM behind it.**
+`brew install docker` installs **only the client**; with no VM running you get:
+
+```
+dial unix /var/run/docker.sock: connect: no such file or directory
+```
+
+which is not a permissions problem and is not fixed by `sudo`. Pick a VM provider and start it:
+
+| provider | start it with |
+|---|---|
+| **podman** (the path this guide was proven on) | `podman machine init && podman machine start` |
+| Colima | `brew install colima docker && colima start` |
+| Docker Desktop / OrbStack / Rancher Desktop | launch the app |
+
+Confirm before going further — this must print a server section, not a socket error:
+
+```sh
+podman info --format '{{.Host.Arch}} remote={{.Host.ServiceIsRemote}}' 2>/dev/null \
+  || docker info --format '{{.ServerVersion}}'
 ```
 
 **Linux (Debian/Ubuntu)**
@@ -83,8 +105,13 @@ vcf plugin list
 `vcf plugin install all` is idempotent — re-running upgrades in place. It writes to
 `~/.config/vcf` and `~/.local/share/vcf-cli`; do not delete those, they hold your contexts.
 
-> The plugin bundle is **Linux-only**. On macOS install the `Darwin_*` CLI archive; ask your
-> platform administrator for the matching plugin path.
+> **macOS:** the `Darwin_*` CLI archive works — measured on macOS 26.6.2 / Apple Silicon,
+> `vcf version` reports `v9.1.0.0.25296329`, `releaseType: ga`. The **plugin bundle** is
+> documented Linux-only; ask your platform administrator for the matching plugin path.
+>
+> ⚠️ **`vcf plugin list` HANGS when no plugins are installed** (measured on that Mac — it had
+> to be interrupted). It appears to block on registry discovery. If it does not return within
+> ~30 s, it is not going to; `Ctrl-C` and install the bundle first.
 
 ## Verify the installation
 
@@ -173,20 +200,31 @@ podman machine set --import-native-ca
 podman machine stop && podman machine start
 ```
 
-**macOS + Docker Desktop** — add it to the Keychain, then **restart Docker Desktop**:
+**macOS + docker** — which file to write depends on **where the daemon runs**, and on macOS it
+never runs on your Mac:
+
+| your setup | where the CA goes |
+|---|---|
+| Docker Desktop / OrbStack | the Mac's Keychain (below), then restart the app |
+| Colima, Rancher Desktop, or any `docker` CLI over a VM | **inside the VM**, at `/etc/docker/certs.d/<registry>/ca.crt` |
 
 ```sh
+# Docker Desktop / OrbStack:
 sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$HARBOR_CA"
-# or, without the Keychain:
-#   install -D -m0644 "$HARBOR_CA" "$HOME/.docker/certs.d/${HARBOR_FQDN}/ca.crt"
+
+# Colima (UNTESTED here — verify before relying on it; the mechanism is that dockerd
+# reads certs.d on the machine it runs on, which is the Lima VM, not your Mac):
+colima ssh -- sudo mkdir -p "/etc/docker/certs.d/${HARBOR_FQDN}"
+colima ssh -- sudo tee "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt" < "$HARBOR_CA" >/dev/null
+colima restart
 ```
 
-> ⚠️ **On macOS, `/etc/docker/certs.d` and `~/.config/containers/certs.d` are the wrong answer.**
-> The first is a path *inside* Docker Desktop's VM, not on your Mac; the second is not a documented
-> macOS location for podman. Use the platform block above.
+> ⚠️ **`/etc/docker/certs.d` ON YOUR MAC does nothing** — no daemon reads it there. It is the right
+> path only *inside* the VM. Likewise `~/.config/containers/certs.d` is not a documented macOS
+> location for podman; use `podman machine set --import-native-ca` above.
 >
-> ⚠️ **Restart the engine after this.** Neither Docker Desktop nor a podman machine re-reads trust
-> material while running, so the login fails until you do.
+> ⚠️ **Restart the engine after this.** No engine re-reads trust material while running, so the
+> login keeps failing until you do.
 
 ## Verify
 
