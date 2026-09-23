@@ -17,27 +17,29 @@ Run it, commit the `.res`. It needs **no lab** — lab probes report SKIPPED.
 unknown authority` *before* the CA is trusted and stops failing that way *after*. That is the
 entire justification for README section 3, and no run has ever measured it.
 
-### 1. The Mac's last run used values that are ALL STALE
+### 1. The endpoints — CONFIRMED on the lab host 2026-09-23, after `make kubectl-login`
 
-| it used | actual (measured on the lab host, 2026-09-23) |
-|---|---|
-| `SUPERVISOR_ENDPOINT=172.17.0.4` | **192.168.101.128** (`https://…/` → 200) |
-| `VCENTER_FQDN=vksa.mgmt.vks.lab` | **vcsa.env1.lab.test** = 192.168.100.50 |
-| `HARBOR_FQDN=harbor.mgmt.vks.lab` | domain is **env1.lab.test** — Harbor's own name/IP is **UNVERIFIED**, see 2 |
+| | value | evidence |
+|---|---|---|
+| `HARBOR_FQDN` | **harbor.env1.lab.test** = 192.168.101.130 | `/api/v2.0/health` → **200** |
+| `VCENTER_FQDN` | **vcsa.env1.lab.test** = 192.168.100.50 | `POST /api/session` → 401 (the unauthenticated reply) |
+| `SUPERVISOR_ENDPOINT` | **192.168.101.128** | `https://…/` → **200** |
+| ArgoCD | argocd.env1.lab.test = 192.168.101.131 | namespace `lab` |
+| Harbor namespace | `svc-harbor-90dbv` | platform-chosen, not from `input.yaml` |
 
-### 2. Harbor's presence is UNKNOWN — establish it first, on the lab host
+**Harbor is installed and healthy** — the earlier "UNKNOWN" is resolved. Its CA verifies it:
+`curl --cacert .../harbor-ca/ca.crt` → 200, and the CA that README step 3 *fetches* from
+`/api/v2.0/systeminfo/getcert` is **byte-identical** to the stored one, so that step's mechanism
+is already proven against this Harbor from the lab host.
 
-```sh
-cd ~/projects/nested-vsphere-lab
-make kubectl-login      # ⚠️ SPENDS AN SSO ATTEMPT; 3 failures = PERMANENT lockout. Never guess.
-make creds              # now prints the HARBOR and ARGOCD sections it could not read before
-```
+⚠️ The Mac's last run used `*.mgmt.vks.lab` and `172.17.0.4`. **Every one of those is stale** —
+they belong to an older lab generation. Use the table above.
 
-`make creds` currently says it *cannot read* Harbor because the kubeconfig expired, and is
-careful to add that this is **not** "Harbor is absent". `harbor-ca/ca.crt` in the lab state dir
-is dated Sep 21, so one existed recently. If it is genuinely gone, `make services` installs it.
+⚠️ `make creds` warns: use **`podman login --cert-dir`**, not `docker login` — docker reads its
+CA from the root-owned `/etc/docker/certs.d`, podman takes `--cert-dir` and needs no sudo. On the
+Mac podman is the working engine anyway (docker CLI is present with no daemon).
 
-### 3. Give the Mac a route — DNS alone will NOT do it
+### 2. Give the Mac a route — DNS alone will NOT do it
 
 `make creds` states it verbatim: *"THESE URLs RESOLVE AND ROUTE ONLY WHERE THE LAB RUNS — this
 host."* Those addresses live on the lab host's libvirt bridges, so `/etc/hosts` entries on the
@@ -45,18 +47,19 @@ Mac cannot help by themselves; the packets have nowhere to go. Forward the ports
 
 ```sh
 # on the Mac. 443 is privileged, hence sudo. Keep the FQDN so TLS SAN matching still works.
-sudo ssh -N -L 443:<harbor-ip>:443 andriy@<lab-host>
+sudo ssh -N -L 443:192.168.101.130:443 andriy@<lab-host>   # Harbor
 printf '127.0.0.1 harbor.env1.lab.test\n' | sudo tee -a /etc/hosts
 ```
 
 The forward must terminate on the **FQDN**, not `localhost` — pointing the Mac at
 `https://localhost` breaks certificate verification and P4 then measures the wrong failure.
 
-### 4. Then the two-run experiment. ONE run cannot show it.
+### 3. Then the two-run experiment. ONE run cannot show it.
 
 ```sh
-export HARBOR_FQDN=harbor.env1.lab.test VCENTER_FQDN=vcsa.env1.lab.test \
-       SUPERVISOR_ENDPOINT=192.168.101.128
+export HARBOR_FQDN=harbor.env1.lab.test      # 192.168.101.130
+export VCENTER_FQDN=vcsa.env1.lab.test       # 192.168.100.50
+export SUPERVISOR_ENDPOINT=192.168.101.128
 ./vks/macosx.sh                 # BEFORE trust — P4 must say x509 unknown authority
 #   then README section 3: security add-trusted-cert + podman machine set --import-native-ca
 #                          + podman machine stop && podman machine start
