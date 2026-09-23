@@ -499,6 +499,12 @@ kind-cloud-provider-start: deps-kind
 	echo "cloud-provider-kind running."
 
 #kind-cloud-provider-stop: @ Prune this cluster's kindccm-* sidecars (and the controller if unused)
+#kind-cloud-provider-restart: @ Restart the SHARED LB controller (affects every KinD cluster on this host)
+kind-cloud-provider-restart:
+	@echo "Restarting cloud-provider-kind. Other KinD clusters on this host:"
+	@kind get clusters 2>/dev/null | grep -v "^$(KIND_CLUSTER_NAME)$$" | sed 's/^/  /' || true
+	@$(KIND_ENGINE) restart cloud-provider-kind >/dev/null && echo "Restarted."
+
 kind-cloud-provider-stop:
 	@# cloud-provider-kind spawns a per-Service Envoy sidecar named
 	@# kindccm-<hash>. These SURVIVE `kind delete cluster` and keep holding
@@ -566,8 +572,23 @@ kind-deploy: kind-create
 	@# has wired its rules, so an immediate curl gets "connection reset by
 	@# peer". Asserting only phase 1 makes the first e2e assertion flaky.
 	@echo "Waiting for LoadBalancer IP (phase 1/2)..."
+	@# cloud-provider-kind is a HOST-WIDE SINGLETON shared by every KinD cluster.
+	@# Observed: deleting and recreating a cluster can leave a long-lived controller
+	@# wedged -- its watch dies ("Unexpected EOF during watch stream event decoding")
+	@# and it never re-establishes one, so the IP stays <pending> forever with the
+	@# pod perfectly healthy. Say so, because a bare `kubectl wait` timeout points at
+	@# the Service and the real cause is a container on the host.
 	@kubectl wait --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' \
-		svc/golang-web-service --timeout=$(LB_WAIT_TIMEOUT)
+		svc/golang-web-service --timeout=$(LB_WAIT_TIMEOUT) || { \
+		echo ""; \
+		echo "No LoadBalancer IP. The pod may be fine -- check the CONTROLLER:"; \
+		echo "  $(KIND_ENGINE) logs --tail 20 cloud-provider-kind"; \
+		echo "If its last line is a watch EOF and nothing follows, it is wedged. Restart it:"; \
+		echo "  make kind-cloud-provider-restart"; \
+		echo "WARNING: that controller is shared with every other KinD cluster on this"; \
+		echo "host ($$(kind get clusters 2>/dev/null | tr '\n' ' ')) -- restarting it"; \
+		echo "re-reconciles THEIR LoadBalancers too, which can change their IPs."; \
+		exit 1; }
 	@EXTERNAL_IP=$$(kubectl get svc golang-web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}'); \
 	echo "Waiting for LoadBalancer route (phase 2/2) at $$EXTERNAL_IP..."; \
 	for i in $$(seq 1 $(LB_ROUTE_RETRIES)); do \
@@ -716,7 +737,7 @@ deps-prune-check: deps
 	image-test-fg image-test-cli image-run-bg image-cli-bg \
 	image-logs image-stop image-push \
 	k8s-apply k8s-delete \
-	kind-cloud-provider-start kind-cloud-provider-stop \
+	kind-cloud-provider-start kind-cloud-provider-stop kind-cloud-provider-restart \
 	kind-create kind-deploy kind-undeploy kind-delete e2e \
 	ci ci-run release version \
 	renovate-bootstrap renovate-validate \
