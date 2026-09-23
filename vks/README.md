@@ -16,7 +16,29 @@ distributions to `bash`). Run `echo $0` if you are unsure which you have.
 
 ---
 
-## 1. Download and install the utils
+## 1. Set the variables
+
+Everything below derives from this block — nothing is typed twice. A different environment only
+changes these values.
+
+```sh
+# --- ask your platform administrator for these ------------------------------
+export HARBOR_FQDN="harbor.example.test"         # Harbor's DNS name
+export HARBOR_PROJECT="apps"                     # the Harbor PROJECT the image lands in
+export SUPERVISOR_ENDPOINT="10.0.0.10"           # Supervisor API endpoint (IP or FQDN)
+export VCENTER_FQDN="vcsa.example.test"          # vCenter — serves the CA the Supervisor uses
+export VKS_CLUSTER="my-guest-cluster"            # the guest cluster NAME
+export VKS_NAMESPACE="my-namespace"              # the vSphere Namespace holding it
+export SSO_USERNAME="administrator@vsphere.local"
+
+# --- yours to choose; just a place to keep the CA ----------------------------
+export HARBOR_CA="$HOME/.config/vks-golang-web/harbor-ca.crt"
+export SUPERVISOR_CA="$HOME/.config/vks-golang-web/vmca-root.pem"
+```
+
+---
+
+## 2. Install the tools
 
 | tool | why |
 |---|---|
@@ -100,11 +122,9 @@ sudo apt-get install -y jq git make unzip
 
 ### kubectl — get it from the Supervisor
 
-The Supervisor serves the binary. Set your endpoint first (section 2 collects the rest):
+The Supervisor serves the binary, at the `SUPERVISOR_ENDPOINT` you set above:
 
 ```sh
-export SUPERVISOR_ENDPOINT="10.0.0.10"     # your Supervisor API endpoint
-
 case "$(uname -s)/$(uname -m)" in
   Darwin/*)     PLUGIN_OS=darwin-amd64 ;;  # no arm64 build exists; runs under Rosetta 2
   Linux/x86_64) PLUGIN_OS=linux-amd64  ;;
@@ -128,12 +148,6 @@ every command from section 9 runs — take a matching build from upstream instea
 export KUBECTL_VERSION="v1.36.2"           # match the guest cluster
 curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH:-amd64}/kubectl"
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && rm -f kubectl
-```
-
-Check yours once you have the two kubeconfigs from step 8:
-
-```sh
-kubectl --kubeconfig "$GUEST_KUBECONFIG" version -o json | jq -r .serverVersion.gitVersion
 ```
 
 ### Which engine will be used?
@@ -172,28 +186,6 @@ vcf version | head -1
 
 An engine you installed that prints nothing here is not on your `PATH`. If neither prints,
 go back and install one.
-
----
-
-## 2. Set the variables
-
-Everything below derives from this block — nothing is typed twice. A different environment only
-changes these values.
-
-```sh
-# --- ask your platform administrator for these six values --------------------
-export HARBOR_FQDN="harbor.example.test"         # Harbor's DNS name
-export HARBOR_PROJECT="apps"                     # the Harbor PROJECT the image lands in
-export SUPERVISOR_ENDPOINT="10.0.0.10"           # Supervisor API endpoint (IP or FQDN)
-export VCENTER_FQDN="vcsa.example.test"          # vCenter — serves the CA the Supervisor uses
-export VKS_CLUSTER="my-guest-cluster"            # the guest cluster NAME
-export VKS_NAMESPACE="my-namespace"              # the vSphere Namespace holding it
-export SSO_USERNAME="administrator@vsphere.local"
-
-# --- yours to choose; just a place to keep the CA ----------------------------
-export HARBOR_CA="$HOME/.config/vks-golang-web/harbor-ca.crt"
-export SUPERVISOR_CA="$HOME/.config/vks-golang-web/vmca-root.pem"
-```
 
 ---
 
@@ -513,6 +505,16 @@ kubectl get nodes
 ```
 
 `umask 077` matters — that file is a cluster-admin credential.
+
+Now you can check the version skew that section 2 mentioned — `kubectl` is supported within one
+minor of the server:
+
+```sh
+kubectl version -o json | jq -r '"client \(.clientVersion.gitVersion)   server \(.serverVersion.gitVersion)"'
+```
+
+If they are more than one minor apart, reinstall `kubectl` from upstream pinned to the server's
+minor (section 2).
 
 ### 8c. Optional: `vcf cluster kubeconfig get`
 
