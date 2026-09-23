@@ -49,6 +49,15 @@ export GUEST_KUBECONFIG="$HOME/.kube/${VKS_CLUSTER}.kubeconfig"
 # Every kubectl from step 8b on talks to the GUEST cluster. Setting it here means each
 # snippet below is self-contained; before 8b creates the file, nothing reads it.
 export KUBECONFIG="$GUEST_KUBECONFIG"
+
+# Writes a curl -K config holding the Harbor admin credential. It is a FUNCTION so that
+# sourcing this file gives it to every shell -- step 6 and step 11 both need it.
+# curl's -K file is parsed, so the password is escaped: backslash first, then quote.
+harbor_cfg() {
+  local e="$HARBOR_ADMIN_PASSWORD"
+  e="${e//\\/\\\\}"; e="${e//\"/\\\"}"
+  CFG="$(mktemp)"; ( umask 077; printf 'user = "admin:%s"\n' "$e" > "$CFG" )
+}
 EOF
 
 source ~/.vks-golang-web.env
@@ -421,12 +430,6 @@ password**, create one now — `duration` is in days, `-1` never expires:
 
 ```sh
 source ~/.vks-golang-web.env
-# curl's -K file is parsed, so the password must be escaped.
-harbor_cfg() {
-  local e="$HARBOR_ADMIN_PASSWORD"
-  e="${e//\\/\\\\}"; e="${e//\"/\\\"}"
-  CFG="$(mktemp)"; ( umask 077; printf 'user = "admin:%s"\n' "$e" > "$CFG" )
-}
 harbor_cfg
 
 jq -nc --arg p "$HARBOR_PROJECT" '{name:"golang-web-push", duration:90, level:"project",
@@ -480,7 +483,7 @@ make registry-login IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 
 ```sh
 source ~/.vks-golang-web.env
-harbor_cfg      # re-run it if you opened a new shell
+harbor_cfg      # defined by the env file you just sourced
 
 # A PROJECT robot is invisible to a bare /robots call — that lists SYSTEM robots only.
 # It needs both the level and the project id.
@@ -490,7 +493,10 @@ curl -s --cacert "$HARBOR_CA" -K "$CFG" --get \
   --data-urlencode "q=Level=project,ProjectID=${PID}" --data-urlencode 'page_size=100' \
   "https://${HARBOR_FQDN}/api/v2.0/robots" | jq -r '.[] | "\(.id)  \(.name)"'
 
-curl -s --cacert "$HARBOR_CA" -K "$CFG" -X DELETE "https://${HARBOR_FQDN}/api/v2.0/robots/ID"   # ID from the list
+# To delete one, put its id from the list above in RID and uncomment:
+# RID=11
+# curl -s --cacert "$HARBOR_CA" -K "$CFG" -X DELETE "https://${HARBOR_FQDN}/api/v2.0/robots/${RID}"
+
 rm -f "$CFG"
 ```
 
@@ -770,11 +776,6 @@ kubectl delete namespace golang-web --ignore-not-found=true
 
 ```sh
 source ~/.vks-golang-web.env
-harbor_cfg() {
-  local e="$HARBOR_ADMIN_PASSWORD"
-  e="${e//\\/\\\\}"; e="${e//\"/\\\"}"
-  CFG="$(mktemp)"; ( umask 077; printf 'user = "admin:%s"\n' "$e" > "$CFG" )
-}
 harbor_cfg
 
 curl -s --cacert "$HARBOR_CA" -K "$CFG" -X DELETE \
