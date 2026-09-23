@@ -282,7 +282,15 @@ make deps
 ## 5. Build the image
 
 ```sh
+export IMAGE="${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web:$(cat version.txt)"
+echo "$IMAGE"
+
 make image-build IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
+```
+
+```
+## Sample output — check the project segment is yours, not the upstream default
+  harbor.example.test/apps/golang-web:v0.0.3
 ```
 
 > `OWNER` may be passed on the `make` command line or exported — both work.
@@ -290,17 +298,6 @@ make image-build IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 > On an arm64 host the build targets `linux/amd64` automatically, because VKS nodes are amd64
 > and a native arm64 image pushes fine and then dies with `exec format error`. Override with
 > `PLATFORM=linux/arm64`, or `PLATFORM=` to build natively.
-
-## Verify the image name
-
-```sh
-make -n k8s-apply IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT" | head -1
-```
-
-```
-## Sample output — note the project segment is `apps`
-sed -e 's|image: .*/golang-web:.*|image: harbor.example.test/apps/golang-web:v0.0.3|' k8s/golang-web.yaml | kubectl apply -f -
-```
 
 ---
 
@@ -502,14 +499,14 @@ minor (section 2).
 
 ## 9. Deploy
 
-`make k8s-apply` rewrites the `image:` line in `k8s/golang-web.yaml` to the image you just pushed,
-then applies it — so the manifest itself never needs editing.
+The committed manifest points at the upstream image, so rewrite that one line to the image you
+just pushed. The file itself is never edited — `sed` writes to the pipe, not to disk:
 
 ```sh
 kubectl create namespace golang-web --dry-run=client -o yaml | kubectl apply -f -
 kubectl config set-context --current --namespace=golang-web
 
-make k8s-apply IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
+sed "s|image: .*/golang-web:.*|image: ${IMAGE}|" k8s/golang-web.yaml | kubectl apply -f -
 kubectl rollout status deploy/golang-web --timeout=150s
 ```
 
@@ -563,7 +560,7 @@ The path is `/myhello/` because the manifest sets `APP_CONTEXT=/myhello/`. Any o
 ## 11. Clean up
 
 ```sh
-make k8s-delete
+kubectl delete -f k8s/golang-web.yaml --ignore-not-found=true
 kubectl delete namespace golang-web
 ```
 
