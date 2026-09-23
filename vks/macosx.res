@@ -1,5 +1,5 @@
 === macOS check for vks/README.md ===
-generated : 2026-09-23T04:55:08Z
+generated : 2026-09-23T04:58:43Z
 macOS     : 26.6.2 (25G83)
 arch      : arm64
 shell     : /opt/homebrew/bin/zsh
@@ -29,7 +29,7 @@ lab vars  : set - lab probes will run
     error    : failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
   -- which VM provider is running? --
     podman machine: NAME                     VM TYPE     CREATED         LAST UP            CPUS        MEMORY      DISK SIZE
-    podman machine: podman-machine-default*  applehv     33 minutes ago  Currently running  9           2GiB        100GiB
+    podman machine: podman-machine-default*  applehv     36 minutes ago  Currently running  9           2GiB        100GiB
     /var/run/docker.sock: ABSENT
 
 --- S4  can this Mac build linux/amd64? ---
@@ -84,7 +84,7 @@ lab vars  : set - lab probes will run
   P4 BASELINE: does login fail BEFORE the CA is trusted?
      (expect x509 unknown authority; SUCCESS means it is already trusted.
       The password sent is the literal string x - not a credential.)
-    podman: Error: get credentials: reading JSON file "/var/folders/m3/10z9t5ss4s1_fg9twzmw6n240000gq/T/probeauth.vIXReJRRy8": unmarshaling JSON at "/var/folders/m3/10z9t5ss4s1_fg9twzmw6n240000gq/T/probeauth.vIXReJRRy8": unexpected end of JSON input
+    podman: Error: authenticating creds for "harbor.mgmt.vks.lab": pinging container registry harbor.mgmt.vks.lab: Get "https://harbor.mgmt.vks.lab/v2/": dial tcp: lookup harbor.mgmt.vks.lab: no such host
   P5 vCenter CA endpoint (README step 8a):
     /certs/download.zip http=000 bytes=0
     UNREACHABLE
