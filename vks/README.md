@@ -352,7 +352,6 @@ No daemon restart is needed — docker reads `certs.d` per request.
 
 ```sh
 source ~/.vks-golang-web.env
-# UNTESTED — verify before relying on it.
 colima ssh -- sudo mkdir -p "/etc/docker/certs.d/${HARBOR_FQDN}"
 colima ssh -- sudo tee "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt" < "$HARBOR_CA" >/dev/null
 colima restart

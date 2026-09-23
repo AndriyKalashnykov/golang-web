@@ -22,6 +22,19 @@ the lab through `ssh -R` tunnels from the lab host + loopback aliases of the rea
 `socat` forwarders, so every name/IP/port in the README was used unchanged; the podman/Colima VMs got
 an `/etc/hosts` entry for Harbor pointing at the Mac.
 
+**Linux + docker re-walked on the merged code** (2026-09-23, docker 29.8.1 + buildx 0.37.1, lab
+host, bash): §1–§11, every block verbatim — the §1 env block, §3 CA fetch (byte-identical to the
+lab's CA) and the sudo `certs.d` install, §5 buildx build (`linux/amd64`), §6 robot + login,
+§7 push, §8 contexts + guest kubeconfig, §9 deploy by digest (the running pod's image ID equals
+the pushed digest), §10 LoadBalancer and port-forward (path table matches: 200/307/200/404),
+§11 cleanup (Harbor repo + robot deleted, `vcf context list` shows no `supervisor*` left — and
+the pre-existing current context of another project was untouched). This Linux docker walk ran on
+the merged code (9046066). The macOS walks ran before the last Dockerfile/Makefile fixes; after
+them the Mac re-ran `make image-build` with both engines, not the whole README.
+
+The Mac scaffolding (socat, lo0 aliases, `/etc/hosts`) and the lab-host tunnels were removed
+2026-09-23. The Mac itself is still rented: delete it from 2026-09-24 13:41.
+
 Fixes this found, each MEASURED failing before and passing after:
 - **Apple's `/usr/bin/make` (GNU Make 3.81, Apple-patched) ignored the Makefile's exported PATH** for
   simple recipe lines (`posix_spawnp` searches make's own PATH), so `make deps` could not find the
@@ -48,6 +61,18 @@ harbor.env1.lab.test:8443` (`vks/macosx.res` is the "after" run):
   rejects Harbor's default leaf (cert-manager, `duration: 87600h` = 3650 days) because a leaf under
   a private CA may be valid for at most 825 days — trusting the CA does not help (Apple support
   103769; `SecPolicyServer.c` `check_other_trust_ssl_validity_maximums`).
+- **The 825-day rule MEASURED with controls** (2026-09-23, same Mac, `security verify-cert -p ssl -r
+  <CA>` — the CA passed as an explicit trust anchor, so "untrusted CA" is ruled out): an 800-day leaf
+  under a throwaway CA → **verification successful**; a 3650-day leaf under the same CA →
+  `CSSMERR_TP_CERT_SUSPENDED`; the real Harbor leaf under the Harbor CA → the same
+  `CSSMERR_TP_CERT_SUSPENDED`; wrong anchor → `CSSMERR_TP_NOT_TRUSTED` (so the instrument
+  discriminates). Why `certs.d` escapes it (READ, Go `crypto/x509/verify.go`): with a system pool
+  plus added roots, a failed platform verification falls back to Go's own verifier, which has no
+  825-day rule; `push` runs in the Linux VM, never on Apple's verifier. macOS `/usr/bin/curl` 8.7.1
+  defaults to LibreSSL, so the README's `--cacert` calls pass (`http=200`); forcing
+  `CURL_SSL_BACKEND=securetransport` fails (`RecoverableTrustFailure`). Anything that uses Apple's
+  verifier directly (Safari/Chrome on the Harbor UI, Keychain trust) cannot be fixed on the client —
+  only a Harbor leaf of ≤825 days fixes that, which is a lab-side change.
 - **The OLD README §3 macOS block could not work:** (1) `sudo security add-trusted-cert -d …` is
   denied without an on-screen admin login — a hard-coded authd rule, root is not exempt, and
   `authorizationdb write` of that right is itself refused (`-60005`); (2) even trusted, the 3650-day
@@ -159,7 +184,8 @@ they belong to an older lab generation. Use the table above.
 
 ⚠️ `make creds` warns: use **`podman login --cert-dir`**, not `docker login` — docker reads its
 CA from the root-owned `/etc/docker/certs.d`, podman takes `--cert-dir` and needs no sudo. On the
-Mac podman is the working engine anyway (docker CLI is present with no daemon).
+Mac both engines are proven: podman, and docker with Colima as the engine (a bare `brew install
+docker` is only a client with no daemon, which is why the README installs Colima).
 
 ### 2. Give the Mac a route — DNS alone will NOT do it
 
@@ -228,7 +254,8 @@ it gets 200 — so the robot now carries those permissions and both lookups auth
 
 After the rewrite: §1–§4 plus §8–§9 (namespace, pull secret) and §11 pass in the clean container;
 §5–§11 pass on the lab host (rootless podman cannot run nested inside a container, so the build
-was proven on the host). Not exercised: every macOS block, and Linux arm64.
+was proven on the host). Not exercised: every macOS block (proven later — see the top of this
+file), and Linux arm64.
 
 ## Settled — do not re-derive
 
@@ -237,16 +264,17 @@ Measured on macOS 26.6.2 / arm64 / bash 3.2.57 / podman 6.1.2 (`vks/macosx.res`)
 | | |
 |---|---|
 | `engine_remote=true` | macOS runs a Linux VM — the reason every macOS/Linux split in section 3 exists |
-| `import_native_ca=yes` | the flag section 3's podman path depends on |
+| `import_native_ca=yes` | the flag exists — but section 3 NO LONGER uses it: podman's `certs.d` replaced the Keychain + `--import-native-ca` path (P4 above) |
 | `xarch_build=ok` | `--platform linux/amd64` builds, and the image really is `linux/amd64` |
 | `install -D` | **NOT supported** (BSD) — its Linux-only placement is load-bearing |
 | `base64 -d` | works — step 8b is safe on both platforms |
 | `group "root"` | **does not exist** on macOS — `install -g root` would fail |
 | `rosetta2=yes` | on *this* Mac; the README now warns for the next one |
 | `KUBECTL_VERSION` | the README's default **v1.36.2** matches the guest cluster exactly — no upstream fallback needed here |
-| docker | CLI present, daemon down → `brew install docker` is client-only |
+| docker | CLI present, daemon down → `brew install docker` is client-only; the README runs the engine in Colima (proven, top of file) |
 
-Checked against podman's own docs rather than assumed, for the trust block's ORDER: `--import-native-ca` imports
+HISTORY — the README no longer has this block (see the `import_native_ca` row). Checked against
+podman's own docs rather than assumed, for the old trust block's ORDER: `--import-native-ca` imports
 *"during machine startup"*, so `set` → `stop && start` is correct, and the bare flag is valid.
 
 ## Traps already paid for
