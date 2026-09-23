@@ -34,11 +34,13 @@ export VKS_CLUSTER="my-guest-cluster"            # the guest cluster NAME
 export VKS_NAMESPACE="my-namespace"              # the vSphere Namespace holding it
 export SSO_USERNAME="administrator@vsphere.local"
 
-# --- credentials -------------------------------------------------------------
-export VCF_CLI_VSPHERE_PASSWORD="<your vCenter SSO password>"
-export HARBOR_ADMIN_PASSWORD="<Harbor admin password>"   # only to CREATE a robot in step 6
-# Step 6 replaces these two with the robot's name and secret. Keep the SINGLE quotes: a robot
-# name contains `$` (robot$apps+...), and double quotes would silently expand it away.
+# --- credentials: ALWAYS in SINGLE quotes ------------------------------------
+# This file is `source`d, so inside double quotes a `$` in a password or robot name is
+# expanded away and you get a silently WRONG credential — for the SSO account that can mean a
+# lockout. (A value that itself contains a single quote: write it as '\''.)
+export VCF_CLI_VSPHERE_PASSWORD='<your vCenter SSO password>'
+export HARBOR_ADMIN_PASSWORD='<Harbor admin password>'   # only to CREATE a robot in step 6
+# Step 6 replaces these two with the robot's name and secret (robot$apps+...).
 export REGISTRY_USERNAME='admin'
 export REGISTRY_TOKEN="$HARBOR_ADMIN_PASSWORD"   # step 6: the robot secret, in single quotes
 
@@ -667,10 +669,10 @@ crash-looped with no logs. A digest names exactly one build, so the node must fe
 source ~/.vks-golang-web.env
 export IMAGE="${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web:$(cat version.txt)"
 # The digest Harbor holds for the tag you pushed in step 7.
-DIGEST="$(curl -s --cacert "$HARBOR_CA" \
+DIGEST="$(curl -fsS --cacert "$HARBOR_CA" \
   "https://${HARBOR_FQDN}/api/v2.0/projects/${HARBOR_PROJECT}/repositories/golang-web/artifacts/$(cat version.txt)" \
   | jq -r '.digest // empty')"
-echo "${IMAGE} -> ${DIGEST:-NOT FOUND — re-run step 7 before going on}"
+echo "${IMAGE} -> ${DIGEST:-NOT FOUND — read the curl error above: 404 = not pushed (step 7); 401 = wrong HARBOR_PROJECT or a private one; certificate = HARBOR_CA (step 3)}"
 
 kubectl create namespace golang-web --dry-run=client -o yaml | kubectl apply -f -
 kubectl config set-context --current --namespace=golang-web
@@ -901,7 +903,8 @@ in step 5 prints the full tag before you build; check the project segment there.
 
 **The pod crash-loops, or serves an OLD build, right after deploy** — it was deployed by tag, and
 the node started an image it had cached from an earlier run. Use the section 9 block, which
-deploys by digest, and check that the `IMAGEID` it prints matches.
+deploys by digest, then check that the `IMAGEID` from the `kubectl get pods` check below it
+matches the digest that block printed.
 
 **`exec format error` in the pod** — an arm64 image on amd64 nodes. The build targets amd64
 automatically on an arm64 host, so this means `PLATFORM` was overridden or the image predates
