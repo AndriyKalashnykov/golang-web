@@ -28,41 +28,83 @@ Boxed notes marked ⚠️ are the steps that fail quietly if skipped — they ar
 | `git`, `make` | check out and drive the repo |
 | `jq` | only for the robot-account step |
 
-**macOS**
+### Pick a container engine
+
+Either works. **podman** is the path this guide was proven on; **docker** is equally fine.
+
+**macOS — podman**
 
 ```sh
-brew install podman kubectl jq git make
+brew install podman
 podman machine init && podman machine start
 ```
 
-⚠️ **On macOS a container CLI cannot build or push on its own — it needs a Linux VM behind it.**
-`brew install docker` installs **only the client** — verified in the formula itself, which
-builds from `github.com/docker/cli` (not moby/moby, the engine) and compiles exactly one
-binary, `cmd/docker`. There is no `dockerd` in it. With no VM running you get:
+**macOS — docker.** The CLI alone cannot build or push; it needs a Linux VM behind it.
+`brew install docker` installs **only the client** — verified in the formula, which builds from
+`github.com/docker/cli` (not moby/moby, the engine) and compiles exactly one binary, `cmd/docker`.
+There is no `dockerd` in it. Choose a VM provider:
+
+```sh
+brew install colima docker && colima start       # lightweight, CLI-only
+# or:
+brew install --cask docker-desktop               # then launch the app
+# or:  brew install --cask orbstack  /  rancher-desktop
+```
+
+With a CLI but no VM running you get this, which is **not** a permissions problem and is **not**
+fixed by `sudo`:
 
 ```
 dial unix /var/run/docker.sock: connect: no such file or directory
 ```
 
-which is not a permissions problem and is not fixed by `sudo`. Pick a VM provider and start it:
-
-| provider | start it with |
-|---|---|
-| **podman** (the path this guide was proven on) | `podman machine init && podman machine start` |
-| Colima | `brew install colima docker && colima start` |
-| Docker Desktop / OrbStack / Rancher Desktop | launch the app |
-
-Confirm before going further — this must print a server section, not a socket error:
+**Linux (Debian/Ubuntu) — either engine**
 
 ```sh
-podman info --format '{{.Host.Arch}} remote={{.Host.ServiceIsRemote}}' 2>/dev/null \
-  || docker info --format '{{.ServerVersion}}'
+sudo apt-get update
+sudo apt-get install -y podman      # or:  sudo apt-get install -y docker.io
+sudo usermod -aG docker "$USER"     # docker only; log out and back in
+```
+
+### The rest of the tools
+
+**macOS**
+
+```sh
+brew install kubectl jq git make
 ```
 
 **Linux (Debian/Ubuntu)**
 
 ```sh
-sudo apt-get update && sudo apt-get install -y podman kubectl jq git make
+sudo apt-get install -y jq git make
+```
+
+⚠️ **`kubectl` is NOT in the Debian/Ubuntu repositories** — `apt-get install kubectl` fails with
+*"Unable to locate package"*. Install the official binary:
+
+```sh
+KVER="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"     # e.g. v1.37.0
+curl -fsSLO "https://dl.k8s.io/release/${KVER}/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && rm -f kubectl
+```
+
+> On arm64 replace `linux/amd64` with `linux/arm64`.
+
+### Confirm the engine before going further
+
+This must print a server line, not a socket error:
+
+```sh
+podman info --format '{{.Host.Arch}} remote={{.Host.ServiceIsRemote}} v{{.Version.Version}}' 2>/dev/null \
+  || docker info --format '{{.OperatingSystem}}/{{.Architecture}} server={{.ServerVersion}}'
+```
+
+```
+## Sample output — podman on Linux
+  amd64 remote=false v4.9.3
+## Sample output — docker
+  Ubuntu 24.04.5 LTS/x86_64 server=29.8.1
 ```
 
 ### Install the VCF CLI
