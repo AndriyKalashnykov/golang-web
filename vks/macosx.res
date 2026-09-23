@@ -1,19 +1,19 @@
 === macOS check for vks/README.md ===
-generated : 2026-09-23T04:58:43Z
+generated : 2026-09-23T19:23:58Z
 macOS     : 26.6.2 (25G83)
 arch      : arm64
-shell     : /opt/homebrew/bin/zsh
+shell     : /bin/zsh
 bash      : 3.2.57(1)-release
 lab vars  : set - lab probes will run
 
 --- S1  base tools README assumes macOS ships ---
   curl     OK   /usr/bin/curl
   unzip    OK   /usr/bin/unzip
-  openssl  OK   /opt/homebrew/bin/openssl
+  openssl  OK   /usr/bin/openssl
   tar      OK   /usr/bin/tar
-  git      OK   /usr/bin/git
+  git      OK   /opt/homebrew/bin/git
   make     OK   /usr/bin/make
-  mise     /Users/ak901864/.local/bin/mise
+  mise     absent (make deps installs it)
 
 --- S2  Rosetta 2 ---
   Rosetta 2 : PRESENT - an x86_64 binary runs here
@@ -24,12 +24,10 @@ lab vars  : set - lab probes will run
     host     : linux/arm64 remote=true v6.1.2
     machine  : state=running
     machine  : rootful=false
-  docker present : /opt/homebrew/bin/docker
-    daemon   : DOWN - the CLI alone cannot build or push on macOS
-    error    : failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+  docker present : NO
   -- which VM provider is running? --
-    podman machine: NAME                     VM TYPE     CREATED         LAST UP            CPUS        MEMORY      DISK SIZE
-    podman machine: podman-machine-default*  applehv     36 minutes ago  Currently running  9           2GiB        100GiB
+    podman machine: NAME                     VM TYPE     CREATED        LAST UP            CPUS        MEMORY      DISK SIZE
+    podman machine: podman-machine-default*  applehv     7 minutes ago  Currently running  4           2GiB        100GiB
     /var/run/docker.sock: ABSENT
 
 --- S4  can this Mac build linux/amd64? ---
@@ -41,27 +39,7 @@ lab vars  : set - lab probes will run
   entitled archives for this Mac:
     VCF-Consumption-CLI-Darwin_ARM64-<version>.tar.gz
     VCF-Consumption-CLI-PluginBundle-Darwin_ARM64-<version>.tar.gz
-  version: v9.1.0.0.25296329
-  buildDate: 2026-03-20
-  sha: 987b58e
-  releaseType: ga
-  -- plugins: does the Darwin bundle actually install here? --
-  (README says this HANGS on a Mac with no plugins installed; capped at 25s.)
-  produced output, rc=1:
-    [i] Refreshing plugin inventory cache for "172.17.0.7/vcf/vcf-cli-plugins/ga/plugin-inventory/v9-rel/plugin-inventory:latest", this will take a few seconds.
-    [i] The vcf cli essential plugins have not been installed and are being installed now. The install may take a few seconds.
-    
-      NAME                DESCRIPTION                                                                       INSTALLED  STATUS     
-      addon               Add-on lifecycle management                                                       v3.6.1     installed  
-      cluster             Kubernetes cluster operations                                                     v3.6.1     installed  
-      imgpkg              package, distribute, and relocate your configuration and dependent oci images as  v9.1.0     installed  
-                          one oci artifact                                                                                        
-      kubernetes-release  Kubernetes release operations                                                     v3.6.1     installed  
-      namespaces          discover vsphere supervisor namespaces you have access to                         v9.1.0     installed  
-      package             VCF Package management                                                            v3.6.1     installed  
-      pais                Manage model images for Private AI Services                                       v2.1.0     installed  
-      registry-secret     Registry secret management                                                        v3.6.1     installed  
-      secret              Secret Store Plugin for VCF CLI                                                   v9.1.0     installed  
+  vcf: NOT INSTALLED - note whether the portal archive installs cleanly
 
 --- S6  BSD userland vs the commands README actually runs ---
   base64 -d            : OK
@@ -75,22 +53,24 @@ lab vars  : set - lab probes will run
   /usr/local/bin on PATH: yes
 
 --- S7  lab-dependent probes ---
-  HARBOR_FQDN=harbor.mgmt.vks.lab  VCENTER_FQDN=vksa.mgmt.vks.lab  SUPERVISOR_ENDPOINT=172.17.0.4
+  HARBOR_FQDN=harbor.env1.lab.test:8443  VCENTER_FQDN=vcsa.env1.lab.test  SUPERVISOR_ENDPOINT=192.168.101.128
   P1 reach Harbor:
-    /api/v2.0/health http=000
-    UNREACHABLE
+    /api/v2.0/health http=200  (reached)
   P2 Harbor serves its own CA:
-    bytes=0 - nothing downloaded; P3 skipped
+    bytes=1159
+    subject= /CN=Harbor CA
+    SHA256 Fingerprint=A8:00:C3:62:1C:31:33:93:6B:55:0D:5A:77:B0:88:2D:A5:DA:9C:E5:F2:5A:F1:80:73:20:65:60:BA:AA:72:E2
+  P3 curl verifies against it (no -k):
+    http=200  (reached)
   P4 BASELINE: does login fail BEFORE the CA is trusted?
      (expect x509 unknown authority; SUCCESS means it is already trusted.
       The password sent is the literal string x - not a credential.)
-    podman: Error: authenticating creds for "harbor.mgmt.vks.lab": pinging container registry harbor.mgmt.vks.lab: Get "https://harbor.mgmt.vks.lab/v2/": dial tcp: lookup harbor.mgmt.vks.lab: no such host
+    podman: Error: logging into "harbor.env1.lab.test:8443": invalid username/password
   P5 vCenter CA endpoint (README step 8a):
-    /certs/download.zip http=000 bytes=0
-    UNREACHABLE
+    /certs/download.zip 000 0  (DNS: name does not resolve)
   P6 Supervisor kubectl download (README step 7):
-    darwin-amd64 http=000 bytes=0
-    darwin-arm64 http=000 bytes=0
+    darwin-amd64  000 0  (resolves, but NO ROUTE or connection refused)
+    darwin-arm64  000 0  (resolves, but NO ROUTE or connection refused)
     (README pins darwin-amd64 because darwin-arm64 404s. If arm64 is 200 here, fix the README.)
 
 === SUMMARY (machine-readable) ===
@@ -102,8 +82,8 @@ daemon_up=yes
 vm_provider=podman-machine
 engine_remote=true
 buildx=yes
-vcf_cli=yes
-vcf_plugin_list=listed(rc=1)
+vcf_cli=no
+vcf_plugin_list=unknown
 base64_flag=-d ok
 install_D=no
 sed_rewrite=ok

@@ -293,7 +293,7 @@ if command -v podman >/dev/null 2>&1; then
   if podman machine set --help 2>&1 | grep -q -- --import-native-ca; then
     V_IMPORTCA=yes; printf '  --import-native-ca   : supported by this podman\n'
   else
-    V_IMPORTCA=no;  printf '  --import-native-ca   : NOT in this podman - README macOS+podman step would fail\n'
+    V_IMPORTCA=no;  printf '  --import-native-ca   : NOT in this podman (the README no longer relies on it)\n'
   fi
   if podman machine ssh --help >/dev/null 2>&1; then
     printf '  podman machine ssh   : available (VM-side trust is reachable)\n'
@@ -342,7 +342,9 @@ if lab_set; then
   rm -f "$CA"
 
   printf '  P4 BASELINE: does login fail BEFORE the CA is trusted?\n'
-  printf '     (expect x509 unknown authority; SUCCESS means it is already trusted.\n'
+  printf '     (expect a TLS error: on macOS with Harbor'"'"'s default 10-year certificate it reads\n'
+  printf '      "certificate is not standards compliant", elsewhere "unknown authority".\n'
+  printf '      SUCCESS means it is already trusted.\n'
   printf '      The password sent is the literal string x - not a credential.)\n'
   if [ "$V_ENGINE" = podman ]; then
     # The authfile must NOT exist yet. mktemp creates an EMPTY file and podman PARSES it as
