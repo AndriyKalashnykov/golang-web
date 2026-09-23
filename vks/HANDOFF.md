@@ -11,6 +11,19 @@ standalone. Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`
 `vks/macosx.sh` checks the macOS-specific claims and writes `vks/macosx.res` beside itself.
 Run it, commit the `.res`. It needs **no lab** — lab probes report SKIPPED.
 
+## ▶ A MAC IS RENTED — 2026-09-23 (supersedes the "blocked" state below)
+
+| | |
+|---|---|
+| Scaleway server | `apple-silicon-angry-ardinghelli`, id `1d6892ed-5fa6-4dfe-9473-f329f3faa04b`, zone **fr-par-3** |
+| hardware / OS | **M1-M**, 8 GB, 256 GB — **macOS Tahoe 26.6.2** (same build as the last Mac run) |
+| access | `ssh m1@51.159.120.46` (key `udesk` = the lab host's `~/.ssh/id_ed25519`); VNC port 59010 |
+| state at creation (13:41) | "Reinstalling", ~2 h per Scaleway; billed only once ready, €0.11/h |
+| **deletable from** | **2026-09-24 13:41** (Apple's 24 h minimum) — delete it when P4 is done |
+
+The M4-S turned out to need an explicit quota; only the M1-M had stock. Any Apple silicon works
+for P4. Pre-flight and tunnel steps are unchanged — see "Once on the Mac" below.
+
 ## ⏸ BLOCKED ON A MAC — renting one (state as of 2026-09-23)
 
 The Mac that produced `macosx.res` is not available, so a cloud Mac is being rented for P4.
@@ -148,6 +161,24 @@ this lab needs the upstream-kubectl path. The robot name must go into the env fi
 quotes** — measured, double quotes turn `robot$apps+golang-web-push` into
 `robot+golang-web-push`. All 47 `sh` blocks parse under `bash -n` and `zsh -n`. Not exercised
 here: the `sudo install` lines (no passwordless sudo on the lab host) and every macOS block.
+
+## First-time-user walk — 2026-09-23, clean `ubuntu:26.04` container + the lab host
+
+That earlier walk ran on a host that already had vcf, mise and Go, so it could not see
+first-run defects. A clean container, as an ordinary user with sudo, blocks fed on stdin like a
+paste, found them (all MEASURED): the VCF CLI tarball holds `vcf-cli-linux_amd64`, not `./vcf`,
+so the old install never installed anything; a `*.tar.gz` wildcard breaks once a second version
+is downloaded; the old §4 mise-activation line leaves `go` missing in every new shell on Ubuntu
+(harmless — the Makefile puts the mise shims on PATH itself, so no activation is needed); and
+`make deps` did NOT stop after installing mise as documented. An independent end-user review
+added the rest: §2 `rm -rf ./bin` could delete `~/bin`; a private project broke §9 (pull
+secret created after the deploy; the digest lookup was unauthenticated). MEASURED on a throwaway
+private project: a push/pull robot gets **403** on the artifacts API; with `artifact` read+list
+it gets 200 — so the robot now carries those permissions and both lookups authenticate.
+
+After the rewrite: §1–§4 plus §8–§9 (namespace, pull secret) and §11 pass in the clean container;
+§5–§11 pass on the lab host (rootless podman cannot run nested inside a container, so the build
+was proven on the host). Not exercised: every macOS block, and Linux arm64.
 
 ## Settled — do not re-derive
 
