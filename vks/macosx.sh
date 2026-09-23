@@ -22,8 +22,12 @@ _t() {
   if   command -v timeout  >/dev/null 2>&1; then timeout  "$_s" "$@"
   elif command -v gtimeout >/dev/null 2>&1; then gtimeout "$_s" "$@"
   else
+    # MEASURED on the target Mac: `vcf plugin list` hangs until ^C. macOS ships no
+    # timeout(1), so this fallback is what actually runs there -- it must escalate to
+    # KILL, or a process that ignores TERM hangs the run and no .res is ever written.
     "$@" & _p=$!
-    ( sleep "$_s"; kill -TERM "$_p" 2>/dev/null ) >/dev/null 2>&1 & _w=$!
+    ( sleep "$_s"; kill -TERM "$_p" 2>/dev/null; sleep 3; kill -KILL "$_p" 2>/dev/null ) \
+      >/dev/null 2>&1 & _w=$!
     wait "$_p" 2>/dev/null; _r=$?
     kill "$_w" 2>/dev/null
     return "$_r"
