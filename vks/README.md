@@ -100,35 +100,26 @@ sudo apt-get install -y jq git make unzip
 
 ### kubectl — get it from the Supervisor
 
-The Supervisor serves the binary, so it matches the platform you are talking to. Set your
-endpoint first (section 2 collects the rest):
+The Supervisor serves the binary. Set your endpoint first (section 2 collects the rest):
 
 ```sh
 export SUPERVISOR_ENDPOINT="10.0.0.10"     # your Supervisor API endpoint
 
-case "$(uname -s)" in
-  Linux)  export PLUGIN_OS=linux-amd64  ;;
-  Darwin) export PLUGIN_OS=darwin-amd64 ;;
-  *)      echo "unsupported OS: $(uname -s)" ;;
-esac
-case "$(uname -m)" in
-  arm64|aarch64)
-    [ "$(uname -s)" = Darwin ] \
-      && echo "arm64 Mac: using the amd64 build, which runs under Rosetta 2." \
-      || echo "arm64 Linux: the Supervisor serves no arm64 build — use the upstream kubectl below." ;;
+case "$(uname -s)/$(uname -m)" in
+  Darwin/*)     PLUGIN_OS=darwin-amd64 ;;  # no arm64 build exists; runs under Rosetta 2
+  Linux/x86_64) PLUGIN_OS=linux-amd64  ;;
+  *) PLUGIN_OS=""; echo "no Supervisor build for $(uname -s)/$(uname -m) — use the upstream kubectl below" ;;
 esac
 
-curl -fsSkO "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${PLUGIN_OS}/vsphere-plugin.zip"
-unzip -o vsphere-plugin.zip
-sudo install ./bin/kubectl /usr/local/bin/kubectl
-rm -rf ./bin ./vsphere-plugin.zip
-kubectl version --client
+if [ -n "$PLUGIN_OS" ]; then
+  # -k: the Supervisor's certificate is signed by a CA you do not trust yet (step 8a fetches it).
+  curl -fsSkO "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${PLUGIN_OS}/vsphere-plugin.zip"
+  unzip -o vsphere-plugin.zip
+  sudo install ./bin/kubectl /usr/local/bin/kubectl   # bin/ also holds the deprecated kubectl-vsphere
+  rm -rf ./bin ./vsphere-plugin.zip
+  kubectl version --client
+fi
 ```
-
-> This zip is only a way to get `kubectl`. It also contains `kubectl-vsphere` — deprecated, never
-> used here — which is why the last step deletes the rest.
->
-> ⚠️ `-k` skips TLS verification on a binary you then `sudo install`.
 
 If the Supervisor's build is more than one minor away from your **guest cluster** — that is where
 every command from section 9 runs — take a matching build from upstream instead:
@@ -150,8 +141,13 @@ kubectl --kubeconfig "$GUEST_KUBECONFIG" version -o json | jq -r .serverVersion.
 **podman if it is installed, otherwise docker.** To force the other one:
 
 ```sh
+export CONTAINER_ENGINE=docker          # for this shell
+```
+
+or for a single command:
+
+```sh
 make image-build CONTAINER_ENGINE=docker
-export CONTAINER_ENGINE=docker          # for the whole shell
 ```
 
 After you check out the repo (section 4), `make engines` prints the selection it made.
