@@ -246,16 +246,27 @@ vcf plugin list
 ## Verify the installation
 
 ```sh
-podman version && kubectl version --client && vcf version && echo "toolchain OK"
+if   command -v podman >/dev/null 2>&1; then ENGINE=podman
+elif command -v docker >/dev/null 2>&1; then ENGINE=docker
+else ENGINE=""; echo "no container engine found — install one above"
+fi
+
+[ -n "$ENGINE" ] && "$ENGINE" --version
+kubectl version --client
+vcf version | head -1
+echo "toolchain OK"
 ```
 
 ```
-## Sample output (versions will differ)
-  Client Version: v1.36.2
+## Sample output — a real transcript; your versions will differ
+  podman version 4.9.3
+  Client Version: v1.32.9+vmware.2-fips
+  Kustomize Version: v5.5.0
   version: v9.1.1.0.25662425
-  releaseType: ga
   toolchain OK
 ```
+
+On a docker-only box the first line reads `Docker version 29.8.1, build 4a63305` instead.
 
 ---
 
