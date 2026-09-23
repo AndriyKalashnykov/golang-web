@@ -83,8 +83,13 @@ vcf plugin list
 `vcf plugin install all` is idempotent — re-running upgrades in place. It writes to
 `~/.config/vcf` and `~/.local/share/vcf-cli`; do not delete those, they hold your contexts.
 
-> The plugin bundle is **Linux-only**. On macOS install the `Darwin_*` CLI archive; ask your
-> platform administrator for the matching plugin path.
+> **macOS:** the `Darwin_*` CLI archive works — measured on macOS 26.6.2 / Apple Silicon,
+> `vcf version` reports `v9.1.0.0.25296329`, `releaseType: ga`. The **plugin bundle** is
+> documented Linux-only; ask your platform administrator for the matching plugin path.
+>
+> ⚠️ **`vcf plugin list` HANGS when no plugins are installed** (measured on that Mac — it had
+> to be interrupted). It appears to block on registry discovery. If it does not return within
+> ~30 s, it is not going to; `Ctrl-C` and install the bundle first.
 
 ## Verify the installation
 
