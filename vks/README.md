@@ -14,8 +14,6 @@ and deploy `k8s/golang-web.yaml` to a named VKS guest cluster. About 15 minutes.
 **Shell:** everything works in both `bash` and `zsh` (macOS defaults to `zsh`, most Linux
 distributions to `bash`). Run `echo $0` if you are unsure which you have.
 
-Boxed notes marked ⚠️ are the steps that fail quietly if skipped — they are worth reading.
-
 ---
 
 ## 1. Download and install the utils
@@ -130,12 +128,7 @@ kubectl version --client
 > This zip is only a way to get `kubectl`. It also contains `kubectl-vsphere` — deprecated, never
 > used here — which is why the last step deletes the rest.
 >
-> ⚠️ **The Supervisor serves no arm64 builds.** Measured: `linux-amd64`, `darwin-amd64` and
-> `windows-amd64` return 200; `linux-arm64` and `darwin-arm64` return **404**. Apple Silicon uses
-> the amd64 build under Rosetta 2; arm64 Linux must take the upstream kubectl below.
->
-> ⚠️ `-k` skips TLS verification on a binary you then `sudo install`. If you already have the CA
-> (step 8a), use `--cacert "$SUPERVISOR_CA"` instead.
+> ⚠️ `-k` skips TLS verification on a binary you then `sudo install`.
 
 If the Supervisor's build is more than one minor away from your **guest cluster** — that is where
 every command from section 9 runs — take a matching build from upstream instead:
@@ -348,8 +341,6 @@ colima ssh -- sudo tee "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt" < "$HARBOR_CA
 colima restart
 ```
 
-> ⚠️ On macOS `/etc/docker/certs.d` does nothing — no daemon reads it there.
->
 > ⚠️ **Restart the engine afterwards**, or the login keeps failing.
 
 ## Verify
@@ -570,8 +561,6 @@ Then clear it as soon as the context exists:
 unset VCF_CLI_VSPHERE_PASSWORD
 ```
 
-> ⚠️ Do not type the password inline — it would land in your shell history. `read -rs` does not.
->
 > ⚠️ **vCenter SSO locks the account after repeated failures.** Type it carefully.
 
 Check it worked:
@@ -624,17 +613,8 @@ kubectl config use-context "$VKS_CLUSTER"
 kubectl get nodes
 ```
 
-> ⚠️ **This requires Pinniped.** It builds a *Pinniped-backed*
-> kubeconfig, so it reads the `pinniped-info` ConfigMap from the Supervisor's `kube-public`
-> namespace. If that ConfigMap is absent the command exits **1** with:
->
-> ```
-> Error: failed to get pinniped-info from management cluster
-> ```
->
-> You cannot fix that from your machine — ask your platform administrator, or **use 8b**.
->
-> Check yours: `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n kube-public get cm pinniped-info`
+> ⚠️ If this exits 1 with `failed to get pinniped-info from management cluster`, your Supervisor
+> has no Pinniped ConfigMap. You cannot fix that from your machine — **use 8b**.
 
 The two kubeconfigs differ in how they authenticate: 8b is a CAPI-minted cluster-admin
 certificate, 8c is an OIDC token brokered by Pinniped that honours your SSO identity and its
