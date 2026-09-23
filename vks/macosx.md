@@ -54,15 +54,41 @@ printf 'arch            : %s\n' "$(uname -m)"
 printf 'shell           : %s\n' "$SHELL"
 
 printf '\n--- P1  which engine, and is it a VM client? ---\n'
+ENGINE=""
 for e in podman docker; do
   if command -v "$e" >/dev/null 2>&1; then
     printf '%s present : %s\n' "$e" "$(command -v $e)"
-    "$e" info --format '{{.Host.OS}}/{{.Host.Arch}} remote={{.Host.ServiceIsRemote}}' 2>&1 | sed "s/^/  $e info: /" | head -2
+    if _t 20 "$e" info >/dev/null 2>&1; then
+      [ -z "$ENGINE" ] && ENGINE="$e"
+      printf '  %s daemon: UP\n' "$e"
+      # The two engines expose DIFFERENT fields: .Host.* is podman's, .ServerVersion is docker's.
+      # Using one template for both prints an empty line for one and a template error for the other.
+      if [ "$e" = podman ]; then
+        _t 20 podman info --format '{{.Host.OS}}/{{.Host.Arch}} remote={{.Host.ServiceIsRemote}} v{{.Version.Version}}' \
+          2>&1 | sed 's/^/  podman host: /' | head -1
+      else
+        _t 20 docker info --format '{{.OperatingSystem}}/{{.Architecture}} server={{.ServerVersion}}' \
+          2>&1 | sed 's/^/  docker host: /' | head -1
+      fi
+    else
+      printf '  %s daemon: DOWN -- the CLI alone cannot build or push on macOS\n' "$e"
+      _t 20 "$e" info 2>&1 | sed "s/^/  $e err : /" | head -1
+    fi
   else
     printf '%s present : NO\n' "$e"
   fi
 done
-command -v podman >/dev/null 2>&1 && podman machine list 2>&1 | sed 's/^/  machine: /' | head -3
+
+printf '  --- which VM provider, if any, is actually running? ---\n'
+# Written out one per line ON PURPOSE. `for p in "a b c"; do set -- $p` does NOT split
+# in zsh (measured: bash argc=3, zsh argc=1) and macOS runs zsh, so the loop form was a no-op.
+command -v podman >/dev/null 2>&1 && _t 20 podman machine list  2>&1 | sed 's/^/  podman machine: /' | head -2
+command -v colima >/dev/null 2>&1 && _t 20 colima status        2>&1 | sed 's/^/  colima: /'         | head -2
+command -v orbctl >/dev/null 2>&1 && _t 20 orbctl status        2>&1 | sed 's/^/  orbctl: /'         | head -2
+command -v rdctl  >/dev/null 2>&1 && _t 20 rdctl list-settings  2>&1 | sed 's/^/  rdctl: /'          | head -2
+[ -S /var/run/docker.sock ] && printf '  /var/run/docker.sock: present\n' \
+                            || printf '  /var/run/docker.sock: ABSENT (no VM provider is running)\n'
+[ -z "$ENGINE" ] && printf '  VERDICT: NO WORKING ENGINE -- P5 below cannot measure trust.\n'
 
 printf '\n--- P2  can this Mac reach Harbor at all? ---\n'
 curl -sk -o /dev/null -m 15 -w '  harbor /api/v2.0/health http=%{http_code}\n' \
@@ -130,9 +156,13 @@ echo; echo "Saved to $OUT  — commit it as vks/macosx.res"
 
 **NOT settled — the run could not reach anything:**
 
-- `podman` absent; `docker` installed but its daemon was not running
-  (`dial unix /var/run/docker.sock: no such file or directory`), so P1's
-  "macOS runs a Linux VM, so TLS is verified VM-side" is still untested.
+- `podman` absent; `docker` present at `/opt/homebrew/bin/docker` but **no daemon**
+  (`dial unix /var/run/docker.sock: no such file or directory`). On macOS
+  `brew install docker` installs **only the client** — there is no daemon until a VM
+  provider (podman machine, Colima, Docker Desktop, OrbStack, Rancher Desktop) is
+  running. So P1's "macOS runs a Linux VM, so TLS is verified VM-side" is still untested,
+  and P5 could not measure trust at all. P1 now detects and *names* this state instead of
+  printing a bare socket error, and the README says which CA path each provider uses.
 - Harbor and vCenter were unreachable because the three variables were left at their
   placeholder values, so P2-P5 measured nothing. The script now **refuses to start**
   in that state rather than emitting plausible-looking garbage.
@@ -143,6 +173,13 @@ echo; echo "Saved to $OUT  — commit it as vks/macosx.res"
    `%`. Every `http=` reading in P2/P4/P6b was meaningless. Now `%{http_code}`.
 2. With placeholder values every probe still ran and produced output that *looked* like a
    measurement. Now a guard exits 1 naming the offending variable.
+4. The provider loop was written `for p in "a b c"; do set -- $p` — which **does not split
+   in zsh** (measured: bash `argc=3`, zsh `argc=1`), and macOS runs zsh, so it would have been
+   a complete no-op on the very machine it was written for. Now one explicit line per provider.
+5. `podman info` and `docker info` expose **different fields** — `.Host.*` is podman's,
+   `.ServerVersion` is docker's. One shared template printed an empty line for docker and a
+   Go template error for podman. Now one template per engine.
+
 3. When P3's download produced no file, `wc -c < "$CA"` made the **shell** emit
    `no such file or directory` to stderr before `wc` ran, so the `2>/dev/null` on `wc` could
    not suppress it. Now guarded with `[ -s "$CA" ]`.
