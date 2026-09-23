@@ -516,14 +516,30 @@ KUBECONFIG="$SUPERVISOR_KUBECONFIG" \
 `SUPERVISOR_CA` is the **vCenter VMCA root**, not Harbor's CA. vCenter serves it:
 
 ```sh
-getent hosts "$VCENTER_FQDN" || echo "your machine cannot resolve $VCENTER_FQDN — fix DNS first"
+# `getent` is glibc-only and does NOT exist on macOS, where it would report a DNS failure
+# that is not real. Try it, then fall back to something every platform has.
+getent hosts "$VCENTER_FQDN" 2>/dev/null \
+  || python3 -c 'import socket,sys; print(socket.gethostbyname(sys.argv[1]))' "$VCENTER_FQDN" \
+  || echo "this machine cannot resolve $VCENTER_FQDN — fix DNS before continuing"
 
 mkdir -p "$(dirname "$SUPERVISOR_CA")"
-curl -fsSk --max-time 60 -o /tmp/certs.zip "https://${VCENTER_FQDN}/certs/download.zip"
-unzip -o -j /tmp/certs.zip -d /tmp/vccerts
-cat /tmp/vccerts/*.0 > "$SUPERVISOR_CA"
-openssl x509 -in "$SUPERVISOR_CA" -noout -subject -enddate
+# A FRESH directory every time. `unzip -o -j` MERGES into an existing one, and a different
+# vCenter's root has a different hash filename, so it would not overwrite -- it would ACCUMULATE,
+# and `cat *.0` would silently fold a stale vCenter's CA into your trust bundle.
+VCTMP="$(mktemp -d)"
+curl -fsSk --max-time 60 -o "$VCTMP/certs.zip" "https://${VCENTER_FQDN}/certs/download.zip"
+unzip -o -j "$VCTMP/certs.zip" -d "$VCTMP/certs"
+cat "$VCTMP"/certs/*.0 > "$SUPERVISOR_CA"
+rm -rf "$VCTMP"
+
+# STOP if nothing was written. Without this the failure is silent: an empty CA file makes
+# every later --cacert call fail with a TLS error that names the cert, not the download.
+[ -s "$SUPERVISOR_CA" ] || { echo "FAILED: $SUPERVISOR_CA is empty — the fetch above did not work"; }
 ```
+
+⚠️ **`unzip -j` is load-bearing.** The zip stores the same root under `certs/lin/` *and*
+`certs/mac/`; `-j` flattens both to one file. Without it, `*.0` matches nothing and
+`SUPERVISOR_CA` ends up empty.
 
 ```
 ## Sample output
@@ -539,8 +555,17 @@ openssl x509 -in "$SUPERVISOR_CA" -noout -subject -enddate
 means you must confirm the fingerprint out of band before trusting it:
 
 ```sh
-openssl x509 -in "$SUPERVISOR_CA" -noout -fingerprint -sha256
+# `openssl x509 -in` reads ONLY THE FIRST certificate in a file. MEASURED: with a second
+# certificate appended, it reported one subject and one fingerprint and the other was
+# completely invisible -- so this form cannot fail on the thing it exists to catch.
+awk '/BEGIN CERT/{n++} END{print (n?n:0)" certificate(s) in the bundle"}' "$SUPERVISOR_CA"
+openssl crl2pkcs7 -nocrl -certfile "$SUPERVISOR_CA" \
+  | openssl pkcs7 -print_certs -noout -fingerprint -sha256 2>/dev/null \
+  || openssl crl2pkcs7 -nocrl -certfile "$SUPERVISOR_CA" | openssl pkcs7 -print_certs -noout
 ```
+
+**Every** fingerprint it lists must be one your administrator named. On a healthy fetch there is
+normally exactly one.
 
 Compare that with the fingerprint your platform administrator gives you. If you cannot, ask them
 for the file directly — do **not** reach for `--insecure-skip-tls-verify` on a shared cluster.
