@@ -59,10 +59,23 @@ already have.
 
 | You want | Run |
 |---|---|
-| Whatever is installed (podman preferred) | `make image-build` |
+| Whatever is installed (**podman preferred**) | `make image-build` |
 | Force Docker for one command | `make image-build CONTAINER_ENGINE=docker` |
-| Force Docker for the whole shell | `export CONTAINER_ENGINE=docker` |
-| See which engine was picked | `make deps-engine` |
+| Force podman for one command | `make image-build CONTAINER_ENGINE=podman` |
+| Force an engine for the whole shell | `export CONTAINER_ENGINE=docker` |
+| **See every engine and what it is for** | **`make engines`** |
+| See which engine was picked (and install one) | `make deps-engine` |
+
+`make help` prints the three resolved engines at the bottom; `make engines` explains
+each one. Only `CONTAINER_ENGINE` is yours to set — the other two are pinned because
+kind and plantuml have hard requirements (see the note further down).
+
+**Platform status.** Linux x86_64 is verified end-to-end: both engines build, and a
+podman-built image deploys to the docker-based KinD cluster. **macOS is unverified** —
+the code paths exist (`brew install podman`, `podman machine init/start`, a Docker
+Desktop buildx hint) but have not been exercised. On macOS podman runs in a VM, so
+`podman machine start` must be running before any image target; the Makefile prints
+that as a note at install time and does not currently check it.
 | Log in before pushing an image | `export REGISTRY_TOKEN=<credential>` then `make registry-login` |
 
 `make deps` covers everything needed to **build** an image locally on Linux and

@@ -130,6 +130,42 @@ help:
 	@echo "Usage: make COMMAND"
 	@echo "Commands :"
 	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-22s\033[0m - %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Container engines (resolved now; run 'make engines' for what each one does):"
+	@printf "\033[32m%-22s\033[0m - %s\n" "CONTAINER_ENGINE" "$(CONTAINER_ENGINE)  <- builds YOUR image; this is the one you set"
+	@printf "\033[32m%-22s\033[0m - %s\n" "KIND_ENGINE" "$(KIND_ENGINE)  <- kind's own containers; not yours to change"
+	@printf "\033[32m%-22s\033[0m - %s\n" "DIAGRAMS_ENGINE" "$(DIAGRAMS_ENGINE)  <- plantuml render"
+	@echo ""
+	@echo "  one command : make image-build CONTAINER_ENGINE=docker"
+	@echo "  whole shell : export CONTAINER_ENGINE=docker"
+
+#engines: @ Show which container engine each path uses, and how to override it
+engines:
+	@echo "CONTAINER_ENGINE = $(CONTAINER_ENGINE)"
+	@echo "    Builds YOUR application image (image-build, image-run, e2e's build step)."
+	@echo "    THIS is the knob you set. Auto-detected: podman if present, else docker."
+	@echo "    Override:  make image-build CONTAINER_ENGINE=docker"
+	@echo "               export CONTAINER_ENGINE=docker      # for the whole shell"
+	@echo ""
+	@echo "KIND_ENGINE = $(KIND_ENGINE)"
+	@echo "    Manages KIND'S OWN containers: the cloud-provider-kind LoadBalancer"
+	@echo "    controller and its kindccm sidecars. Must match the provider kind runs"
+	@echo "    on (docker), because that controller mounts /var/run/docker.sock."
+	@echo "    You do NOT need to set this to build with podman: when it differs from"
+	@echo "    CONTAINER_ENGINE, kind-create bridges the two image stores with"
+	@echo "    '<engine> save' + 'kind load image-archive'."
+	@echo ""
+	@echo "DIAGRAMS_ENGINE = $(DIAGRAMS_ENGINE)"
+	@echo "    Runs the plantuml container for 'make diagrams'. Prefers docker: rootless"
+	@echo "    podman needs --userns=keep-id locally and still cannot write on a GitHub"
+	@echo "    runner, so pinning it removes a silent no-op. Falls back to podman."
+	@echo ""
+	@echo "Engines found on this host:"
+	@for e in podman docker; do \
+		if command -v $$e >/dev/null 2>&1; then \
+			echo "  $$e  $$($$e --version 2>/dev/null | head -1)"; \
+		else echo "  $$e  (not installed)"; fi; \
+	done
 
 #deps: @ Install the pinned toolchain via mise (.mise.toml)
 deps:
@@ -729,7 +765,7 @@ deps-prune-check: deps
 	fi; \
 	echo "No prunable dependencies found."
 
-.PHONY: help deps deps-engine deps-buildx registry-login deps-verify deps-kind check-toolchain-alignment \
+.PHONY: help engines deps deps-engine deps-buildx registry-login deps-verify deps-kind check-toolchain-alignment \
 	diagrams diagrams-check \
 	test build lint lint-ci sec vulncheck secrets \
 	trivy-fs trivy-config static-check format run coverage-check \
