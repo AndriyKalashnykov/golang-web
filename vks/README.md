@@ -210,16 +210,18 @@ After you check out the repo (section 4), `make engines` prints the selection it
 ### Install the VCF CLI
 
 The VCF CLI is **not** on Homebrew or apt. Both files below are **entitled** downloads — you
-need a Broadcom account with a vSphere Foundation entitlement. Versions move; match yours to
-what your entitlement offers.
+need a Broadcom account with a vSphere Foundation entitlement.
+
+Written against **VCF CLI 9.1.1.0**, where `vcf version` prints `v9.1.1.0.25662425`. Versions
+move: the commands here do not change, but the build number in each filename does, so match
+the release your entitlement offers rather than copying the numbers below.
 
 | file | where to click | direct link |
 |---|---|---|
 | `VCF-Consumption-CLI-Linux_AMD64-9.1.1.0.25662425.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI** | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545612&viewGroup=true) |
 | `VCF-Consumption-CLI-PluginBundle-Linux_AMD64-9.1.1.0.25665404.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI Plugins** | [Plugin bundle](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545621&viewGroup=true) |
 
-Those filenames are the 9.1.1.0 builds. Substitute your own release — the click path is the
-same shape for any of them, and the trailing build number is whatever the page lists.
+The click path is the same shape for every release.
 
 **Portal gotchas — every one of these fails silently:**
 
@@ -229,7 +231,8 @@ same shape for any of them, and the trailing build number is whatever the page l
 - **Tick "I agree to the Terms and Conditions"** or the download icons do nothing. The
   checkbox stays **inert until you open both Terms links first**, and the gate is **per page**
    — ticking it on one page does not carry to the next.
-- **Patch builds appear only once you open a group.** The parent page lists `9.1.0.0` alone.
+- **Patch builds appear only once you open a group.** The parent page lists only the base
+  release (`9.1.0.0`); a patch such as `9.1.1.0` shows up after you open the group.
 - **A `release=` in the URL is ignored** — use the on-page selector.
 - **Take the row carrying your platform** — `Linux_AMD64`, `Darwin_ARM64`, uppercase. The
   platform-less `-Binaries-` (294 MB), `-PluginBundle-` (1.27 GB) and `-OCI-PluginBundle-`
@@ -257,8 +260,11 @@ vcf plugin list
 > **macOS:** take the `Darwin_ARM64` rows (Apple Silicon) or `Darwin_AMD64` (Intel) — both the
 > CLI and the plugin bundle publish them, on the same two pages.
 >
-> ⚠️ `vcf plugin list` hangs when no plugins are installed. If it has not returned in ~30 s,
-> `Ctrl-C` and install the bundle first.
+> ⚠️ `vcf plugin list` can hang for minutes. MEASURED on macOS 26.6.2: it prints
+> `Refreshing plugin inventory cache for "<registry>/vcf/vcf-cli-plugins/..."` and then waits on
+> a registry it cannot reach. It is a network timeout against the plugin source — not a crash,
+> and not "no plugins installed". `Ctrl-C`, then install from the local bundle above, which
+> needs no registry at all.
 
 ### Verify the installation
 
