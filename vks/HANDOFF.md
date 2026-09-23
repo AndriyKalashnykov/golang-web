@@ -26,6 +26,9 @@ entire justification for README section 3, and no run has ever measured it.
 | `SUPERVISOR_ENDPOINT` | **192.168.101.128** | `https://…/` → **200** |
 | ArgoCD | argocd.env1.lab.test = 192.168.101.131 | namespace `lab` |
 | Harbor namespace | `svc-harbor-90dbv` | platform-chosen, not from `input.yaml` |
+| `VKS_NAMESPACE` | **lab** | `cicd` also exists and has its own cluster |
+| `VKS_CLUSTER` | **lab-gc1** | Provisioned + Available, `builtin-generic-v3.7.0`, **v1.36.2+vmware.2** |
+| guest kubeconfig | secret `lab-gc1-kubeconfig` in ns `lab` | the Pinniped-free path README step 8b uses |
 
 **Harbor is installed and healthy** — the earlier "UNKNOWN" is resolved. Its CA verifies it:
 `curl --cacert .../harbor-ca/ca.crt` → 200, and the CA that README step 3 *fetches* from
@@ -60,6 +63,7 @@ The forward must terminate on the **FQDN**, not `localhost` — pointing the Mac
 export HARBOR_FQDN=harbor.env1.lab.test      # 192.168.101.130
 export VCENTER_FQDN=vcsa.env1.lab.test       # 192.168.100.50
 export SUPERVISOR_ENDPOINT=192.168.101.128
+export VKS_NAMESPACE=lab VKS_CLUSTER=lab-gc1
 ./vks/macosx.sh                 # BEFORE trust — P4 must say x509 unknown authority
 #   then README section 3: security add-trusted-cert + podman machine set --import-native-ca
 #                          + podman machine stop && podman machine start
@@ -82,6 +86,7 @@ Measured on macOS 26.6.2 / arm64 / bash 3.2.57 / podman 6.1.2 (`vks/macosx.res`)
 | `base64 -d` | works — step 8b is safe on both platforms |
 | `group "root"` | **does not exist** on macOS — `install -g root` would fail |
 | `rosetta2=yes` | on *this* Mac; the README now warns for the next one |
+| `KUBECTL_VERSION` | the README's default **v1.36.2** matches the guest cluster exactly — no upstream fallback needed here |
 | docker | CLI present, daemon down → `brew install docker` is client-only |
 
 Checked against podman's own docs rather than assumed, for the trust block's ORDER: `--import-native-ca` imports
