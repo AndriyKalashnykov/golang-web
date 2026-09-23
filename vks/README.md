@@ -14,8 +14,6 @@ and deploy `k8s/golang-web.yaml` to a named VKS guest cluster. About 15 minutes.
 **Shell:** everything works in both `bash` and `zsh` (macOS defaults to `zsh`, most Linux
 distributions to `bash`). Run `echo $0` if you are unsure which you have.
 
-Boxed notes marked ⚠️ are the steps that fail quietly if skipped — they are worth reading.
-
 ---
 
 ## 1. Download and install the utils
@@ -130,12 +128,7 @@ kubectl version --client
 > This zip is only a way to get `kubectl`. It also contains `kubectl-vsphere` — deprecated, never
 > used here — which is why the last step deletes the rest.
 >
-> ⚠️ **The Supervisor serves no arm64 builds.** Measured: `linux-amd64`, `darwin-amd64` and
-> `windows-amd64` return 200; `linux-arm64` and `darwin-arm64` return **404**. Apple Silicon uses
-> the amd64 build under Rosetta 2; arm64 Linux must take the upstream kubectl below.
->
-> ⚠️ `-k` skips TLS verification on a binary you then `sudo install`. If you already have the CA
-> (step 8a), use `--cacert "$SUPERVISOR_CA"` instead.
+> ⚠️ `-k` skips TLS verification on a binary you then `sudo install`.
 
 If the Supervisor's build is more than one minor away from your **guest cluster** — that is where
 every command from section 9 runs — take a matching build from upstream instead:
@@ -154,94 +147,14 @@ kubectl --kubeconfig "$GUEST_KUBECONFIG" version -o json | jq -r .serverVersion.
 
 ### Which engine will be used?
 
-**podman, if it is installed. Otherwise docker.** The Makefile picks it for you:
-
-```make
-CONTAINER_ENGINE ?= podman if present, else docker, else none
-```
-
-To force the other one, pass it on the `make` command line or export it:
+**podman if it is installed, otherwise docker.** To force the other one:
 
 ```sh
 make image-build CONTAINER_ENGINE=docker
 export CONTAINER_ENGINE=docker          # for the whole shell
 ```
 
-Check what you have, and what will be used:
-
-```sh
-for e in podman docker; do
-  if ! command -v "$e" >/dev/null 2>&1;  then echo "$e   not installed"
-  elif "$e" info >/dev/null 2>&1;        then echo "$e   ready"
-  else                                        echo "$e   installed, but NO DAEMON is running"
-  fi
-done
-
-if   command -v podman >/dev/null 2>&1; then echo "--> your builds will use PODMAN"
-elif command -v docker >/dev/null 2>&1; then echo "--> your builds will use DOCKER"
-else                                         echo "--> NO ENGINE: install one above"
-fi
-```
-
-```
-## Sample output — both installed
-  podman   ready
-  docker   ready
-  --> your builds will use PODMAN
-```
-
-`installed, but NO DAEMON is running` means the CLI is there and nothing is behind it — on
-macOS start `podman machine` or `colima`. Once you have checked out the repo (section 4),
-`make engines` prints the same selection.
-
-
-### Install the VCF CLI
-
-The VCF CLI is **not** on Homebrew or apt. Both files below are **entitled** downloads — you
-need a Broadcom account with a vSphere Foundation entitlement. Versions move; match yours to
-what your entitlement offers.
-
-| file | from |
-|---|---|
-| `VCF-Consumption-CLI-Linux_AMD64-<version>.tar.gz` | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.0.0&os=&servicePk=542815&language=EN&viewGroup=true&groupId=540529) |
-| `VCF-Consumption-CLI-PluginBundle-Linux_AMD64-<version>.tar.gz` | [Plugin bundle](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.0.0&os=&servicePk=542815&language=EN&viewGroup=true&groupId=540672) |
-
-**Portal gotchas — every one of these fails silently:**
-
-- **Each link opens a page that looks EMPTY until you pick a release.** The *Release* list
-  starts blank, and while it is blank the file table reads **"No data found"** — which looks
-  exactly like the artifact not existing. Pick your release first, then the files appear.
-- **Tick "I agree to the Terms and Conditions"** or the download icons do nothing. The
-  checkbox stays **inert until you open both Terms links first**, and the gate is **per page**
-   — ticking it on one page does not carry to the next.
-- **Patch builds appear only once you open a group.** The parent page lists `9.1.0.0` alone.
-- **A `release=` in the URL is ignored** — use the on-page selector.
-- **Take only the `Linux_AMD64` rows** (uppercase). The un-suffixed `-Binaries-`,
-  `-PluginBundle-` and `-OCI-` archives are multi-platform supersets.
-
-Install the binary, then the plugins:
-
-```sh
-tar -xzf VCF-Consumption-CLI-Linux_AMD64-*.tar.gz
-sudo install ./vcf /usr/local/bin/vcf
-
-mkdir -p /tmp/vcf-plugins
-tar -xzf VCF-Consumption-CLI-PluginBundle-Linux_AMD64-*.tar.gz -C /tmp/vcf-plugins
-vcf plugin install all --local-source /tmp/vcf-plugins
-vcf plugin list
-```
-
-> A multi-arch bundle nests its plugins under `<os>/<arch>/`. If `plugin install all` finds
-> nothing, point `--local-source` at `/tmp/vcf-plugins/linux/amd64` instead.
-
-`vcf plugin install all` is idempotent — re-running upgrades in place. It writes to
-`~/.config/vcf` and `~/.local/share/vcf-cli`; do not delete those, they hold your contexts.
-
-> **macOS:** use the `Darwin_*` CLI archive. The plugin bundle is Linux-only — ask your platform
-> administrator for the macOS path.
->
-> ⚠️ `vcf plugin list` hangs when no plugins are installed. If it has not returned in ~30 s,
-> `Ctrl-C` and install the bundle first.
+After you check out the repo (section 4), `make engines` prints the selection it made.
 
 ## Verify the installation
 
@@ -348,8 +261,6 @@ colima ssh -- sudo tee "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt" < "$HARBOR_CA
 colima restart
 ```
 
-> ⚠️ On macOS `/etc/docker/certs.d` does nothing — no daemon reads it there.
->
 > ⚠️ **Restart the engine afterwards**, or the login keeps failing.
 
 ## Verify
@@ -570,8 +481,6 @@ Then clear it as soon as the context exists:
 unset VCF_CLI_VSPHERE_PASSWORD
 ```
 
-> ⚠️ Do not type the password inline — it would land in your shell history. `read -rs` does not.
->
 > ⚠️ **vCenter SSO locks the account after repeated failures.** Type it carefully.
 
 Check it worked:
@@ -624,17 +533,8 @@ kubectl config use-context "$VKS_CLUSTER"
 kubectl get nodes
 ```
 
-> ⚠️ **This requires Pinniped.** It builds a *Pinniped-backed*
-> kubeconfig, so it reads the `pinniped-info` ConfigMap from the Supervisor's `kube-public`
-> namespace. If that ConfigMap is absent the command exits **1** with:
->
-> ```
-> Error: failed to get pinniped-info from management cluster
-> ```
->
-> You cannot fix that from your machine — ask your platform administrator, or **use 8b**.
->
-> Check yours: `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n kube-public get cm pinniped-info`
+> ⚠️ If this exits 1 with `failed to get pinniped-info from management cluster`, your Supervisor
+> has no Pinniped ConfigMap. You cannot fix that from your machine — **use 8b**.
 
 The two kubeconfigs differ in how they authenticate: 8b is a CAPI-minted cluster-admin
 certificate, 8c is an OIDC token brokered by Pinniped that honours your SSO identity and its
