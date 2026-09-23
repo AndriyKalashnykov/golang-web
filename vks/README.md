@@ -159,27 +159,23 @@ After you check out the repo (section 4), `make engines` prints the selection it
 ## Verify the installation
 
 ```sh
-if   command -v podman >/dev/null 2>&1; then ENGINE=podman
-elif command -v docker >/dev/null 2>&1; then ENGINE=docker
-else ENGINE=""; echo "no container engine found — install one above"
-fi
-
-[ -n "$ENGINE" ] && "$ENGINE" --version
+command -v podman >/dev/null 2>&1 && podman --version
+command -v docker >/dev/null 2>&1 && docker --version
 kubectl version --client
 vcf version | head -1
-echo "toolchain OK"
 ```
 
 ```
-## Sample output — a real transcript; your versions will differ
+## Sample output — a real transcript with both engines installed; yours will differ
   podman version 4.9.3
+  Docker version 29.8.1, build 4a63305
   Client Version: v1.32.9+vmware.2-fips
   Kustomize Version: v5.5.0
   version: v9.1.1.0.25662425
-  toolchain OK
 ```
 
-On a docker-only box the first line reads `Docker version 29.8.1, build 4a63305` instead.
+An engine you installed that prints nothing here is not on your `PATH`. If neither prints,
+go back and install one.
 
 ---
 
