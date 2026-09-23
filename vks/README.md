@@ -181,13 +181,24 @@ if [ -n "$PLUGIN_OS" ]; then
 fi
 ```
 
+> ⚠️ **Apple Silicon:** the Supervisor publishes no `darwin-arm64` build, so the binary above is
+> x86_64 and runs under Rosetta 2. If it prints `bad CPU type in executable`, install Rosetta and
+> re-run: `softwareupdate --install-rosetta --agree-to-license`
+
 If the Supervisor's build is more than one minor away from your **guest cluster** — that is where
 every command from section 9 runs — take a matching build from upstream instead:
 
 ```sh
 export KUBECTL_VERSION="v1.36.2"           # match the guest cluster
-curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"   # arm64: linux/arm64
-sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && rm -f kubectl
+case "$(uname -s)/$(uname -m)" in
+  Darwin/arm64)  KOS=darwin/arm64 ;;
+  Darwin/*)      KOS=darwin/amd64 ;;
+  Linux/aarch64) KOS=linux/arm64  ;;
+  *)             KOS=linux/amd64  ;;
+esac
+curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/${KOS}/kubectl"
+# No -o/-g: sudo already makes it root-owned, and the group named "root" is not portable.
+sudo install -m 0755 kubectl /usr/local/bin/kubectl && rm -f kubectl
 ```
 
 ### Which engine will be used?

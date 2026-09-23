@@ -287,6 +287,15 @@ if command -v podman >/dev/null 2>&1; then
     printf '  podman machine ssh   : ABSENT\n'
   fi
 fi
+# README used `sudo install -o root -g root`. Does a group literally named "root" exist
+# here? Reported, not assumed -- the fallback now omits the flags either way.
+if command -v dscl >/dev/null 2>&1 && dscl . -list /Groups 2>/dev/null | command grep -qx root; then
+  printf '  group "root"         : exists (dscl)\n'
+elif command grep -qE '^root:' /etc/group 2>/dev/null; then
+  printf '  group "root"         : exists (/etc/group)\n'
+else
+  printf '  group "root"         : NOT FOUND - `install -g root` would fail here\n'
+fi
 case ":$PATH:" in
   *:/usr/local/bin:*) V_LOCALBIN=yes; printf '  /usr/local/bin on PATH: yes\n' ;;
   *)                  V_LOCALBIN=no;  printf '  /usr/local/bin on PATH: NO - kubectl/vcf installed there will not be found\n' ;;
