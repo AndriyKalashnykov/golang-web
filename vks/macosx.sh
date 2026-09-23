@@ -45,6 +45,20 @@ _t() {
   fi
 }
 
+# curl's exit code says WHY a probe failed, which "UNREACHABLE" does not. Verified:
+# 6=unresolvable name, 7=resolves but refused/no route, 28=routed but dropped, 0=reached.
+# (-k makes a TLS fault return 0, so 35/51/58/60 only ever appear on the verifying probe.)
+_why() {
+  case "$1" in
+    0)          printf 'reached' ;;
+    6)          printf 'DNS: name does not resolve' ;;
+    7)          printf 'resolves, but NO ROUTE or connection refused' ;;
+    28)         printf 'timed out: routed but dropped/filtered' ;;
+    35|51|58|60) printf 'TLS fault - you REACHED it, which is progress' ;;
+    *)          printf 'curl exit %s' "$1" ;;
+  esac
+}
+
 # Collected for the machine-readable block at the end.
 V_ENGINE=none; V_DAEMON=no; V_PROVIDER=none; V_REMOTE=unknown
 V_BUILDX=no; V_ROSETTA=n/a; V_VCF=no; V_VCFPLUGINS=unknown; V_LAB=skipped
@@ -308,8 +322,8 @@ if lab_set; then
     "$HARBOR_FQDN" "${VCENTER_FQDN:-unset}" "${SUPERVISOR_ENDPOINT:-unset}"
 
   printf '  P1 reach Harbor:\n'
-  curl -sk -o /dev/null -m 15 -w '    /api/v2.0/health http=%{http_code}\n' \
-    "https://${HARBOR_FQDN}/api/v2.0/health" 2>&1 || printf '    UNREACHABLE\n'
+  _hc="$(curl -sk -o /dev/null -m 15 -w '%{http_code}' "https://${HARBOR_FQDN}/api/v2.0/health" 2>/dev/null)"; _rc=$?
+  printf '    /api/v2.0/health http=%s  (%s)\n' "${_hc:-000}" "$(_why "$_rc")"
 
   printf '  P2 Harbor serves its own CA:\n'
   # Plain mktemp, NOT the -t PREFIX form: BSD reads that arg as a prefix, GNU wants a
@@ -320,8 +334,8 @@ if lab_set; then
     printf '    bytes=%s\n' "$(wc -c < "$CA" | tr -d ' ')"
     openssl x509 -in "$CA" -noout -subject -fingerprint -sha256 2>&1 | sed 's/^/    /'
     printf '  P3 curl verifies against it (no -k):\n'
-    curl -s --cacert "$CA" -o /dev/null -m 15 -w '    http=%{http_code}\n' \
-      "https://${HARBOR_FQDN}/api/v2.0/health" 2>&1 | head -2
+    _vc="$(curl -s --cacert "$CA" -o /dev/null -m 15 -w '%{http_code}' "https://${HARBOR_FQDN}/api/v2.0/health" 2>/dev/null)"; _rc=$?
+    printf '    http=%s  (%s)\n' "${_vc:-000}" "$(_why "$_rc")"
   else
     printf '    bytes=0 - nothing downloaded; P3 skipped\n'
   fi
@@ -347,14 +361,15 @@ if lab_set; then
 
   if [ -n "${VCENTER_FQDN:-}" ]; then
     printf '  P5 vCenter CA endpoint (README step 8a):\n'
-    curl -sk -o /dev/null -m 25 -w '    /certs/download.zip http=%{http_code} bytes=%{size_download}\n' \
-      "https://${VCENTER_FQDN}/certs/download.zip" 2>&1 || printf '    UNREACHABLE\n'
+    _vz="$(curl -sk -o /dev/null -m 25 -w '%{http_code} %{size_download}' "https://${VCENTER_FQDN}/certs/download.zip" 2>/dev/null)"; _rc=$?
+    printf '    /certs/download.zip %s  (%s)\n' "${_vz:-000 0}" "$(_why "$_rc")"
   fi
   if [ -n "${SUPERVISOR_ENDPOINT:-}" ]; then
     printf '  P6 Supervisor kubectl download (README step 7):\n'
     for p in darwin-amd64 darwin-arm64; do
-      curl -sk -o /dev/null -m 25 -w "    $p http=%{http_code} bytes=%{size_download}\n" \
-        "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/$p/vsphere-plugin.zip" 2>&1
+      _pz="$(curl -sk -o /dev/null -m 25 -w '%{http_code} %{size_download}' \
+        "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/$p/vsphere-plugin.zip" 2>/dev/null)"; _rc=$?
+      printf '    %-13s %s  (%s)\n' "$p" "${_pz:-000 0}" "$(_why "$_rc")"
     done
     printf '    (README pins darwin-amd64 because darwin-arm64 404s. If arm64 is 200 here, fix the README.)\n'
   fi
