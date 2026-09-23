@@ -45,11 +45,14 @@ podman machine init && podman machine start
 There is no `dockerd` in it. Run the engine in a VM with Colima:
 
 ```sh
-brew install colima docker && colima start
+brew install colima docker docker-buildx
+colima start
+docker info --format '{{.OperatingSystem}}/{{.Architecture}} server={{.ServerVersion}}'
 ```
 
 Colima runs **Docker Engine** in a small Linux VM and gives you the plain `docker` CLI — no
-desktop application, no GUI, no licence.
+desktop application, no GUI, no licence. `docker-buildx` is required: the Makefile's image build
+uses `docker buildx build`, and the plain `docker` formula does not include it.
 
 With a CLI but no VM running you get this, which is **not** a permissions problem and is **not**
 fixed by `sudo`:
@@ -58,13 +61,35 @@ fixed by `sudo`:
 dial unix /var/run/docker.sock: connect: no such file or directory
 ```
 
-**Linux (Debian/Ubuntu) — either engine**
+**Linux (Debian/Ubuntu) — podman**
 
 ```sh
-sudo apt-get update
-sudo apt-get install -y podman      # or:  sudo apt-get install -y docker.io
-sudo usermod -aG docker "$USER"     # docker only; log out and back in
+sudo apt-get update && sudo apt-get install -y podman
 ```
+
+**Linux (Debian/Ubuntu) — Docker Engine**, from Docker's own repository. The distribution's
+`docker.io` package also works and is one line, but it lags upstream and does not ship
+`docker-buildx-plugin`, which the image build needs:
+
+```sh
+sudo apt-get update && sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+
+sudo usermod -aG docker "$USER"     # then LOG OUT AND BACK IN, or `docker` needs sudo
+```
+
+> Debian: replace both `ubuntu` occurrences with `debian`. The `$VERSION_CODENAME` substitution
+> reads `/etc/os-release`, so it is already correct for your release (`noble`, `bookworm`, …).
+> Verified reachable: the GPG key and the `dists/<codename>/Release` index both return **200**.
 
 ### The rest of the tools
 
