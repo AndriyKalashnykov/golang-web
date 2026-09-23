@@ -36,7 +36,9 @@ podman machine init && podman machine start
 ```
 
 ⚠️ **On macOS a container CLI cannot build or push on its own — it needs a Linux VM behind it.**
-`brew install docker` installs **only the client**; with no VM running you get:
+`brew install docker` installs **only the client** — verified in the formula itself, which
+builds from `github.com/docker/cli` (not moby/moby, the engine) and compiles exactly one
+binary, `cmd/docker`. There is no `dockerd` in it. With no VM running you get:
 
 ```
 dial unix /var/run/docker.sock: connect: no such file or directory
