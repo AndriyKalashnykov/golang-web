@@ -119,14 +119,14 @@ registry you have configured. For convenience against the default registry,
 > itself; making kind run its *nodes* on podman is a separate thing this repo
 > does not do (it needs rootless systemd `Delegate=yes`).
 
-On first run it will ask you to activate mise in your shell:
+The Makefile puts mise's shim directory on `PATH` for every recipe, so `make`
+targets work without any shell setup. To use the pinned tools directly in your
+own shell too, activate mise — by full path, because on Ubuntu `~/.local/bin`
+is not yet on `PATH` when `~/.bashrc` runs:
 
 ```bash
-echo 'eval "$(mise activate bash)"' >> ~/.bashrc   # or the zsh equivalent
+echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc   # or the zsh equivalent
 ```
-
-The Makefile also puts mise's shim directory on `PATH` for every recipe, so
-`make` targets work even without shell activation.
 
 > **Why mise rather than `go install`?** The previous `deps` guarded each tool
 > with `command -v <tool> || go install ...`, which short-circuits whenever any

@@ -190,10 +190,8 @@ deps:
 		echo "Installing mise (no root; installs to ~/.local/bin)..."; \
 		curl -fsSL https://mise.run | sh; \
 		echo ""; \
-		echo "mise installed. Activate it in your shell (one-time setup):"; \
-		echo "  echo 'eval \"\$$(mise activate bash)\"' >> ~/.bashrc   # or the zsh equivalent"; \
-		echo "Then re-run 'make deps'."; \
-		exit 0; \
+		echo "mise installed. make targets find its tools themselves (this Makefile puts"; \
+		echo "~/.local/share/mise/shims on PATH), so no shell setup is needed. Installing them now."; \
 	fi
 	@mise install --yes
 
@@ -286,7 +284,7 @@ deps-verify: deps
 	if [ -n "$$missing" ]; then \
 		echo "Error: not on PATH:$$missing"; \
 		echo "Run 'make deps', and ensure mise is activated in your shell:"; \
-		echo "  eval \"\$$(mise activate bash)\"   # or the zsh equivalent"; \
+		echo "  eval \"\$$(~/.local/bin/mise activate bash)\"   # or the zsh equivalent"; \
 		exit 1; \
 	fi; \
 	echo "All pinned tools present."
