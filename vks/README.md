@@ -406,12 +406,7 @@ sed -e 's|image: .*/golang-web:.*|image: harbor.example.test/apps/golang-web:v0.
 
 ## 6. Provide Harbor credentials
 
-**`export` these — do not pass them as `make VAR=...`.** The Makefile reads
-`REGISTRY_USERNAME` and `REGISTRY_TOKEN` from the environment and passes the token to the engine
-on **stdin**, so it never reaches argv, where any local user could read it from `ps`
-(`/proc/<pid>/cmdline` is world-readable).
-
-> ⚠️ **`export` them — do not use `make REGISTRY_TOKEN=...`**, which puts the token in make's own argv.
+`export` these two — `make REGISTRY_TOKEN=...` would put the token where `ps` can read it.
 
 ### Option A — a robot account (recommended)
 
@@ -545,10 +540,6 @@ rm -rf "$VCTMP"
 
 [ -s "$SUPERVISOR_CA" ] || { echo "FAILED: $SUPERVISOR_CA is empty — the fetch above did not work"; }
 ```
-
-⚠️ **`unzip -j` is load-bearing.** The zip stores the same root under `certs/lin/` *and*
-`certs/mac/`; `-j` flattens both to one file. Without it, `*.0` matches nothing and
-`SUPERVISOR_CA` ends up empty.
 
 ```
 ## Sample output
