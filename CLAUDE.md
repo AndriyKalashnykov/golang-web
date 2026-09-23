@@ -137,8 +137,8 @@ make version        # Print current version tag
 ## `vks/` — deploying this app to a VKS guest cluster
 
 `vks/README.md` is an end-user runbook: build locally, push to Harbor, deploy to a named VKS
-guest cluster. Proven on Linux with podman and docker; the macOS half is verified by
-`vks/macosx.sh`, which writes `vks/macosx.res`.
+guest cluster. Proven end to end by running every block verbatim: Linux with podman and docker,
+and macOS (arm64) with podman and docker/Colima.
 
 **Read `vks/HANDOFF.md` before changing anything under `vks/`** — it holds the resume point,
 what is already measured, and the traps that have already been paid for.

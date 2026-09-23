@@ -2,7 +2,12 @@
 #
 # builder image
 # https://hub.docker.com/_/golang/tags
-FROM golang:1.27.1@sha256:3680233e3204827fbdc66088528ae6d4b3d034f51d03a99d454f6de034888244 AS builder
+# --platform=$BUILDPLATFORM: the Go toolchain runs NATIVELY on the build machine and cross-compiles
+# to $TARGETARCH (CGO off, GOARCH set below). Without it an arm64 Mac building linux/amd64 runs the
+# whole Go toolchain under emulation -- and under Colima's QEMU the Go runtime crashes in
+# `go mod download` ("marked free object in span"; measured on macOS 26.6.2). The final stage
+# runs no commands, so nothing is emulated at all.
+FROM --platform=$BUILDPLATFORM golang:1.27.1@sha256:3680233e3204827fbdc66088528ae6d4b3d034f51d03a99d454f6de034888244 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /workspace
@@ -25,10 +30,10 @@ ARG MY_BUILDTIME=now
 ENV MY_BUILDTIME=$MY_BUILDTIME
 
 # Build
-# the GOARCH has not a default value to allow the binary be built according to the host where the command
-# was called. For example, if we call make docker-build in a local env which has the Apple Silicon M1 SO
-# the docker BUILDPLATFORM arg will be linux/arm64 when for Apple x86 it will be linux/amd64. Therefore,
-# by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
+# GOARCH=${TARGETARCH} selects the architecture of the OUTPUT binary -- the platform the image is for.
+# It must stay TARGETARCH: this stage runs on $BUILDPLATFORM (see FROM above), so BUILDARCH or an
+# omitted GOARCH would compile for the BUILD machine and ship the wrong binary in a cross-build
+# (e.g. an arm64 binary in the amd64 image an Apple Silicon Mac builds for VKS -> exec format error).
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -ldflags "-X main.Version=${MY_VERSION} -X main.BuildTime=${MY_BUILDTIME}" -a -o manager main.go
 
 # Use distroless as minimal base image to package the manager binary

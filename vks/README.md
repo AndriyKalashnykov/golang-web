@@ -94,6 +94,20 @@ source ~/.vks-golang-web.env
 | `git`, `make` | check out and drive the repo |
 | `jq`, `curl`, `unzip`, `openssl` | read Harbor and kubectl JSON, fetch certificates |
 
+### macOS: Homebrew and the Command Line Tools first
+
+A fresh Mac has neither, and every macOS command below uses `brew`. You also need an admin account,
+for the `sudo` steps.
+
+```sh
+xcode-select --install     # Command Line Tools (git, make); a dialog opens — skip if already installed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+B=/opt/homebrew/bin/brew; [ -x "$B" ] || B=/usr/local/bin/brew   # Apple Silicon, else Intel
+echo "eval \"\$($B shellenv)\"" >> ~/.zprofile
+eval "$($B shellenv)"
+brew --version
+```
+
 ### Pick a container engine
 
 Either works. **podman** is the default; **docker** is equally fine.
@@ -110,11 +124,15 @@ podman machine init && podman machine start
 
 ```sh
 brew install colima docker docker-buildx
+# Homebrew's buildx is a docker plugin that docker cannot find on its own -- link it where docker looks:
+mkdir -p ~/.docker/cli-plugins
+ln -sfn "$(brew --prefix)/opt/docker-buildx/bin/docker-buildx" ~/.docker/cli-plugins/docker-buildx
 colima start
 docker info --format '{{.OperatingSystem}}/{{.Architecture}} server={{.ServerVersion}}'
+docker buildx version       # must print a version -- the image build uses `docker buildx build`
 ```
 
-`docker-buildx` is required — the image build uses `docker buildx build`. With a CLI but no VM
+Without the link, `docker buildx` fails with `docker: unknown command: docker buildx`. With a CLI but no VM
 running you get `dial unix /var/run/docker.sock: connect: no such file or directory`, which is
 **not** a permissions problem and is **not** fixed by `sudo`.
 
@@ -150,10 +168,11 @@ sudo usermod -aG docker "$USER"     # then LOG OUT AND BACK IN, or `docker` need
 
 ### The rest of the tools
 
-**macOS**
+**macOS** — `git` and `make` come with the Command Line Tools installed above; `make` is Apple's
+(GNU Make 3.81), which this repo's Makefile supports:
 
 ```sh
-brew install jq git make
+brew install jq
 ```
 
 **Linux (Debian/Ubuntu)**
@@ -178,6 +197,7 @@ case "$(uname -s)/$(uname -m)" in
 esac
 T="$(mktemp -d)"
 curl -fsSL -o "$T/kubectl" "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/${KOS}/kubectl"
+sudo install -d /usr/local/bin             # absent on a fresh Apple Silicon Mac
 sudo install -m 0755 "$T/kubectl" /usr/local/bin/kubectl
 rm -rf "$T"
 
@@ -199,6 +219,7 @@ T="$(mktemp -d)"
 # -k: the Supervisor's certificate is signed by a CA you do not trust yet (step 8a fetches it).
 curl -fsSk -o "$T/plugin.zip" "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${PLUGIN_OS}/vsphere-plugin.zip"
 unzip -oq "$T/plugin.zip" -d "$T"
+sudo install -d /usr/local/bin             # absent on a fresh Apple Silicon Mac
 sudo install "$T/bin/kubectl" /usr/local/bin/kubectl
 rm -rf "$T"
 /usr/local/bin/kubectl version --client
@@ -237,6 +258,7 @@ PLUGINS_TGZ="VCF-Consumption-CLI-PluginBundle-Linux_AMD64-9.1.1.0.25665404.tar.g
 
 T="$(mktemp -d)"
 tar -xzf "$CLI_TGZ" -C "$T"
+sudo install -d /usr/local/bin                  # absent on a fresh Apple Silicon Mac
 sudo install "$T"/vcf-cli-* /usr/local/bin/vcf    # the binary is named vcf-cli-<os>_<arch>
 mkdir "$T/plugins" && tar -xzf "$PLUGINS_TGZ" -C "$T/plugins"
 vcf plugin install all --local-source "$T/plugins"
@@ -539,6 +561,9 @@ KUBECONFIG="$SUPERVISOR_KUBECONFIG" \
 kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" config use-context supervisor
 ```
 
+If it says `context "supervisor" already exists` — left over from an earlier run — clear it with the
+vcf-contexts block in section 11, then run this again.
+
 Check it worked:
 
 ```sh
@@ -782,8 +807,9 @@ vcf context list          # confirm none remain
 
 ```sh
 source ~/.vks-golang-web.env
-rm -rf "$HOME/.config/containers/certs.d/${HARBOR_FQDN}"        # podman, Linux and macOS
-# sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN}"              # Linux + docker
+rm -rf "$HOME/.config/containers/certs.d/${HARBOR_FQDN:?}"        # podman, Linux and macOS
+# sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"              # Linux + docker
+# colima ssh -- sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"   # macOS + docker (Colima)
 ```
 
 **The files this guide wrote**, then the clone — `cd ..` out of `golang-web` and delete the
@@ -803,7 +829,7 @@ unset HARBOR_FQDN HARBOR_PROJECT SUPERVISOR_ENDPOINT VCENTER_FQDN VKS_CLUSTER VK
       SSO_USERNAME VCF_CLI_VSPHERE_PASSWORD HARBOR_ADMIN_PASSWORD REGISTRY_USERNAME \
       REGISTRY_TOKEN HARBOR_CA SUPERVISOR_CA SUPERVISOR_KUBECONFIG GUEST_KUBECONFIG \
       IMAGE KUBECONFIG APP_IP
-unset -f harbor_cfg
+unset -f harbor_cfg 2>/dev/null || true
 ```
 
 **Optional** — the tools this guide installed: `/usr/local/bin/kubectl`, `/usr/local/bin/vcf`,
