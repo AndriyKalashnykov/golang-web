@@ -35,13 +35,28 @@ last run exactly (AWS macOS AMI release notes list 26.0.1 … 26.6.2).
 | payment method | card added |
 | identity | **Pending verification** |
 | SSH key | `udesk` = this lab host's `~/.ssh/id_ed25519.pub` (MD5 `32:99:9f:20:…:d1:68`), added to project `vks` |
-| create page | **every Mac type OUT OF STOCK in both PARIS 1 and PARIS 3** — cannot tell stock from zero quota for an unverified account |
-| support ticket | **#1619590**, opened 2026-09-23, "Awaiting agent" — asks stock vs quota, requests 1 × M4-S, asks which Tahoe 26.x is offered |
+| create page | **every Mac type OUT OF STOCK in both PARIS 1 and PARIS 3** |
+| support ticket | **#1619590**, opened 2026-09-23 09:48; **answered 10:21** (below) |
 
-**Resume:** on a ticket reply or ID approval, reload Bare Metal → Apple silicon → Create. If
-M4-S is available: M4-S, zone PAR, newest Tahoe 26.x, **hourly**, key `udesk`, accept the
-24 h minimum. Then give the session the public IP + SSH user. If still out of stock or days
-away → AWS fallback (new AWS accounts often have 0 quota for mac Dedicated Hosts; request it).
+**Scaleway's answer (ticket #1619590, 2026-09-23):** the out-of-stock is **REAL**, "completely
+unrelated to your account quotas"; **no restock ETA** — machines free up as other customers'
+24 h rentals expire, so poll the console. The console distinguishes the two: **"Out of stock"**
+= unavailable globally, **"Quota needed"** = the account is not authorised. And a **second
+blocker**: for Apple silicon, identity verification is NOT enough — **a quota increase must be
+requested explicitly**. They did not say whether the ticket itself counts as that request, and
+did not name the exact Tahoe 26.x ("macOS Tahoe 26 is available").
+
+**So Scaleway needs TWO things: stock AND an explicit Apple silicon quota.** Suggested ticket
+reply: *"Please process this ticket as the explicit Apple silicon quota request: 1 × M4-S (or
+1 × M2-M) in fr-par-1 or fr-par-3, hourly. Please also confirm the exact macOS Tahoe 26.x build."*
+
+**Decision point:** if Scaleway is not creatable within ~1 day, switch to AWS `mac-m4.metal`.
+Request the AWS Dedicated Host quota for `mac-m4` in parallel — new accounts usually have 0.
+
+**Resume:** reload Bare Metal → Apple silicon → Create. **"Out of stock"** = still waiting on
+Scaleway's hardware; **"Quota needed"** = chase the quota on the ticket. If M4-S is orderable:
+M4-S, zone PAR, newest Tahoe 26.x, **hourly**, key `udesk`, accept the 24 h minimum. Then give
+the session the public IP + SSH user.
 
 **Once on the Mac, pre-flight BEFORE any real work** (a failure here costs only the 24 h):
 `sw_vers`; `sudo -n true`; `security add-trusted-cert` into the System keychain works despite
