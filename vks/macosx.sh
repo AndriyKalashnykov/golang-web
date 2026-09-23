@@ -50,6 +50,7 @@ V_ENGINE=none; V_DAEMON=no; V_PROVIDER=none; V_REMOTE=unknown
 V_BUILDX=no; V_ROSETTA=n/a; V_VCF=no; V_VCFPLUGINS=unknown; V_LAB=skipped
 V_BASE64=unknown; V_INSTALLD=unknown; V_SED=unknown
 V_SECURITY=no; V_IMPORTCA=unknown; V_LOCALBIN=unknown
+V_MACHINE=n/a; V_MACHINE_STATE=n/a; V_ROOTFUL=unknown; V_XBUILD=unknown
 
 lab_set() {
   case "${HARBOR_FQDN:-}" in ""|*example.test) return 1 ;; esac
@@ -110,6 +111,19 @@ for e in podman docker; do
         case "$(_t 25 podman info --format '{{.Host.ServiceIsRemote}}' 2>/dev/null)" in
           true) V_REMOTE=true ;; false) V_REMOTE=false ;;
         esac
+        # Do NOT infer a machine from `podman info` succeeding: on LINUX podman runs
+        # natively with no machine at all, and claiming one exists is simply false.
+        # macOS always uses a machine, so absence here is itself the discriminator.
+        _st="$(_t 25 podman machine inspect --format '{{.State}}' 2>/dev/null | head -1)"
+        if [ -n "$_st" ]; then
+          V_MACHINE=exists; V_MACHINE_STATE=$_st
+          printf '    machine  : state=%s\n' "$_st"
+          _rf="$(_t 25 podman machine inspect --format '{{.Rootful}}' 2>/dev/null | head -1)"
+          [ -n "$_rf" ] && { V_ROOTFUL=$_rf; printf '    machine  : rootful=%s\n' "$_rf"; }
+        else
+          V_MACHINE=none; V_MACHINE_STATE=none
+          printf '    machine  : NONE - native podman, not a VM client (expected on Linux, NOT on macOS)\n'
+        fi
       else
         _t 25 docker info --format '{{.OperatingSystem}}/{{.Architecture}} server={{.ServerVersion}}' 2>&1 \
           | sed 's/^/    host     : /' | head -1
@@ -119,6 +133,20 @@ for e in podman docker; do
       fi
     else
       printf '    daemon   : DOWN - the CLI alone cannot build or push on macOS\n'
+      # podman on macOS needs a MACHINE. `brew install podman` creates none, so name the
+      # exact next command instead of printing a raw socket error.
+      if [ "$e" = podman ]; then
+        _ml="$(_t 25 podman machine list 2>/dev/null)"
+        if [ -z "$(printf '%s\n' "$_ml" | sed '1d')" ]; then
+          V_MACHINE=none; V_MACHINE_STATE=none
+          printf '    NEXT     : no machine exists. Run:\n'
+          printf '               podman machine init && podman machine start\n'
+        else
+          V_MACHINE=exists; V_MACHINE_STATE=stopped
+          printf '    NEXT     : a machine exists but is not running. Run:\n'
+          printf '               podman machine start\n'
+        fi
+      fi
       # head -1 printed docker's BANNER ('Client: Docker Engine - Community'), not the
       # error. Pick the line that actually says what failed.
       _di="$(_t 25 "$e" info 2>&1)"
@@ -160,6 +188,26 @@ if [ "$V_ENGINE" != none ]; then
   fi
 else
   printf '  SKIPPED - no engine with a live daemon\n'
+fi
+
+# The Makefile forces --platform linux/amd64 on arm64 hosts. Prove that plumbing works
+# WITHOUT a registry or the lab: FROM scratch pulls nothing.
+if [ "$V_ENGINE" != none ]; then
+  _bd="$(mktemp -d)"
+  printf 'FROM scratch\nCOPY marker /marker\n' > "$_bd/Containerfile"
+  : > "$_bd/marker"
+  if _t 90 "$V_ENGINE" build --platform linux/amd64 -t macosx-probe-xarch "$_bd" >/dev/null 2>&1; then
+    V_XBUILD=ok
+    printf '  --platform linux/amd64 : BUILDS (offline, FROM scratch)\n'
+    _t 30 "$V_ENGINE" image inspect macosx-probe-xarch --format '{{.Os}}/{{.Architecture}}' 2>/dev/null \
+      | sed 's/^/    resulting image: /' | head -1
+    _t 30 "$V_ENGINE" rmi -f macosx-probe-xarch >/dev/null 2>&1
+  else
+    V_XBUILD=fail
+    printf '  --platform linux/amd64 : FAILED - make image-build would not work here\n'
+    _t 90 "$V_ENGINE" build --platform linux/amd64 -t macosx-probe-xarch "$_bd" 2>&1 | tail -3 | sed 's/^/    /'
+  fi
+  rm -rf "$_bd"
 fi
 
 printf '\n--- S5  VCF CLI on this Mac ---\n'
@@ -232,6 +280,11 @@ if command -v podman >/dev/null 2>&1; then
     V_IMPORTCA=yes; printf '  --import-native-ca   : supported by this podman\n'
   else
     V_IMPORTCA=no;  printf '  --import-native-ca   : NOT in this podman - README macOS+podman step would fail\n'
+  fi
+  if podman machine ssh --help >/dev/null 2>&1; then
+    printf '  podman machine ssh   : available (VM-side trust is reachable)\n'
+  else
+    printf '  podman machine ssh   : ABSENT\n'
   fi
 fi
 case ":$PATH:" in
@@ -311,6 +364,10 @@ printf 'install_D=%s\n'       "$V_INSTALLD"
 printf 'sed_rewrite=%s\n'     "$V_SED"
 printf 'security_cmd=%s\n'    "$V_SECURITY"
 printf 'import_native_ca=%s\n' "$V_IMPORTCA"
+printf 'podman_machine=%s\n'   "$V_MACHINE"
+printf 'machine_state=%s\n'    "$V_MACHINE_STATE"
+printf 'machine_rootful=%s\n'  "$V_ROOTFUL"
+printf 'xarch_build=%s\n'      "$V_XBUILD"
 printf 'usr_local_bin=%s\n'   "$V_LOCALBIN"
 printf 'lab_probes=%s\n'      "$V_LAB"
 printf '=== end ===\n'
