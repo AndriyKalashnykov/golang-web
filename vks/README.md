@@ -147,94 +147,14 @@ kubectl --kubeconfig "$GUEST_KUBECONFIG" version -o json | jq -r .serverVersion.
 
 ### Which engine will be used?
 
-**podman, if it is installed. Otherwise docker.** The Makefile picks it for you:
-
-```make
-CONTAINER_ENGINE ?= podman if present, else docker, else none
-```
-
-To force the other one, pass it on the `make` command line or export it:
+**podman if it is installed, otherwise docker.** To force the other one:
 
 ```sh
 make image-build CONTAINER_ENGINE=docker
 export CONTAINER_ENGINE=docker          # for the whole shell
 ```
 
-Check what you have, and what will be used:
-
-```sh
-for e in podman docker; do
-  if ! command -v "$e" >/dev/null 2>&1;  then echo "$e   not installed"
-  elif "$e" info >/dev/null 2>&1;        then echo "$e   ready"
-  else                                        echo "$e   installed, but NO DAEMON is running"
-  fi
-done
-
-if   command -v podman >/dev/null 2>&1; then echo "--> your builds will use PODMAN"
-elif command -v docker >/dev/null 2>&1; then echo "--> your builds will use DOCKER"
-else                                         echo "--> NO ENGINE: install one above"
-fi
-```
-
-```
-## Sample output — both installed
-  podman   ready
-  docker   ready
-  --> your builds will use PODMAN
-```
-
-`installed, but NO DAEMON is running` means the CLI is there and nothing is behind it — on
-macOS start `podman machine` or `colima`. Once you have checked out the repo (section 4),
-`make engines` prints the same selection.
-
-
-### Install the VCF CLI
-
-The VCF CLI is **not** on Homebrew or apt. Both files below are **entitled** downloads — you
-need a Broadcom account with a vSphere Foundation entitlement. Versions move; match yours to
-what your entitlement offers.
-
-| file | from |
-|---|---|
-| `VCF-Consumption-CLI-Linux_AMD64-<version>.tar.gz` | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.0.0&os=&servicePk=542815&language=EN&viewGroup=true&groupId=540529) |
-| `VCF-Consumption-CLI-PluginBundle-Linux_AMD64-<version>.tar.gz` | [Plugin bundle](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.0.0&os=&servicePk=542815&language=EN&viewGroup=true&groupId=540672) |
-
-**Portal gotchas — every one of these fails silently:**
-
-- **Each link opens a page that looks EMPTY until you pick a release.** The *Release* list
-  starts blank, and while it is blank the file table reads **"No data found"** — which looks
-  exactly like the artifact not existing. Pick your release first, then the files appear.
-- **Tick "I agree to the Terms and Conditions"** or the download icons do nothing. The
-  checkbox stays **inert until you open both Terms links first**, and the gate is **per page**
-   — ticking it on one page does not carry to the next.
-- **Patch builds appear only once you open a group.** The parent page lists `9.1.0.0` alone.
-- **A `release=` in the URL is ignored** — use the on-page selector.
-- **Take only the `Linux_AMD64` rows** (uppercase). The un-suffixed `-Binaries-`,
-  `-PluginBundle-` and `-OCI-` archives are multi-platform supersets.
-
-Install the binary, then the plugins:
-
-```sh
-tar -xzf VCF-Consumption-CLI-Linux_AMD64-*.tar.gz
-sudo install ./vcf /usr/local/bin/vcf
-
-mkdir -p /tmp/vcf-plugins
-tar -xzf VCF-Consumption-CLI-PluginBundle-Linux_AMD64-*.tar.gz -C /tmp/vcf-plugins
-vcf plugin install all --local-source /tmp/vcf-plugins
-vcf plugin list
-```
-
-> A multi-arch bundle nests its plugins under `<os>/<arch>/`. If `plugin install all` finds
-> nothing, point `--local-source` at `/tmp/vcf-plugins/linux/amd64` instead.
-
-`vcf plugin install all` is idempotent — re-running upgrades in place. It writes to
-`~/.config/vcf` and `~/.local/share/vcf-cli`; do not delete those, they hold your contexts.
-
-> **macOS:** use the `Darwin_*` CLI archive. The plugin bundle is Linux-only — ask your platform
-> administrator for the macOS path.
->
-> ⚠️ `vcf plugin list` hangs when no plugins are installed. If it has not returned in ~30 s,
-> `Ctrl-C` and install the bundle first.
+After you check out the repo (section 4), `make engines` prints the selection it made.
 
 ## Verify the installation
 
