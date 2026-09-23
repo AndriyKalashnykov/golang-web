@@ -37,8 +37,10 @@ export SSO_USERNAME="administrator@vsphere.local"
 # --- credentials -------------------------------------------------------------
 export VCF_CLI_VSPHERE_PASSWORD="<your vCenter SSO password>"
 export HARBOR_ADMIN_PASSWORD="<Harbor admin password>"   # only to CREATE a robot in step 6
-export REGISTRY_USERNAME="admin"                 # step 6 replaces this with the robot name
-export REGISTRY_TOKEN="$HARBOR_ADMIN_PASSWORD"   # and this with the robot secret
+# Step 6 replaces these two with the robot's name and secret. Keep the SINGLE quotes: a robot
+# name contains `$` (robot$apps+...), and double quotes would silently expand it away.
+export REGISTRY_USERNAME='admin'
+export REGISTRY_TOKEN="$HARBOR_ADMIN_PASSWORD"   # step 6: the robot secret, in single quotes
 
 # --- paths; no need to change these -----------------------------------------
 export HARBOR_CA="$HOME/.config/vks-golang-web/harbor-ca.crt"
@@ -473,12 +475,20 @@ robot$apps+golang-web-push
 <32-character secret>
 ```
 
+Put the two printed lines into `~/.vks-golang-web.env` — `REGISTRY_USERNAME` and `REGISTRY_TOKEN`
+— **in single quotes**. A robot name contains `$`: written as `"robot$apps+golang-web-push"`,
+the shell expands `$apps` to nothing and you log in as `robot+golang-web-push`, which Harbor
+rejects.
+
+```sh
+export REGISTRY_USERNAME='robot$apps+golang-web-push'
+export REGISTRY_TOKEN='<the 32-character secret>'
+```
+
 Then log in with it:
 
 ```sh
 source ~/.vks-golang-web.env
-# REGISTRY_USERNAME / REGISTRY_TOKEN come from section 1 — update them there with the
-# name and secret printed above, then:
 make registry-login IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 ```
 
@@ -486,9 +496,6 @@ make registry-login IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 ## Sample output
 Login Succeeded!
 ```
-
-> Quote the username in **single** quotes. A robot name contains `$`, which a double-quoted shell
-> string would try to expand.
 
 ### Option B — the Harbor admin account
 
@@ -647,31 +654,35 @@ minor (section 2).
 ## 9. Deploy
 
 The committed manifest points at the upstream image, so rewrite that one line to the image you
-just pushed. The file itself is never edited — `sed` writes to the pipe, not to disk:
+just pushed — **by digest, not by tag**. The file itself is never edited — `sed` writes to the
+pipe, not to disk.
+
+**Why the digest:** the manifest sets `imagePullPolicy: IfNotPresent`, so a node that already
+holds `golang-web:<version>` from an earlier run **never pulls your push** — it starts whatever
+it cached. Deleting the image from Harbor (section 11) does not clear the nodes. Measured on a
+cluster that had run this guide before: the tag deployed a cached, different `v0.0.3` that
+crash-looped with no logs. A digest names exactly one build, so the node must fetch it.
 
 ```sh
 source ~/.vks-golang-web.env
 export IMAGE="${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web:$(cat version.txt)"
+# The digest Harbor holds for the tag you pushed in step 7.
+DIGEST="$(curl -s --cacert "$HARBOR_CA" \
+  "https://${HARBOR_FQDN}/api/v2.0/projects/${HARBOR_PROJECT}/repositories/golang-web/artifacts/$(cat version.txt)" \
+  | jq -r '.digest // empty')"
+echo "${IMAGE} -> ${DIGEST:-NOT FOUND — re-run step 7 before going on}"
 
 kubectl create namespace golang-web --dry-run=client -o yaml | kubectl apply -f -
 kubectl config set-context --current --namespace=golang-web
 
-sed "s|image: .*/golang-web:.*|image: ${IMAGE}|" k8s/golang-web.yaml | kubectl apply -f -
-kubectl rollout status deploy/golang-web --timeout=150s
+[ -n "$DIGEST" ] && \
+  sed "s|image: .*/golang-web:.*|image: ${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web@${DIGEST}|" \
+    k8s/golang-web.yaml | kubectl apply -f - && \
+  kubectl rollout status deploy/golang-web --timeout=150s
 ```
 
-⚠️ **Rebuilding without changing `version.txt` will redeploy the OLD image.** The manifest sets
-`imagePullPolicy: IfNotPresent`, so a node that already has that tag keeps its cached copy — the
-rollout reports success and serves the previous build. Bump `version.txt` (and rebuild, repush,
-re-export `IMAGE`), or pin the digest:
-
-```sh
-source ~/.vks-golang-web.env
-D="$(curl -s --cacert "$HARBOR_CA" \
-  "https://${HARBOR_FQDN}/api/v2.0/projects/${HARBOR_PROJECT}/repositories/golang-web/artifacts" \
-  | jq -r '.[0].digest')"
-kubectl set image deploy/golang-web golang-web="${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web@${D}"
-```
+After a **rebuild**, re-run step 7 and this block: the new push gets a new digest, so the node
+pulls it — no need to bump `version.txt`.
 
 Confirm which image is actually running — `.items[0]` can be a terminating pod, so list them all:
 
@@ -680,9 +691,11 @@ source ~/.vks-golang-web.env
 kubectl get pods -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,IMAGEID:.status.containerStatuses[0].imageID'
 ```
 
+The `IMAGEID` digest must match the one the block above printed.
+
 > **No `imagePullSecret` is needed** for a *public* Harbor project. For a **private** one:
 > ```sh
-source ~/.vks-golang-web.env
+> source ~/.vks-golang-web.env
 > # Not `--docker-password=...`: that puts the token in argv.
 > umask 077
 > export AUTH="$(printf '%s:%s' "$REGISTRY_USERNAME" "$REGISTRY_TOKEN" | base64 | tr -d '\n')"
@@ -885,6 +898,10 @@ podman/skopeo flag; docker ignores it.
 
 **Image pushed to the wrong project** — `OWNER` did not hold what you expected. `echo "$IMAGE"`
 in step 5 prints the full tag before you build; check the project segment there.
+
+**The pod crash-loops, or serves an OLD build, right after deploy** — it was deployed by tag, and
+the node started an image it had cached from an earlier run. Use the section 9 block, which
+deploys by digest, and check that the `IMAGEID` it prints matches.
 
 **`exec format error` in the pod** — an arm64 image on amd64 nodes. The build targets amd64
 automatically on an arm64 host, so this means `PLATFORM` was overridden or the image predates
