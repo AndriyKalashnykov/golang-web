@@ -40,9 +40,7 @@ podman machine init && podman machine start
 ```
 
 **macOS — docker.** The CLI alone cannot build or push; it needs a Linux VM behind it.
-`brew install docker` installs **only the client** — verified in the formula, which builds from
-`github.com/docker/cli` (not moby/moby, the engine) and compiles exactly one binary, `cmd/docker`.
-There is no `dockerd` in it. Run the engine in a VM with Colima:
+`brew install docker` installs only the client. Run the engine in a VM with Colima:
 
 ```sh
 brew install colima docker docker-buildx
@@ -50,9 +48,8 @@ colima start
 docker info --format '{{.OperatingSystem}}/{{.Architecture}} server={{.ServerVersion}}'
 ```
 
-Colima runs **Docker Engine** in a small Linux VM and gives you the plain `docker` CLI — no
-desktop application, no GUI, no licence. `docker-buildx` is required: the Makefile's image build
-uses `docker buildx build`, and the plain `docker` formula does not include it.
+Colima runs Docker Engine in a Linux VM and gives you the plain `docker` CLI. `docker-buildx` is
+required — the image build uses `docker buildx build`.
 
 With a CLI but no VM running you get this, which is **not** a permissions problem and is **not**
 fixed by `sudo`:
@@ -87,16 +84,14 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plug
 sudo usermod -aG docker "$USER"     # then LOG OUT AND BACK IN, or `docker` needs sudo
 ```
 
-> Debian: replace both `ubuntu` occurrences with `debian`. The `$VERSION_CODENAME` substitution
-> reads `/etc/os-release`, so it is already correct for your release (`noble`, `bookworm`, …).
-> Verified reachable: the GPG key and the `dists/<codename>/Release` index both return **200**.
+> Debian: replace both `ubuntu` occurrences with `debian`.
 
 ### The rest of the tools
 
 **macOS**
 
 ```sh
-brew install kubectl jq git make
+brew install jq git make
 ```
 
 **Linux (Debian/Ubuntu)**
@@ -105,72 +100,41 @@ brew install kubectl jq git make
 sudo apt-get install -y jq git make unzip
 ```
 
-⚠️ **`kubectl` is NOT in the Debian/Ubuntu repositories** — `apt-get install kubectl` fails with
-*"Unable to locate package"*. Two ways to get it; set `SUPERVISOR_ENDPOINT` first (section 2
-collects the rest):
+### kubectl — get it from the Supervisor
+
+The Supervisor serves the binary, so it matches the platform you are talking to. Set your
+endpoint first (section 2 collects the rest):
 
 ```sh
 export SUPERVISOR_ENDPOINT="10.0.0.10"     # your Supervisor API endpoint
-```
+export PLUGIN_OS="linux-amd64"             # macOS: darwin-arm64 (Apple Silicon) or darwin-amd64
 
-**From the Supervisor** — it serves the binary itself, so you get the build your platform ships:
-
-```sh
-curl -fsSkO "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip"
+curl -fsSkO "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${PLUGIN_OS}/vsphere-plugin.zip"
 unzip -o vsphere-plugin.zip
 sudo install ./bin/kubectl /usr/local/bin/kubectl
+rm -rf ./bin ./vsphere-plugin.zip
 kubectl version --client
 ```
 
-> macOS: `linux-amd64` -> `darwin-amd64` (Intel) or `darwin-arm64` (Apple Silicon).
-> **We pull this zip ONLY to get `kubectl` out of it.** It is called *vsphere-plugin* because it
-> also contains `kubectl-vsphere` — the plugin this guide **never uses**, deprecated as of vSphere
-> 9.1.0 and replaced by the VCF CLI. Install `./bin/kubectl` and nothing else; delete the rest so
-> it cannot be picked up by accident:
+> This zip is only a way to get `kubectl`. It also contains `kubectl-vsphere` — deprecated, never
+> used here — which is why the last step deletes the rest.
 >
-> ```sh
-> rm -rf ./bin ./vsphere-plugin.zip
-> ```
->
-> ⚠️ **`-k` skips TLS verification, and you are about to `sudo install` what it downloads.**
-> The Supervisor's certificate is signed by the vCenter VMCA, which your machine does not trust
-> yet — that is why every published version of this command disables the check. If you have
-> already fetched the VMCA root (step 8a), verify instead of skipping:
->
-> ```sh
-> curl -fsSO --cacert "$SUPERVISOR_CA" "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip"
-> ```
+> ⚠️ `-k` skips TLS verification on a binary you then `sudo install`. If you already have the CA
+> (step 8a), use `--cacert "$SUPERVISOR_CA"` instead.
 
-**From upstream, pinned to your cluster** — use this if the Supervisor's build is too old (see
-below):
+If the Supervisor's build is more than one minor away from your **guest cluster** — that is where
+every command from section 9 runs — take a matching build from upstream instead:
 
 ```sh
-export KUBECTL_VERSION="v1.36.2"            # match your GUEST cluster's minor
-curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+export KUBECTL_VERSION="v1.36.2"           # match the guest cluster
+curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH:-amd64}/kubectl"
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && rm -f kubectl
 ```
 
-> On arm64 replace `linux/amd64` with `linux/arm64`. `curl -fsSL https://dl.k8s.io/release/stable.txt`
-> prints the newest upstream release, but newest is not necessarily what you want — read on.
-
-⚠️ **Check the skew before you pick.** Kubernetes supports `kubectl` within **one minor** of the
-API server it talks to. This guide's `kubectl` talks to **two different** API servers, and on the
-lab it was written against, all three versions differed:
-
-| | version | skew vs Supervisor | skew vs guest cluster |
-|---|---|---|---|
-| Supervisor API server | `v1.34.9+vmware.1` | — | — |
-| guest cluster API server | `v1.36.2+vmware.2` | — | — |
-| kubectl from the Supervisor zip | `v1.32.9+vmware.2-fips` | **2 minors behind** | **4 minors behind** |
-| kubectl from `dl.k8s.io/stable` | `v1.37.0` | 3 minors ahead | 1 minor ahead ✅ |
-
-Neither source was in policy for *both* servers. **Match the guest cluster** — that is where every
-command from section 9 onward runs, and the only Supervisor calls are two trivial reads in step 8
-that tolerate skew. Find your two versions with:
+Check yours once you have the two kubeconfigs from step 8:
 
 ```sh
-kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" version -o json | jq -r .serverVersion.gitVersion
-kubectl --kubeconfig "$GUEST_KUBECONFIG"      version -o json | jq -r .serverVersion.gitVersion
+kubectl --kubeconfig "$GUEST_KUBECONFIG" version -o json | jq -r .serverVersion.gitVersion
 ```
 
 ### Confirm the engine before going further
@@ -231,13 +195,11 @@ vcf plugin list
 `vcf plugin install all` is idempotent — re-running upgrades in place. It writes to
 `~/.config/vcf` and `~/.local/share/vcf-cli`; do not delete those, they hold your contexts.
 
-> **macOS:** the `Darwin_*` CLI archive works — measured on macOS 26.6.2 / Apple Silicon,
-> `vcf version` reports `v9.1.0.0.25296329`, `releaseType: ga`. The **plugin bundle** is
-> documented Linux-only; ask your platform administrator for the matching plugin path.
+> **macOS:** use the `Darwin_*` CLI archive. The plugin bundle is Linux-only — ask your platform
+> administrator for the macOS path.
 >
-> ⚠️ **`vcf plugin list` HANGS when no plugins are installed** (measured on that Mac — it had
-> to be interrupted). It appears to block on registry discovery. If it does not return within
-> ~30 s, it is not going to; `Ctrl-C` and install the bundle first.
+> ⚠️ `vcf plugin list` hangs when no plugins are installed. If it has not returned in ~30 s,
+> `Ctrl-C` and install the bundle first.
 
 ## Verify the installation
 
@@ -293,9 +255,6 @@ openssl x509 -in "$HARBOR_CA" -noout -fingerprint -sha256
 sha256 Fingerprint=A8:00:C3:62:1C:...:72:E2
 ```
 
-> The `-k` on that one call is a trust-on-first-use bootstrap: you cannot verify a CA with a CA
-> you do not yet have. Every command after this verifies against it properly.
-
 ### Install it where your engine looks
 
 `make registry-login` and `make image-push` call `podman login` / `docker login` with **no**
@@ -330,18 +289,15 @@ podman machine stop && podman machine start
 `dockerd` reads `certs.d` **on the machine it runs on**. So the CA goes inside the VM:
 
 ```sh
-# UNTESTED here — verify before relying on it. The mechanism is stated above.
+# UNTESTED — verify before relying on it.
 colima ssh -- sudo mkdir -p "/etc/docker/certs.d/${HARBOR_FQDN}"
 colima ssh -- sudo tee "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt" < "$HARBOR_CA" >/dev/null
 colima restart
 ```
 
-> ⚠️ **`/etc/docker/certs.d` ON YOUR MAC does nothing** — no daemon reads it there. It is the right
-> path only *inside* the VM. Likewise `~/.config/containers/certs.d` is not a documented macOS
-> location for podman; use `podman machine set --import-native-ca` above.
+> ⚠️ On macOS `/etc/docker/certs.d` does nothing — no daemon reads it there.
 >
-> ⚠️ **Restart the engine after this.** No engine re-reads trust material while running, so the
-> login keeps failing until you do.
+> ⚠️ **Restart the engine afterwards**, or the login keeps failing.
 
 ## Verify
 
@@ -376,10 +332,8 @@ make deps
 make image-build IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 ```
 
-> ⚠️ **Pass `OWNER` on the `make` command line, never with `export`.** The Makefile sets it with
-> `:=`, which the environment cannot override — so `export OWNER=apps` is silently ignored and
-> your image is built for the *default* project instead. There is no error. Always confirm with
-> the check below before pushing.
+> ⚠️ **Pass `OWNER` on the `make` command line, never `export`** — the Makefile uses `:=`, which
+> the environment cannot override, and there is no error. Confirm with the check below.
 
 > ⚠️ **On Apple Silicon**, add `--platform linux/amd64`. VKS nodes are `amd64`; an arm64 image
 > builds and pushes fine, then fails at runtime with `exec format error`.
@@ -404,14 +358,7 @@ sed -e 's|image: .*/golang-web:.*|image: harbor.example.test/apps/golang-web:v0.
 on **stdin**, so it never reaches argv, where any local user could read it from `ps`
 (`/proc/<pid>/cmdline` is world-readable).
 
-> ⚠️ **`make REGISTRY_TOKEN=... registry-login` defeats that.** A variable given on make's own
-> command line is in make's argv before the Makefile can do anything about it. Measured with a
-> canary: `export` -> **0** argv hits; `make VAR=` -> **1**.
->
-> A Harbor robot is named `robot$project+name`, and until recently the `$` was **eaten**: make
-> expanded `$a` (an empty single-character variable), so `robot$apps+golang-web-push` reached the
-> engine as `robotpps+golang-web-push` and Harbor answered `unauthorized`. Both were fixed by
-> deferring the expansion to the recipe shell (`$$VAR` instead of `$(VAR)`).
+> ⚠️ **`export` them — do not use `make REGISTRY_TOKEN=...`**, which puts the token in make's own argv.
 
 ### Option A — a robot account (recommended)
 
@@ -443,8 +390,7 @@ Run this once. `duration` is in days; `-1` means never expire.
 ```sh
 read -rs HARBOR_ADMIN_PASSWORD
 
-# curl's -K file is PARSED, not read literally: a bare " truncates the password and a
-# backslash is swallowed. Escape backslash FIRST, then the quote.
+# curl's -K file is parsed, so the password must be escaped.
 harbor_cfg() {
   local e="$HARBOR_ADMIN_PASSWORD"
   e="${e//\\/\\\\}"; e="${e//\"/\\\"}"
@@ -470,8 +416,7 @@ robot$apps+golang-web-push
 <32-character secret>
 ```
 
-> The admin password is written to a `curl -K` config under `umask 077`, so it never appears in
-> `ps` output or your shell history. **Delete it when you are done** — see below.
+> Delete `$CFG` when you are done — see below.
 
 To list or delete robots (re-run `harbor_cfg` first if you opened a new shell):
 
@@ -532,24 +477,19 @@ KUBECONFIG="$SUPERVISOR_KUBECONFIG" \
 `SUPERVISOR_CA` is the **vCenter VMCA root**, not Harbor's CA. vCenter serves it:
 
 ```sh
-# `getent` is glibc-only and does NOT exist on macOS, where it would report a DNS failure
-# that is not real. Try it, then fall back to something every platform has.
+# getent does not exist on macOS, hence the fallback.
 getent hosts "$VCENTER_FQDN" 2>/dev/null \
   || python3 -c 'import socket,sys; print(socket.gethostbyname(sys.argv[1]))' "$VCENTER_FQDN" \
   || echo "this machine cannot resolve $VCENTER_FQDN — fix DNS before continuing"
 
 mkdir -p "$(dirname "$SUPERVISOR_CA")"
-# A FRESH directory every time. `unzip -o -j` MERGES into an existing one, and a different
-# vCenter's root has a different hash filename, so it would not overwrite -- it would ACCUMULATE,
-# and `cat *.0` would silently fold a stale vCenter's CA into your trust bundle.
+# A fresh directory every time: unzip MERGES, so a stale one would add a foreign CA.
 VCTMP="$(mktemp -d)"
 curl -fsSk --max-time 60 -o "$VCTMP/certs.zip" "https://${VCENTER_FQDN}/certs/download.zip"
 unzip -o -j "$VCTMP/certs.zip" -d "$VCTMP/certs"
 cat "$VCTMP"/certs/*.0 > "$SUPERVISOR_CA"
 rm -rf "$VCTMP"
 
-# STOP if nothing was written. Without this the failure is silent: an empty CA file makes
-# every later --cacert call fail with a TLS error that names the cert, not the download.
 [ -s "$SUPERVISOR_CA" ] || { echo "FAILED: $SUPERVISOR_CA is empty — the fetch above did not work"; }
 ```
 
@@ -563,17 +503,11 @@ rm -rf "$VCTMP"
   notAfter=Sep 11 18:13:40 2036 GMT
 ```
 
-> `-f` and `-S` are load-bearing. With plain `-s`, a DNS failure or an HTTP error writes a
-> **0-byte** `/tmp/certs.zip` and says nothing — `unzip` then fails with a message that points
-> at the zip instead of at DNS.
-
 ⚠️ `curl -sk` skips verification **to fetch the trust anchor itself** — unavoidable, but it
 means you must confirm the fingerprint out of band before trusting it:
 
 ```sh
-# `openssl x509 -in` reads ONLY THE FIRST certificate in a file. MEASURED: with a second
-# certificate appended, it reported one subject and one fingerprint and the other was
-# completely invisible -- so this form cannot fail on the thing it exists to catch.
+# openssl x509 shows only the FIRST cert, so list them all.
 awk '/BEGIN CERT/{n++} END{print (n?n:0)" certificate(s) in the bundle"}' "$SUPERVISOR_CA"
 openssl crl2pkcs7 -nocrl -certfile "$SUPERVISOR_CA" \
   | openssl pkcs7 -print_certs -noout -fingerprint -sha256 2>/dev/null \
@@ -592,14 +526,9 @@ Then clear it as soon as the context exists:
 unset VCF_CLI_VSPHERE_PASSWORD
 ```
 
-> ⚠️ **Do not type the password inline** (`VCF_CLI_VSPHERE_PASSWORD='...' vcf context create ...`).
-> An environment prefix does keep it out of `ps`, but the whole line lands in your **shell
-> history** in cleartext, where it outlives the session. `read -rs` does not echo it and does not
-> record it. Omitting the variable entirely also works — the CLI prompts — but then it is not
-> exported to the `vcf` child on every shell.
+> ⚠️ Do not type the password inline — it would land in your shell history. `read -rs` does not.
 >
-> ⚠️ **vCenter SSO locks the account after repeated failed attempts.** Type it carefully; this is
-> not a credential to guess at.
+> ⚠️ **vCenter SSO locks the account after repeated failures.** Type it carefully.
 
 Check it worked:
 
@@ -651,7 +580,7 @@ kubectl config use-context "$VKS_CLUSTER"
 kubectl get nodes
 ```
 
-> ⚠️ **This requires Pinniped and fails on many Supervisors.** It builds a *Pinniped-backed*
+> ⚠️ **This requires Pinniped.** It builds a *Pinniped-backed*
 > kubeconfig, so it reads the `pinniped-info` ConfigMap from the Supervisor's `kube-public`
 > namespace. If that ConfigMap is absent the command exits **1** with:
 >
@@ -659,14 +588,9 @@ kubectl get nodes
 > Error: failed to get pinniped-info from management cluster
 > ```
 >
-> Pinniped being *deployed* is not sufficient — the ConfigMap must exist. Check with:
+> You cannot fix that from your machine — ask your platform administrator, or **use 8b**.
 >
-> ```sh
-> kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n kube-public get cm pinniped-info
-> ```
->
-> Nothing you can do from your machine fixes this; ask your platform administrator. **Use 8b
-> instead** — it needs no Pinniped and works on every Supervisor.
+> Check yours: `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n kube-public get cm pinniped-info`
 
 The two kubeconfigs differ in how they authenticate: 8b is a CAPI-minted cluster-admin
 certificate, 8c is an OIDC token brokered by Pinniped that honours your SSO identity and its
@@ -687,12 +611,9 @@ make k8s-apply IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 kubectl rollout status deploy/golang-web --timeout=150s
 ```
 
-> **No `imagePullSecret` is needed** when the Harbor project is *public* — the cluster pulls
-> anonymously and already trusts the Harbor CA. Verified: `Successfully pulled image
-> "harbor.example.test/apps/golang-web:v0.0.3" in 1.129s`. For a **private** project, create one:
+> **No `imagePullSecret` is needed** for a *public* Harbor project. For a **private** one:
 > ```sh
-> # NOT `kubectl create secret docker-registry --docker-password=...` — that puts the token in
-> # argv, where any user on the machine can read it from `ps` for the life of the command.
+> # Not `--docker-password=...`: that puts the token in argv.
 > umask 077
 > export AUTH="$(printf '%s:%s' "$REGISTRY_USERNAME" "$REGISTRY_TOKEN" | base64 | tr -d '\n')"
 > jq -nc '{auths:{(env.HARBOR_FQDN):{username:env.REGISTRY_USERNAME,
@@ -709,8 +630,7 @@ kubectl rollout status deploy/golang-web --timeout=150s
 >   -p '{"imagePullSecrets":[{"name":"harbor-creds"}]}'
 > ```
 >
-> `jq` reads the values from the **environment** (`env.X`), not from `--arg`, because `--arg`
-> is argv too. `printf` is a shell builtin, so it forks no process that could expose the token.
+
 
 ---
 
