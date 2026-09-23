@@ -437,22 +437,23 @@ rm -rf "$VCTMP"
   notAfter=Sep 11 18:13:40 2036 GMT
 ```
 
-⚠️ `curl -sk` skips verification **to fetch the trust anchor itself** — unavoidable, but it
-means you must confirm the fingerprint out of band before trusting it:
+⚠️ That fetch skipped TLS verification — it has to, you have no CA yet. So the fingerprint
+is the only thing making this file trustworthy. Confirm it with your platform administrator:
 
 ```sh
-# openssl x509 shows only the FIRST cert, so list them all.
-awk '/BEGIN CERT/{n++} END{print (n?n:0)" certificate(s) in the bundle"}' "$SUPERVISOR_CA"
-openssl crl2pkcs7 -nocrl -certfile "$SUPERVISOR_CA" \
-  | openssl pkcs7 -print_certs -noout -fingerprint -sha256 2>/dev/null \
-  || openssl crl2pkcs7 -nocrl -certfile "$SUPERVISOR_CA" | openssl pkcs7 -print_certs -noout
+awk '/BEGIN CERT/{n++} END{print n+0" certificate(s)"}' "$SUPERVISOR_CA"
+openssl x509 -in "$SUPERVISOR_CA" -noout -subject -fingerprint -sha256
 ```
 
-**Every** fingerprint it lists must be one your administrator named. On a healthy fetch there is
-normally exactly one.
+Expect **one** certificate. If the count is higher, `openssl x509` is showing you only the first —
+list them all before trusting any:
 
-Compare that with the fingerprint your platform administrator gives you. If you cannot, ask them
-for the file directly — do **not** reach for `--insecure-skip-tls-verify` on a shared cluster.
+```sh
+openssl crl2pkcs7 -nocrl -certfile "$SUPERVISOR_CA" | openssl pkcs7 -print_certs -noout
+```
+
+If your administrator cannot give you a fingerprint, ask them for the CA file directly. Do **not**
+fall back to `--insecure-skip-tls-verify`.
 
 Then clear it as soon as the context exists:
 
