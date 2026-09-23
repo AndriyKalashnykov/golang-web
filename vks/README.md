@@ -215,23 +215,25 @@ what your entitlement offers.
 
 | file | where to click | direct link |
 |---|---|---|
-| `VCF-Consumption-CLI-Linux_AMD64-<version>.tar.gz` | My Downloads → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI** | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.0.0&os=&servicePk=542815&language=EN&viewGroup=true&groupId=540529) |
-| `VCF-Consumption-CLI-PluginBundle-Linux_AMD64-<version>.tar.gz` | My Downloads → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI Plugins** | [Plugin bundle](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.0.0&os=&servicePk=542815&language=EN&viewGroup=true&groupId=540672) |
+| `VCF-Consumption-CLI-Linux_AMD64-9.1.1.0.25662425.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI** | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545612&viewGroup=true) |
+| `VCF-Consumption-CLI-PluginBundle-Linux_AMD64-9.1.1.0.25665404.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI Plugins** | [Plugin bundle](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545621&viewGroup=true) |
 
-Substitute your own release for `9.1.1.0` — the path is the same shape for any of them.
+Those filenames are the 9.1.1.0 builds. Substitute your own release — the click path is the
+same shape for any of them, and the trailing build number is whatever the page lists.
 
 **Portal gotchas — every one of these fails silently:**
 
-- **Each link opens a page that looks EMPTY until you pick a release.** The *Release* list
-  starts blank, and while it is blank the file table reads **"No data found"** — which looks
-  exactly like the artifact not existing. Pick your release first, then the files appear.
+- **Clicking the path leaves the page looking EMPTY.** The *Release* list starts blank, and
+  while it is blank the file table reads **"No data found"** — which looks exactly like the
+  artifact not existing. Pick your release first. The two direct links above skip this.
 - **Tick "I agree to the Terms and Conditions"** or the download icons do nothing. The
   checkbox stays **inert until you open both Terms links first**, and the gate is **per page**
    — ticking it on one page does not carry to the next.
 - **Patch builds appear only once you open a group.** The parent page lists `9.1.0.0` alone.
 - **A `release=` in the URL is ignored** — use the on-page selector.
-- **Take only the `Linux_AMD64` rows** (uppercase). The un-suffixed `-Binaries-`,
-  `-PluginBundle-` and `-OCI-` archives are multi-platform supersets.
+- **Take the row carrying your platform** — `Linux_AMD64`, `Darwin_ARM64`, uppercase. The
+  platform-less `-Binaries-` (294 MB), `-PluginBundle-` (1.27 GB) and `-OCI-PluginBundle-`
+  (1.48 GB) rows sit beside them and are multi-platform supersets.
 
 Install the binary, then the plugins:
 
@@ -252,8 +254,8 @@ vcf plugin list
 `vcf plugin install all` is idempotent — re-running upgrades in place. It writes to
 `~/.config/vcf` and `~/.local/share/vcf-cli`; do not delete those, they hold your contexts.
 
-> **macOS:** use the `Darwin_*` CLI archive. The plugin bundle is Linux-only — ask your platform
-> administrator for the macOS path.
+> **macOS:** take the `Darwin_ARM64` rows (Apple Silicon) or `Darwin_AMD64` (Intel) — both the
+> CLI and the plugin bundle publish them, on the same two pages.
 >
 > ⚠️ `vcf plugin list` hangs when no plugins are installed. If it has not returned in ~30 s,
 > `Ctrl-C` and install the bundle first.
