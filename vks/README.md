@@ -167,22 +167,33 @@ make image-build CONTAINER_ENGINE=docker
 export CONTAINER_ENGINE=docker          # for the whole shell
 ```
 
-Confirm each engine separately — a fallback chain would hide which one you actually have:
+Check what you have, and what will be used:
 
 ```sh
-podman info --format 'podman: {{.Host.Arch}} v{{.Version.Version}}' 2>/dev/null || echo "podman: NOT AVAILABLE"
-docker info --format 'docker: {{.OperatingSystem}}/{{.Architecture}} v{{.ServerVersion}}' 2>/dev/null || echo "docker: NOT AVAILABLE"
+for e in podman docker; do
+  if ! command -v "$e" >/dev/null 2>&1;  then echo "$e   not installed"
+  elif "$e" info >/dev/null 2>&1;        then echo "$e   ready"
+  else                                        echo "$e   installed, but NO DAEMON is running"
+  fi
+done
+
+if   command -v podman >/dev/null 2>&1; then echo "--> your builds will use PODMAN"
+elif command -v docker >/dev/null 2>&1; then echo "--> your builds will use DOCKER"
+else                                         echo "--> NO ENGINE: install one above"
+fi
 ```
 
 ```
-## Sample output — both installed, so the build will use podman
-  podman: amd64 v4.9.3
-  docker: Ubuntu 24.04.5 LTS/x86_64 v29.8.1
+## Sample output — both installed
+  podman   ready
+  docker   ready
+  --> your builds will use PODMAN
 ```
 
-A line reading `NOT AVAILABLE` for the engine you intend to use means no daemon is running
-for it, not that the CLI is missing. After you have checked out the repo (section 4),
-`make engines` prints the selection it made.
+`installed, but NO DAEMON is running` means the CLI is there and nothing is behind it — on
+macOS start `podman machine` or `colima`. Once you have checked out the repo (section 4),
+`make engines` prints the same selection.
+
 
 ### Install the VCF CLI
 
