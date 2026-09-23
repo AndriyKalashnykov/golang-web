@@ -412,7 +412,7 @@ from the Supervisor. Neither hop needs Pinniped.
 
 ```sh
 mkdir -p "$(dirname "$SUPERVISOR_CA")"
-# A fresh directory every time: unzip MERGES, so a stale one would add a foreign CA.
+# mktemp -d, not a fixed path: unzip MERGES into an existing directory.
 VCTMP="$(mktemp -d)"
 curl -fsSk --max-time 60 -o "$VCTMP/certs.zip" "https://${VCENTER_FQDN}/certs/download.zip"
 unzip -oqj "$VCTMP/certs.zip" -d "$VCTMP/certs"
@@ -420,13 +420,11 @@ cat "$VCTMP"/certs/*.0 > "$SUPERVISOR_CA"
 rm -rf "$VCTMP"
 
 [ -s "$SUPERVISOR_CA" ] || echo "FAILED: $SUPERVISOR_CA is empty — the fetch above did not work"
-awk '/BEGIN CERT/{n++} END{print n+0" certificate(s)"}' "$SUPERVISOR_CA"
 openssl x509 -in "$SUPERVISOR_CA" -noout -subject -fingerprint -sha256
 ```
 
 ```
 ## Sample output
-  1 certificate(s)
   subject=CN = CA, DC = vsphere, DC = local, C = US, ST = California, O = vcsa.example.test, OU = VMware Engineering
   sha256 Fingerprint=7A:A5:12:54:4F:38:...
 ```
@@ -451,7 +449,8 @@ KUBECONFIG="$SUPERVISOR_KUBECONFIG" \
 unset VCF_CLI_VSPHERE_PASSWORD
 ```
 
-> ⚠️ **vCenter SSO locks the account after repeated failures.** Type it carefully.
+> ⚠️ **Repeated failures lock the SSO account**, and unlocking it needs an administrator. If this
+> fails, check `SSO_USERNAME` and `SUPERVISOR_CA` before trying the password again.
 
 Check it worked:
 
@@ -473,13 +472,14 @@ The Supervisor stores each guest cluster's admin kubeconfig in a secret named
 ```sh
 export GUEST_KUBECONFIG="$HOME/.kube/${VKS_CLUSTER}.kubeconfig"
 
-umask 077
+umask 077        # that file is a cluster-admin credential
 kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" \
   get secret "${VKS_CLUSTER}-kubeconfig" -o jsonpath='{.data.value}' \
   | base64 -d > "$GUEST_KUBECONFIG"
 
 export KUBECONFIG="$GUEST_KUBECONFIG"
 kubectl get nodes
+kubectl version -o json | jq -r '"client \(.clientVersion.gitVersion)  server \(.serverVersion.gitVersion)"'
 ```
 
 ```
@@ -488,39 +488,17 @@ kubectl get nodes
   my-guest-cluster-node-pool-1-abcde-xxxxx  Ready    <none>          6d    v1.36.2+vmware.2
   my-guest-cluster-node-pool-1-abcde-yyyyy  Ready    <none>          6d    v1.36.2+vmware.2
   my-guest-cluster-xxxxx-zzzzz              Ready    control-plane   6d    v1.36.2+vmware.2
+  client v1.37.0  server v1.36.2+vmware.2
 ```
 
-`umask 077` matters — that file is a cluster-admin credential.
-
-Now you can check the version skew that section 2 mentioned — `kubectl` is supported within one
-minor of the server:
-
-```sh
-kubectl version -o json | jq -r '"client \(.clientVersion.gitVersion)   server \(.serverVersion.gitVersion)"'
-```
-
-If they are more than one minor apart, reinstall `kubectl` from upstream pinned to the server's
+If client and server are more than one minor apart, reinstall `kubectl` pinned to the server's
 minor (section 2).
 
-### 8c. Optional: `vcf cluster kubeconfig get`
+**Every later command in this guide uses this `KUBECONFIG`.**
 
-The VCF CLI can build the guest kubeconfig for you, which is more convenient because it also
-adds the context to your existing `KUBECONFIG`:
-
-```sh
-vcf cluster kubeconfig get "$VKS_CLUSTER" -n "$VKS_NAMESPACE"
-kubectl config use-context "$VKS_CLUSTER"
-kubectl get nodes
-```
-
-> ⚠️ If this exits 1 with `failed to get pinniped-info from management cluster`, your Supervisor
-> has no Pinniped ConfigMap. You cannot fix that from your machine — **use 8b**.
-
-The two kubeconfigs differ in how they authenticate: 8b is a CAPI-minted cluster-admin
-certificate, 8c is an OIDC token brokered by Pinniped that honours your SSO identity and its
-RBAC. On a shared cluster prefer 8c where it is available; 8b is the reliable fallback.
-
-Every later command in this guide uses this `KUBECONFIG`.
+> `vcf cluster kubeconfig get "$VKS_CLUSTER" -n "$VKS_NAMESPACE"` does the same job and adds the
+> context to your existing kubeconfig, but it requires Pinniped on the Supervisor. If it exits 1
+> with `failed to get pinniped-info from management cluster`, use the block above.
 
 ## 9. Deploy
 
