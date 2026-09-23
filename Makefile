@@ -189,6 +189,7 @@ deps:
 		fi; \
 		echo "Installing mise (no root; installs to ~/.local/bin)..."; \
 		curl -fsSL https://mise.run | sh; \
+		command -v mise >/dev/null 2>&1 || { echo "Error: mise install failed (see above)."; exit 1; }; \
 		echo ""; \
 		echo "mise installed. make targets find its tools themselves (this Makefile puts"; \
 		echo "~/.local/share/mise/shims on PATH), so no shell setup is needed. Installing them now."; \

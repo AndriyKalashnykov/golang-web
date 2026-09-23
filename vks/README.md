@@ -28,7 +28,7 @@ Everything below reads these from one file, so a second terminal — and tomorro
 `source` away, and the credentials stay out of your shell history:
 
 ```sh
-( umask 077; cat > ~/.vks-golang-web.env <<'EOF'
+( umask 077; set -C; cat > ~/.vks-golang-web.env <<'EOF'
 # --- from your platform administrator ----------------------------------------
 export HARBOR_FQDN="harbor.example.test"         # Harbor's DNS name
 export HARBOR_PROJECT="apps"                     # the Harbor PROJECT the image lands in
@@ -60,13 +60,19 @@ export KUBECONFIG="$GUEST_KUBECONFIG"
 # default) to $CFG, so the password never appears on a command line. curl parses that file, so
 # backslashes and double quotes are escaped.
 harbor_cfg() {
-  local u="${1:-admin}" p="${2-$HARBOR_ADMIN_PASSWORD}"
+  local u p
+  if [ $# -ge 1 ]; then u="$1"; p="$2"; else u=admin; p="$HARBOR_ADMIN_PASSWORD"; fi
+  [ -n "$u" ] && [ -n "$p" ] || { echo "harbor_cfg: empty user or password — fill the env file (step 6)" >&2; return 1; }
   u="${u//\\/\\\\}"; u="${u//\"/\\\"}"; p="${p//\\/\\\\}"; p="${p//\"/\\\"}"
   CFG="$(mktemp)"; ( umask 077; printf 'user = "%s:%s"\n' "$u" "$p" > "$CFG" )
 }
 EOF
 )
+chmod 600 ~/.vks-golang-web.env
 ```
+
+If it says `cannot overwrite existing file` (bash) or `file exists` (zsh), you already have one —
+edit it instead; that refusal keeps a filled-in file from being replaced by placeholders.
 
 Now edit `~/.vks-golang-web.env` with your values, then load it:
 
