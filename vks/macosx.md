@@ -84,8 +84,6 @@ printf '  --- which VM provider, if any, is actually running? ---\n'
 # in zsh (measured: bash argc=3, zsh argc=1) and macOS runs zsh, so the loop form was a no-op.
 command -v podman >/dev/null 2>&1 && _t 20 podman machine list  2>&1 | sed 's/^/  podman machine: /' | head -2
 command -v colima >/dev/null 2>&1 && _t 20 colima status        2>&1 | sed 's/^/  colima: /'         | head -2
-command -v orbctl >/dev/null 2>&1 && _t 20 orbctl status        2>&1 | sed 's/^/  orbctl: /'         | head -2
-command -v rdctl  >/dev/null 2>&1 && _t 20 rdctl list-settings  2>&1 | sed 's/^/  rdctl: /'          | head -2
 [ -S /var/run/docker.sock ] && printf '  /var/run/docker.sock: present\n' \
                             || printf '  /var/run/docker.sock: ABSENT (no VM provider is running)\n'
 [ -z "$ENGINE" ] && printf '  VERDICT: NO WORKING ENGINE -- P5 below cannot measure trust.\n'
@@ -159,7 +157,7 @@ echo; echo "Saved to $OUT  — commit it as vks/macosx.res"
 - `podman` absent; `docker` present at `/opt/homebrew/bin/docker` but **no daemon**
   (`dial unix /var/run/docker.sock: no such file or directory`). On macOS
   `brew install docker` installs **only the client** — there is no daemon until a VM
-  provider (podman machine, Colima, Docker Desktop, OrbStack, Rancher Desktop) is
+  provider (podman machine, or Colima running Docker Engine in a VM) is
   running. So P1's "macOS runs a Linux VM, so TLS is verified VM-side" is still untested,
   and P5 could not measure trust at all. P1 now detects and *names* this state instead of
   printing a bare socket error, and the README says which CA path each provider uses.

@@ -42,14 +42,14 @@ podman machine init && podman machine start
 **macOS — docker.** The CLI alone cannot build or push; it needs a Linux VM behind it.
 `brew install docker` installs **only the client** — verified in the formula, which builds from
 `github.com/docker/cli` (not moby/moby, the engine) and compiles exactly one binary, `cmd/docker`.
-There is no `dockerd` in it. Choose a VM provider:
+There is no `dockerd` in it. Run the engine in a VM with Colima:
 
 ```sh
-brew install colima docker && colima start       # lightweight, CLI-only
-# or:
-brew install --cask docker-desktop               # then launch the app
-# or:  brew install --cask orbstack  /  rancher-desktop
+brew install colima docker && colima start
 ```
+
+Colima runs **Docker Engine** in a small Linux VM and gives you the plain `docker` CLI — no
+desktop application, no GUI, no licence.
 
 With a CLI but no VM running you get this, which is **not** a permissions problem and is **not**
 fixed by `sudo`:
@@ -301,20 +301,11 @@ podman machine set --import-native-ca
 podman machine stop && podman machine start
 ```
 
-**macOS + docker** — which file to write depends on **where the daemon runs**, and on macOS it
-never runs on your Mac:
-
-| your setup | where the CA goes |
-|---|---|
-| Docker Desktop / OrbStack | the Mac's Keychain (below), then restart the app |
-| Colima, Rancher Desktop, or any `docker` CLI over a VM | **inside the VM**, at `/etc/docker/certs.d/<registry>/ca.crt` |
+**macOS + docker (Colima)** — the daemon does not run on your Mac, it runs in the VM, and
+`dockerd` reads `certs.d` **on the machine it runs on**. So the CA goes inside the VM:
 
 ```sh
-# Docker Desktop / OrbStack:
-sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$HARBOR_CA"
-
-# Colima (UNTESTED here — verify before relying on it; the mechanism is that dockerd
-# reads certs.d on the machine it runs on, which is the Lima VM, not your Mac):
+# UNTESTED here — verify before relying on it. The mechanism is stated above.
 colima ssh -- sudo mkdir -p "/etc/docker/certs.d/${HARBOR_FQDN}"
 colima ssh -- sudo tee "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt" < "$HARBOR_CA" >/dev/null
 colima restart
