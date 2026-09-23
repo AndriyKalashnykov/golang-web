@@ -8,8 +8,33 @@ Resume point for the `vks/README.md` work. Read this before touching `vks/`.
 It is **proven end-to-end on Linux, twice, with podman and with docker**, every block run
 standalone. Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`).
 
-`vks/macosx.sh` checks the macOS-specific claims and writes `vks/macosx.res` beside itself.
-Run it, commit the `.res`. It needs **no lab** — lab probes report SKIPPED.
+macOS is proven too — see the next section. The old probe script `vks/macosx.sh` and its
+`vks/macosx.res` were REMOVED (2026-09-23): running every README block verbatim on a real Mac
+superseded the subset they checked. They are in git history; references to them below are history.
+
+## ✅ THE WHOLE README PROVEN ON macOS, BOTH ENGINES — 2026-09-23
+
+Every macOS block run VERBATIM in zsh on the rented Mac (macOS 26.6.2, arm64), selected by exact
+heading, against this lab: **podman §1–§11 and docker/Colima §2–§11 both pass** — build (amd64 on
+arm64), push to Harbor, deploy by digest, reach the app (LB + port-forward), clean up. Linux podman
+§3–§11 re-passed on the lab host after the fixes. Test scaffolding (NOT under test): the Mac reached
+the lab through `ssh -R` tunnels from the lab host + loopback aliases of the real lab IPs + root
+`socat` forwarders, so every name/IP/port in the README was used unchanged; the podman/Colima VMs got
+an `/etc/hosts` entry for Harbor pointing at the Mac.
+
+Fixes this found, each MEASURED failing before and passing after:
+- **Apple's `/usr/bin/make` (GNU Make 3.81, Apple-patched) ignored the Makefile's exported PATH** for
+  simple recipe lines (`posix_spawnp` searches make's own PATH), so `make deps` could not find the
+  mise it had just installed. `SHELL := /usr/bin/env bash` fixes it; `/bin/bash` and `/bin/zsh` do
+  NOT (Apple's `_is_posix_shell` list). Source: apple-oss-distributions/gnumake job.c.
+- **`/usr/local/bin` does not exist on a fresh Apple Silicon Mac** → all three `sudo install`s failed.
+- **Homebrew's docker-buildx is invisible to docker** until linked into `~/.docker/cli-plugins`.
+- **Go crashes under Colima's QEMU amd64 emulation** (`marked free object in span` in
+  `go mod download`); podman used Rosetta and was fine. The Dockerfile builder stage now runs on
+  `$BUILDPLATFORM` and cross-compiles — no emulation; also verified amd64 and cross-arm64 on Linux.
+- `make deps` swallowed a failed buildx check (exit 0); it now fails. Homebrew + CLT prerequisite
+  added; `brew install make` dropped (it only adds `gmake`).
+- The §3 Colima CA block (was UNTESTED) works as written; its new §11 cleanup line was run too.
 
 ## ✅ P4 PROVEN ON macOS — 2026-09-23 (supersedes "THE NEXT ACTION" and the Mac sections below)
 
@@ -31,7 +56,7 @@ harbor.env1.lab.test:8443` (`vks/macosx.res` is the "after" run):
 - **The NEW §3 block** (podman's CA directory, same on Linux and macOS) was run verbatim on a freshly
   recreated VM whose own trust store does not know Harbor: login and push both succeed. `push`
   runs in the VM, yet reads the CA from the Mac's `certs.d`.
-- Not covered: macOS + docker (Colima) — still marked UNTESTED in the README.
+- macOS + docker (Colima) was proven afterwards — see the section above.
 
 **The Mac is no longer needed for P4.** Delete it from 2026-09-24 13:41 (Scaleway console →
 the server → Delete). The lab-host tunnel is a background `ssh -N -R …`; kill it when done.
@@ -234,5 +259,3 @@ Checked against podman's own docs rather than assumed, for the trust block's ORD
   dying before it reaches the network — that silently broke P4 for three runs.
 - **`vcf plugin list` stalls ~25 s** on an unreachable plugin registry. It is a network timeout,
   not an empty plugin set.
-- The `.res` in git is the **Mac's** run. Running the script locally overwrites it —
-  `git checkout vks/macosx.res` afterwards.

@@ -71,6 +71,16 @@ C4_PLANTUML_VERSION := v2.14.0
 # version (go1.26) used to build golangci-lint is lower than the targeted
 # Go version".)
 export PATH := $(HOME)/.local/share/mise/shims:$(HOME)/.local/bin:$(PATH)
+# Run every recipe through a real shell -- REQUIRED on macOS, do not "simplify" this line.
+# Apple's /usr/bin/make is GNU Make 3.81 patched by Apple: it starts a simple recipe line
+# (`mise install --yes`, `go build ...`) itself via posix_spawnp, which searches make's OWN startup
+# PATH and ignores the export above, so a freshly installed mise or its Go is "No such file or
+# directory". Apple also treats /bin/sh, /bin/bash, /bin/dash, /bin/zsh and /usr/local/bin/ash as
+# plain shells that keep that shortcut, so none of those work here; `/usr/bin/env bash` is not on
+# the list, so every line goes through bash, which does see the exported PATH. Stock GNU make on
+# Linux is unaffected. Measured on macOS 26.6.2 (/bin/bash and /bin/zsh fail, /usr/bin/env bash
+# works); source: apple-oss-distributions/gnumake job.c (_is_posix_shell, USE_POSIX_SPAWN).
+SHELL := /usr/bin/env bash
 
 # === Tunables (override on the command line or via the environment) ===
 APP_PORT           ?= 8080
@@ -203,7 +213,7 @@ deps-engine:
 	@# is picked up automatically if it is the one already installed.
 	@if [ "$(CONTAINER_ENGINE)" != "none" ]; then \
 		echo "Container engine: $(CONTAINER_ENGINE) ($$($(CONTAINER_ENGINE) --version 2>/dev/null | head -1))"; \
-		$(MAKE) --no-print-directory deps-buildx; \
+		$(MAKE) --no-print-directory deps-buildx || echo "  (a warning here: only image targets need buildx; they check it again and stop)"; \
 		exit 0; \
 	fi; \
 	echo "No container engine found (looked for podman, then docker)."; \
@@ -238,13 +248,16 @@ deps-buildx:
 	echo "ERROR: '$(CONTAINER_ENGINE) buildx' is not available -- 'make image-build' cannot run."; \
 	if [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
 		case "$(HOST_OS)" in \
-		  Darwin) echo "  Install buildx:  brew install docker-buildx";; \
+		  Darwin) echo "  Install buildx, then link it where docker looks for plugins:"; \
+		          echo "    brew install docker-buildx && mkdir -p ~/.docker/cli-plugins &&"; \
+		          echo "    ln -sfn \"\$$(brew --prefix)/opt/docker-buildx/bin/docker-buildx\" ~/.docker/cli-plugins/docker-buildx";; \
 		  Linux)  echo "  Install the plugin:  sudo apt-get install -y docker-buildx-plugin"; \
 		          echo "                  or:  sudo dnf install -y docker-buildx-plugin"; \
 		          echo "  Or switch engines:   make image-build CONTAINER_ENGINE=podman";; \
 		esac; \
 	else \
-		echo "  podman provides buildx via buildah; upgrade podman (>= 4.0)."; \
+		echo "  podman provides buildx via buildah. On macOS, is the VM running? podman machine start"; \
+		echo "  Otherwise upgrade podman (>= 4.0)."; \
 	fi; \
 	exit 1
 
@@ -450,7 +463,7 @@ PLATFORM ?= linux/amd64
 endif
 PLATFORM ?=
 
-image-build: build
+image-build: build deps-buildx
 	@echo MY_GITREF is $(MY_GITREF)
 	@$(DOCKERCMD) buildx build --load $(if $(PLATFORM),--platform $(PLATFORM)) --build-arg MY_VERSION=$(VERSION) --build-arg MY_BUILDTIME=$(BUILD_TIME) -f Dockerfile -t $(OPV) .
 
