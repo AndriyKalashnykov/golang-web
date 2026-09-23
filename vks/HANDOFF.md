@@ -11,6 +11,31 @@ standalone. Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`
 `vks/macosx.sh` checks the macOS-specific claims and writes `vks/macosx.res` beside itself.
 Run it, commit the `.res`. It needs **no lab** — lab probes report SKIPPED.
 
+## ✅ P4 PROVEN ON macOS — 2026-09-23 (supersedes "THE NEXT ACTION" and the Mac sections below)
+
+All MEASURED on the rented Mac (macOS 26.6.2 25G83, arm64, podman 6.1.2, applehv), Harbor reached
+through `ssh -R 127.0.0.1:8443:192.168.101.130:443` from the lab host, `HARBOR_FQDN=
+harbor.env1.lab.test:8443` (`vks/macosx.res` is the "after" run):
+
+- **P4:** before → `x509: "harbor" certificate is not standards compliant`; after (CA in
+  `~/.config/containers/certs.d/<host>/`) → `invalid username/password`. TLS failure → auth failure.
+- **Why not "unknown authority":** `podman login` runs on the Mac, through Apple's verifier, which
+  rejects Harbor's default leaf (cert-manager, `duration: 87600h` = 3650 days) because a leaf under
+  a private CA may be valid for at most 825 days — trusting the CA does not help (Apple support
+  103769; `SecPolicyServer.c` `check_other_trust_ssl_validity_maximums`).
+- **The OLD README §3 macOS block could not work:** (1) `sudo security add-trusted-cert -d …` is
+  denied without an on-screen admin login — a hard-coded authd rule, root is not exempt, and
+  `authorizationdb write` of that right is itself refused (`-60005`); (2) even trusted, the 3650-day
+  leaf fails Apple's check; (3) `podman machine set --import-native-ca` on a RUNNING machine fails
+  (`unable to change settings unless vm is stopped`) — the order must be stop, set, start.
+- **The NEW §3 block** (podman's CA directory, same on Linux and macOS) was run verbatim on a freshly
+  recreated VM whose own trust store does not know Harbor: login and push both succeed. `push`
+  runs in the VM, yet reads the CA from the Mac's `certs.d`.
+- Not covered: macOS + docker (Colima) — still marked UNTESTED in the README.
+
+**The Mac is no longer needed for P4.** Delete it from 2026-09-24 13:41 (Scaleway console →
+the server → Delete). The lab-host tunnel is a background `ssh -N -R …`; kill it when done.
+
 ## ▶ A MAC IS RENTED — 2026-09-23 (supersedes the "blocked" state below)
 
 | | |

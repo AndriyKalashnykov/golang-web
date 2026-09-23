@@ -298,16 +298,24 @@ sha256 Fingerprint=A8:00:C3:62:1C:...:72:E2
 
 ### Install it where your engine looks
 
-The engine's TLS check happens where the engine runs — on macOS that is inside a Linux VM, so a
-certificate on the Mac's filesystem is not enough on its own. Run the **one** block for your
-platform and engine.
+Run the **one** block for your engine.
 
-**Linux + podman (no sudo):**
+**podman — Linux and macOS (no sudo):**
 
 ```sh
 source ~/.vks-golang-web.env
-install -D -m0644 "$HARBOR_CA" "$HOME/.config/containers/certs.d/${HARBOR_FQDN}/ca.crt"
+mkdir -p "$HOME/.config/containers/certs.d/${HARBOR_FQDN}"
+cp "$HARBOR_CA" "$HOME/.config/containers/certs.d/${HARBOR_FQDN}/ca.crt"
 ```
+
+On macOS this one directory covers both halves: `podman login` checks the certificate on the Mac,
+and `podman push` checks it inside the machine VM, and both read it from here — no VM restart.
+
+> ⚠️ **macOS: do not put the Harbor CA in the Keychain instead.** Harbor's default certificate is
+> valid for 10 years, and macOS rejects any server certificate under a private CA that is valid for
+> more than 825 days — trusted CA or not — with `x509: "harbor" certificate is not standards
+> compliant`. podman's own CA directory is not subject to that check. (Measured with podman 6.1.2
+> on macOS 26.6.2.)
 
 **Linux + docker (needs sudo; the path is root-owned):**
 
@@ -317,15 +325,6 @@ sudo install -D -m0644 "$HARBOR_CA" "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt"
 ```
 
 No daemon restart is needed — docker reads `certs.d` per request.
-
-**macOS + podman** — import the Mac's trust store into the machine VM, then restart it:
-
-```sh
-source ~/.vks-golang-web.env
-sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$HARBOR_CA"
-podman machine set --import-native-ca
-podman machine stop && podman machine start
-```
 
 **macOS + docker (Colima)** — `dockerd` runs in the VM and reads `certs.d` there:
 
@@ -783,9 +782,8 @@ vcf context list          # confirm none remain
 
 ```sh
 source ~/.vks-golang-web.env
-rm -rf "$HOME/.config/containers/certs.d/${HARBOR_FQDN}"        # Linux + podman
+rm -rf "$HOME/.config/containers/certs.d/${HARBOR_FQDN}"        # podman, Linux and macOS
 # sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN}"              # Linux + docker
-# sudo security delete-certificate -c "Harbor CA" /Library/Keychains/System.keychain   # macOS + podman
 ```
 
 **The files this guide wrote**, then the clone — `cd ..` out of `golang-web` and delete the
@@ -816,8 +814,12 @@ unset -f harbor_cfg
 ## Troubleshooting
 
 **`x509: certificate signed by unknown authority` on login or push** — the CA is not where your
-engine looks. Check that you ran the step 3 block for YOUR platform and engine — the paths differ
-between Linux and macOS, and on macOS the engine must be restarted afterwards.
+engine looks. Check that you ran the step 3 block for YOUR engine, and that the directory name is
+exactly `$HARBOR_FQDN` (including `:port` if your registry address has one).
+
+**`x509: "harbor" certificate is not standards compliant` on a Mac** — macOS itself rejected the
+certificate: Harbor's default one is valid for 10 years, over macOS's 825-day limit. Use podman's
+CA directory from step 3, not the Keychain.
 
 **Image pushed to the wrong project** — `OWNER` did not hold what you expected. `echo "$IMAGE"` in
 step 5 prints the full tag before you build; check the project segment there.
