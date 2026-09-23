@@ -197,7 +197,8 @@ case "$(uname -s)/$(uname -m)" in
   *)             KOS=linux/amd64  ;;
 esac
 curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/${KOS}/kubectl"
-# No -o/-g: sudo already makes it root-owned, and the group named "root" is not portable.
+# No -o/-g: sudo already makes it root-owned, and macOS has NO group named "root"
+# (measured), so `install -g root` fails there. Do not add them back.
 sudo install -m 0755 kubectl /usr/local/bin/kubectl && rm -f kubectl
 ```
 
