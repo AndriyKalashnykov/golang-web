@@ -46,7 +46,8 @@ export SUPERVISOR_CA="$HOME/.config/vks-golang-web/vmca-root.pem"
 | `kubectl` | talk to the guest cluster |
 | `vcf` | the VCF CLI — authenticates to the Supervisor |
 | `git`, `make` | check out and drive the repo |
-| `jq` | only for the robot-account step |
+| `mise` | pins the build toolchain — `make deps` installs it if absent |
+| `jq` | reading Harbor and kubectl JSON (steps 7, 8, 9) |
 
 ### Pick a container engine
 
@@ -137,7 +138,11 @@ if [ -n "$PLUGIN_OS" ]; then
   unzip -o vsphere-plugin.zip
   sudo install ./bin/kubectl /usr/local/bin/kubectl   # bin/ also holds the deprecated kubectl-vsphere
   rm -rf ./bin ./vsphere-plugin.zip
-  kubectl version --client
+
+  # Check the binary you just installed, by its full path -- `kubectl version` alone would
+  # report whatever is first on PATH, so a failed sudo still prints a version and looks fine.
+  /usr/local/bin/kubectl version --client
+  echo "PATH kubectl: $(command -v kubectl)"   # not /usr/local/bin/kubectl? something shadows it
 fi
 ```
 
@@ -146,7 +151,7 @@ every command from section 9 runs — take a matching build from upstream instea
 
 ```sh
 export KUBECTL_VERSION="v1.36.2"           # match the guest cluster
-curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH:-amd64}/kubectl"
+curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"   # arm64: linux/arm64
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && rm -f kubectl
 ```
 
@@ -166,7 +171,55 @@ make image-build CONTAINER_ENGINE=docker
 
 After you check out the repo (section 4), `make engines` prints the selection it made.
 
-## Verify the installation
+### Install the VCF CLI
+
+The VCF CLI is **not** on Homebrew or apt. Both files below are **entitled** downloads — you
+need a Broadcom account with a vSphere Foundation entitlement. Versions move; match yours to
+what your entitlement offers.
+
+| file | from |
+|---|---|
+| `VCF-Consumption-CLI-Linux_AMD64-<version>.tar.gz` | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.0.0&os=&servicePk=542815&language=EN&viewGroup=true&groupId=540529) |
+| `VCF-Consumption-CLI-PluginBundle-Linux_AMD64-<version>.tar.gz` | [Plugin bundle](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.0.0&os=&servicePk=542815&language=EN&viewGroup=true&groupId=540672) |
+
+**Portal gotchas — every one of these fails silently:**
+
+- **Each link opens a page that looks EMPTY until you pick a release.** The *Release* list
+  starts blank, and while it is blank the file table reads **"No data found"** — which looks
+  exactly like the artifact not existing. Pick your release first, then the files appear.
+- **Tick "I agree to the Terms and Conditions"** or the download icons do nothing. The
+  checkbox stays **inert until you open both Terms links first**, and the gate is **per page**
+   — ticking it on one page does not carry to the next.
+- **Patch builds appear only once you open a group.** The parent page lists `9.1.0.0` alone.
+- **A `release=` in the URL is ignored** — use the on-page selector.
+- **Take only the `Linux_AMD64` rows** (uppercase). The un-suffixed `-Binaries-`,
+  `-PluginBundle-` and `-OCI-` archives are multi-platform supersets.
+
+Install the binary, then the plugins:
+
+```sh
+tar -xzf VCF-Consumption-CLI-Linux_AMD64-*.tar.gz
+sudo install ./vcf /usr/local/bin/vcf
+
+mkdir -p /tmp/vcf-plugins
+tar -xzf VCF-Consumption-CLI-PluginBundle-Linux_AMD64-*.tar.gz -C /tmp/vcf-plugins
+vcf plugin install all --local-source /tmp/vcf-plugins
+vcf plugin list
+```
+
+> A multi-arch bundle nests its plugins under `<os>/<arch>/`. If `plugin install all` finds
+> nothing, point `--local-source` at `/tmp/vcf-plugins/linux/amd64` instead.
+
+`vcf plugin install all` is idempotent — re-running upgrades in place. It writes to
+`~/.config/vcf` and `~/.local/share/vcf-cli`; do not delete those, they hold your contexts.
+
+> **macOS:** use the `Darwin_*` CLI archive. The plugin bundle is Linux-only — ask your platform
+> administrator for the macOS path.
+>
+> ⚠️ `vcf plugin list` hangs when no plugins are installed. If it has not returned in ~30 s,
+> `Ctrl-C` and install the bundle first.
+
+### Verify the installation
 
 ```sh
 for t in curl unzip openssl jq git make kubectl vcf; do
@@ -254,7 +307,7 @@ colima restart
 > ⚠️ **On macOS, restart the engine afterwards** — the VM does not re-read trust material while
 > running, so the login keeps failing until you do. Linux needs no restart.
 
-## Verify
+### Verify
 
 ```sh
 curl -s --cacert "$HARBOR_CA" -o /dev/null -w 'http=%{http_code}\n' \
@@ -277,7 +330,21 @@ cd golang-web
 make deps
 ```
 
+**Stay in this directory for the rest of the guide.** Steps 5, 7, 9 and 11 run `make` targets and
+read `k8s/golang-web.yaml` and `version.txt` by relative path; none of them will work from
+anywhere else.
+
 `make deps` installs the pinned toolchain from `.mise.toml` — the same versions on macOS and Linux.
+
+It needs [mise](https://mise.jdx.dev), and installs it for you if it is missing (to `~/.local/bin`,
+no root). **On a machine without mise it then stops and asks you to activate it and re-run** — it
+exits 0, so read the output rather than assuming it finished:
+
+```sh
+echo 'eval "$(mise activate bash)"' >> ~/.bashrc   # or the zsh equivalent
+exec $SHELL -l
+make deps                                          # re-run it
+```
 
 ---
 
@@ -311,31 +378,11 @@ make image-build IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 
 A robot is scoped to one project and one set of actions, so a leak cannot touch the rest of Harbor.
 
-```sh
-export REGISTRY_USERNAME='robot$apps+golang-web-push'
-read -rs REGISTRY_TOKEN && export REGISTRY_TOKEN      # paste the secret; it is not echoed
-make registry-login IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
-```
-
-### Option B — the Harbor admin account
+**If your administrator gave you one**, skip to the login below. **If you have the Harbor admin
+password**, create one now — `duration` is in days, `-1` never expires:
 
 ```sh
-export REGISTRY_USERNAME="admin"
-read -rs REGISTRY_TOKEN && export REGISTRY_TOKEN
-make registry-login IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
-```
-
-```
-## Sample output
-Login Succeeded!
-```
-
-### How to create the robot account, given the Harbor admin account
-
-Run this once. `duration` is in days; `-1` means never expire.
-
-```sh
-read -rs HARBOR_ADMIN_PASSWORD
+read -rsp 'Harbor admin password: ' HARBOR_ADMIN_PASSWORD; echo
 
 # curl's -K file is parsed, so the password must be escaped.
 harbor_cfg() {
@@ -353,25 +400,52 @@ jq -nc --arg p "$HARBOR_PROJECT" '{name:"golang-web-push", duration:90, level:"p
 curl -s --cacert "$HARBOR_CA" -K "$CFG" -X POST -H 'Content-Type: application/json' \
   --data @/tmp/robot.json "https://${HARBOR_FQDN}/api/v2.0/robots" | jq -r '"\(.name)\n\(.secret)"'
 
-rm -f /tmp/robot.json
+rm -f /tmp/robot.json "$CFG"
+unset HARBOR_ADMIN_PASSWORD
 ```
 
 ```
 ## Sample output — the FIRST line is the username, the SECOND is the secret.
-## The secret is shown ONCE and cannot be retrieved again.
+## The secret is shown ONCE and cannot be retrieved again. Copy it now.
 robot$apps+golang-web-push
 <32-character secret>
 ```
 
-> Delete `$CFG` when you are done — see below.
-
-To list or delete robots (re-run `harbor_cfg` first if you opened a new shell):
+Then log in with it:
 
 ```sh
+export REGISTRY_USERNAME='<the name printed above>'
+read -rsp 'robot secret: ' REGISTRY_TOKEN; echo
+export REGISTRY_TOKEN
+make registry-login IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
+```
+
+```
+## Sample output
+Login Succeeded!
+```
+
+> Quote the username in **single** quotes. A robot name contains `$`, which a double-quoted shell
+> string would try to expand.
+
+### Option B — the Harbor admin account
+
+Simpler, but the credential is unscoped — anything that leaks it owns the whole registry.
+
+```sh
+export REGISTRY_USERNAME="admin"
+read -rsp 'Harbor admin password: ' REGISTRY_TOKEN; echo
+export REGISTRY_TOKEN
+make registry-login IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
+```
+
+### Listing or deleting robots later
+
+```sh
+harbor_cfg      # re-run it if you opened a new shell
 curl -s --cacert "$HARBOR_CA" -K "$CFG" "https://${HARBOR_FQDN}/api/v2.0/robots" | jq -r '.[] | "\(.id)  \(.name)"'
 curl -s --cacert "$HARBOR_CA" -K "$CFG" -X DELETE "https://${HARBOR_FQDN}/api/v2.0/robots/ID"   # ID from the list
-
-rm -f "$CFG"          # when you are finished with admin calls
+rm -f "$CFG"
 ```
 
 ---
@@ -382,7 +456,7 @@ rm -f "$CFG"          # when you are finished with admin calls
 make image-push IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 ```
 
-## Verify it landed
+### Verify it landed
 
 ```sh
 curl -s --cacert "$HARBOR_CA" \
@@ -451,9 +525,6 @@ unset VCF_CLI_VSPHERE_PASSWORD
 # below falls back to localhost:8080.
 kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" config use-context supervisor
 ```
-
-> ⚠️ **Repeated failures lock the SSO account**, and unlocking it needs an administrator. If this
-> fails, check `SSO_USERNAME` and `SUPERVISOR_CA` before trying the password again.
 
 Check it worked:
 
@@ -557,11 +628,12 @@ kubectl get pods -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,IMAG
 
 ---
 
-## 10. Verify
+## 10. Reach the app
 
 ```sh
 kubectl get pod,svc
 export APP_IP="$(kubectl get svc golang-web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+echo "http://${APP_IP}:8080/myhello/"
 curl -s "http://${APP_IP}:8080/myhello/"
 ```
 
@@ -573,6 +645,7 @@ pod/golang-web-7f4b97d4dd-8bwtm   1/1     Running   0          20s
 NAME                         TYPE           CLUSTER-IP      EXTERNAL-IP       PORT(S)          AGE
 service/golang-web-service   LoadBalancer   172.21.64.186   192.168.101.138   8080:30463/TCP   20s
 
+http://192.168.101.138:8080/myhello/
 Hello, World
 request 0 GET /myhello/
 Host: 192.168.101.138:8080
@@ -583,8 +656,56 @@ MY_POD_IP: 172.20.2.8
 MY_POD_SERVICE_ACCOUNT: default
 ```
 
-The path is `/myhello/` because the manifest sets `APP_CONTEXT=/myhello/`. Any other path returns
-404 by design.
+**In a browser:** open the URL that `echo` printed. This only works if your machine can route to
+the cluster's LoadBalancer range — on a laptop outside the lab network it usually cannot, in which
+case use the port-forward below.
+
+### If the LoadBalancer address is not reachable from your machine
+
+`kubectl port-forward` tunnels through the API server, so it works wherever `kubectl` works —
+no routing to the LB range needed. It stays in the foreground, so run it in its own terminal.
+
+**A new terminal has none of your exports.** Re-run the section 1 block there, plus:
+
+```sh
+export KUBECONFIG="$HOME/.kube/${VKS_CLUSTER}.kubeconfig"
+kubectl config set-context --current --namespace=golang-web
+```
+
+Then:
+
+```sh
+kubectl port-forward svc/golang-web-service 8080:8080
+```
+
+```
+## Sample output — it stays in the foreground until you Ctrl-C
+Forwarding from 127.0.0.1:8080 -> 8080
+Forwarding from [::1]:8080 -> 8080
+```
+
+Then browse to **<http://localhost:8080/myhello/>**, or from another terminal:
+
+```sh
+curl -s http://localhost:8080/myhello/
+```
+
+To forward a specific pod instead of the Service:
+
+```sh
+kubectl port-forward "$(kubectl get pod -l app=golang-web -o name | head -1)" 8080:8080
+```
+
+### Which paths respond
+
+Measured on a running deployment:
+
+| path | |
+|---|---|
+| `/myhello/` | **200** — the app; the manifest sets `APP_CONTEXT=/myhello/` |
+| `/myhello` | 307 redirect to `/myhello/` — a browser follows it, `curl` needs `-L` |
+| `/healthz` | 200 |
+| `/` | **404 by design** — do not read this as a broken deployment |
 
 ---
 
@@ -604,8 +725,8 @@ the step-3 verify, and check you used the block for YOUR platform — the paths 
 Linux and macOS, and on macOS the engine must be restarted afterwards. `--cert-dir` is a
 podman/skopeo flag; docker ignores it.
 
-**Image pushed to the wrong project** — you used `export OWNER=...`. It has no effect; `OWNER` is
-a `:=` assignment. Use `make OWNER=...`. Confirm with the step-5 verify before pushing.
+**Image pushed to the wrong project** — `OWNER` did not hold what you expected. `echo "$IMAGE"`
+in step 5 prints the full tag before you build; check the project segment there.
 
 **`exec format error` in the pod** — an arm64 image on amd64 nodes. The build targets amd64
 automatically on an arm64 host, so this means `PLATFORM` was overridden or the image predates
