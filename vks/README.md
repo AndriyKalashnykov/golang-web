@@ -213,10 +213,12 @@ The VCF CLI is **not** on Homebrew or apt. Both files below are **entitled** dow
 need a Broadcom account with a vSphere Foundation entitlement. Versions move; match yours to
 what your entitlement offers.
 
-| file | from |
-|---|---|
-| `VCF-Consumption-CLI-Linux_AMD64-<version>.tar.gz` | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.0.0&os=&servicePk=542815&language=EN&viewGroup=true&groupId=540529) |
-| `VCF-Consumption-CLI-PluginBundle-Linux_AMD64-<version>.tar.gz` | [Plugin bundle](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.0.0&os=&servicePk=542815&language=EN&viewGroup=true&groupId=540672) |
+| file | where to click | direct link |
+|---|---|---|
+| `VCF-Consumption-CLI-Linux_AMD64-<version>.tar.gz` | My Downloads → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI** | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.0.0&os=&servicePk=542815&language=EN&viewGroup=true&groupId=540529) |
+| `VCF-Consumption-CLI-PluginBundle-Linux_AMD64-<version>.tar.gz` | My Downloads → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI Plugins** | [Plugin bundle](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.0.0&os=&servicePk=542815&language=EN&viewGroup=true&groupId=540672) |
+
+Substitute your own release for `9.1.1.0` — the path is the same shape for any of them.
 
 **Portal gotchas — every one of these fails silently:**
 
