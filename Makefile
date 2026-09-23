@@ -18,6 +18,10 @@ IMAGE_REGISTRY ?= ghcr.io
 # credential must be a GitHub token, so the provider belongs in its name.)
 REGISTRY_USERNAME ?= $(OWNER)
 REGISTRY_TOKEN    ?= $(or $(GH_ACCESS_TOKEN),$(CR_PAT))
+# Exported so the RECIPE SHELL can read them as `$$VAR`. Without this the recipe would have to
+# use `$(VAR)`, which is a make-time expansion -- see the comment on registry-login.
+export REGISTRY_TOKEN
+export REGISTRY_USERNAME
 OPV := $(IMAGE_REGISTRY)/$(OWNER)/$(PROJECT):$(VERSION)
 WEBPORT := 8080:8080
 CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
@@ -247,7 +251,14 @@ deps-buildx:
 registry-login:
 	@# The token is passed on STDIN, never on the command line -- anything in argv is
 	@# visible to any local user via `ps` / /proc/<pid>/cmdline for the life of the call.
-	@tok="$(REGISTRY_TOKEN)"; \
+	@# `$(REGISTRY_TOKEN)` (single $) is a MAKE-TIME expansion: make bakes the secret into the
+	@# recipe TEXT it hands to `sh -c`, so it lands in that shell's argv. MEASURED: a canary token
+	@# was readable in `ps -eo args` for the life of the login. `$$REGISTRY_TOKEN` defers to the
+	@# SHELL, which reads it from the exported environment instead -- argv stays clean.
+	@# The same applies to REGISTRY_USERNAME: a Harbor robot is named `robot$$project+name`, and
+	@# make ate the `$a`, turning robot$$apps+golang-web-push into robotpps+golang-web-push.
+	@tok="$$REGISTRY_TOKEN"; usr="$$REGISTRY_USERNAME"; \
+	[ -n "$$usr" ] || usr='$(REGISTRY_USERNAME)'; \
 	if [ -z "$$tok" ]; then \
 		echo "ERROR: no credential for $(IMAGE_REGISTRY) in the environment."; \
 		echo "    export REGISTRY_TOKEN=<token-or-password>"; \
@@ -262,7 +273,7 @@ registry-login:
 		esac; \
 		exit 1; \
 	fi; \
-	printf '%s' "$$tok" | $(CONTAINER_ENGINE) login $(IMAGE_REGISTRY) -u "$(REGISTRY_USERNAME)" --password-stdin
+	printf '%s' "$$tok" | $(CONTAINER_ENGINE) login $(IMAGE_REGISTRY) -u "$$usr" --password-stdin
 
 #deps-verify: @ Verify every pinned tool is on PATH (fails with a pointer to `make deps`)
 deps-verify: deps

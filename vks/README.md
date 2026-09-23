@@ -28,39 +28,165 @@ Boxed notes marked ⚠️ are the steps that fail quietly if skipped — they ar
 | `git`, `make` | check out and drive the repo |
 | `jq` | only for the robot-account step |
 
-**macOS**
+### Pick a container engine
+
+Either works. **podman** is the path this guide was proven on; **docker** is equally fine.
+
+**macOS — podman**
 
 ```sh
-brew install podman kubectl jq git make
+brew install podman
 podman machine init && podman machine start
 ```
 
-⚠️ **On macOS a container CLI cannot build or push on its own — it needs a Linux VM behind it.**
-`brew install docker` installs **only the client**; with no VM running you get:
+**macOS — docker.** The CLI alone cannot build or push; it needs a Linux VM behind it.
+`brew install docker` installs **only the client** — verified in the formula, which builds from
+`github.com/docker/cli` (not moby/moby, the engine) and compiles exactly one binary, `cmd/docker`.
+There is no `dockerd` in it. Run the engine in a VM with Colima:
+
+```sh
+brew install colima docker docker-buildx
+colima start
+docker info --format '{{.OperatingSystem}}/{{.Architecture}} server={{.ServerVersion}}'
+```
+
+Colima runs **Docker Engine** in a small Linux VM and gives you the plain `docker` CLI — no
+desktop application, no GUI, no licence. `docker-buildx` is required: the Makefile's image build
+uses `docker buildx build`, and the plain `docker` formula does not include it.
+
+With a CLI but no VM running you get this, which is **not** a permissions problem and is **not**
+fixed by `sudo`:
 
 ```
 dial unix /var/run/docker.sock: connect: no such file or directory
 ```
 
-which is not a permissions problem and is not fixed by `sudo`. Pick a VM provider and start it:
-
-| provider | start it with |
-|---|---|
-| **podman** (the path this guide was proven on) | `podman machine init && podman machine start` |
-| Colima | `brew install colima docker && colima start` |
-| Docker Desktop / OrbStack / Rancher Desktop | launch the app |
-
-Confirm before going further — this must print a server section, not a socket error:
+**Linux (Debian/Ubuntu) — podman**
 
 ```sh
-podman info --format '{{.Host.Arch}} remote={{.Host.ServiceIsRemote}}' 2>/dev/null \
-  || docker info --format '{{.ServerVersion}}'
+sudo apt-get update && sudo apt-get install -y podman
+```
+
+**Linux (Debian/Ubuntu) — Docker Engine**, from Docker's own repository. The distribution's
+`docker.io` package also works and is one line, but it lags upstream and does not ship
+`docker-buildx-plugin`, which the image build needs:
+
+```sh
+sudo apt-get update && sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+
+sudo usermod -aG docker "$USER"     # then LOG OUT AND BACK IN, or `docker` needs sudo
+```
+
+> Debian: replace both `ubuntu` occurrences with `debian`. The `$VERSION_CODENAME` substitution
+> reads `/etc/os-release`, so it is already correct for your release (`noble`, `bookworm`, …).
+> Verified reachable: the GPG key and the `dists/<codename>/Release` index both return **200**.
+
+### The rest of the tools
+
+**macOS**
+
+```sh
+brew install kubectl jq git make
 ```
 
 **Linux (Debian/Ubuntu)**
 
 ```sh
-sudo apt-get update && sudo apt-get install -y podman kubectl jq git make
+sudo apt-get install -y jq git make unzip
+```
+
+⚠️ **`kubectl` is NOT in the Debian/Ubuntu repositories** — `apt-get install kubectl` fails with
+*"Unable to locate package"*. Two ways to get it; set `SUPERVISOR_ENDPOINT` first (section 2
+collects the rest):
+
+```sh
+export SUPERVISOR_ENDPOINT="10.0.0.10"     # your Supervisor API endpoint
+```
+
+**From the Supervisor** — it serves the binary itself, so you get the build your platform ships:
+
+```sh
+curl -fsSkO "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip"
+unzip -o vsphere-plugin.zip
+sudo install ./bin/kubectl /usr/local/bin/kubectl
+kubectl version --client
+```
+
+> macOS: `linux-amd64` -> `darwin-amd64` (Intel) or `darwin-arm64` (Apple Silicon).
+> **We pull this zip ONLY to get `kubectl` out of it.** It is called *vsphere-plugin* because it
+> also contains `kubectl-vsphere` — the plugin this guide **never uses**, deprecated as of vSphere
+> 9.1.0 and replaced by the VCF CLI. Install `./bin/kubectl` and nothing else; delete the rest so
+> it cannot be picked up by accident:
+>
+> ```sh
+> rm -rf ./bin ./vsphere-plugin.zip
+> ```
+>
+> ⚠️ **`-k` skips TLS verification, and you are about to `sudo install` what it downloads.**
+> The Supervisor's certificate is signed by the vCenter VMCA, which your machine does not trust
+> yet — that is why every published version of this command disables the check. If you have
+> already fetched the VMCA root (step 8a), verify instead of skipping:
+>
+> ```sh
+> curl -fsSO --cacert "$SUPERVISOR_CA" "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip"
+> ```
+
+**From upstream, pinned to your cluster** — use this if the Supervisor's build is too old (see
+below):
+
+```sh
+export KUBECTL_VERSION="v1.36.2"            # match your GUEST cluster's minor
+curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && rm -f kubectl
+```
+
+> On arm64 replace `linux/amd64` with `linux/arm64`. `curl -fsSL https://dl.k8s.io/release/stable.txt`
+> prints the newest upstream release, but newest is not necessarily what you want — read on.
+
+⚠️ **Check the skew before you pick.** Kubernetes supports `kubectl` within **one minor** of the
+API server it talks to. This guide's `kubectl` talks to **two different** API servers, and on the
+lab it was written against, all three versions differed:
+
+| | version | skew vs Supervisor | skew vs guest cluster |
+|---|---|---|---|
+| Supervisor API server | `v1.34.9+vmware.1` | — | — |
+| guest cluster API server | `v1.36.2+vmware.2` | — | — |
+| kubectl from the Supervisor zip | `v1.32.9+vmware.2-fips` | **2 minors behind** | **4 minors behind** |
+| kubectl from `dl.k8s.io/stable` | `v1.37.0` | 3 minors ahead | 1 minor ahead ✅ |
+
+Neither source was in policy for *both* servers. **Match the guest cluster** — that is where every
+command from section 9 onward runs, and the only Supervisor calls are two trivial reads in step 8
+that tolerate skew. Find your two versions with:
+
+```sh
+kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" version -o json | jq -r .serverVersion.gitVersion
+kubectl --kubeconfig "$GUEST_KUBECONFIG"      version -o json | jq -r .serverVersion.gitVersion
+```
+
+### Confirm the engine before going further
+
+This must print a server line, not a socket error:
+
+```sh
+podman info --format '{{.Host.Arch}} remote={{.Host.ServiceIsRemote}} v{{.Version.Version}}' 2>/dev/null \
+  || docker info --format '{{.OperatingSystem}}/{{.Architecture}} server={{.ServerVersion}}'
+```
+
+```
+## Sample output — podman on Linux
+  amd64 remote=false v4.9.3
+## Sample output — docker
+  Ubuntu 24.04.5 LTS/x86_64 server=29.8.1
 ```
 
 ### Install the VCF CLI
@@ -200,20 +326,11 @@ podman machine set --import-native-ca
 podman machine stop && podman machine start
 ```
 
-**macOS + docker** — which file to write depends on **where the daemon runs**, and on macOS it
-never runs on your Mac:
-
-| your setup | where the CA goes |
-|---|---|
-| Docker Desktop / OrbStack | the Mac's Keychain (below), then restart the app |
-| Colima, Rancher Desktop, or any `docker` CLI over a VM | **inside the VM**, at `/etc/docker/certs.d/<registry>/ca.crt` |
+**macOS + docker (Colima)** — the daemon does not run on your Mac, it runs in the VM, and
+`dockerd` reads `certs.d` **on the machine it runs on**. So the CA goes inside the VM:
 
 ```sh
-# Docker Desktop / OrbStack:
-sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$HARBOR_CA"
-
-# Colima (UNTESTED here — verify before relying on it; the mechanism is that dockerd
-# reads certs.d on the machine it runs on, which is the Lima VM, not your Mac):
+# UNTESTED here — verify before relying on it. The mechanism is stated above.
 colima ssh -- sudo mkdir -p "/etc/docker/certs.d/${HARBOR_FQDN}"
 colima ssh -- sudo tee "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt" < "$HARBOR_CA" >/dev/null
 colima restart
@@ -282,8 +399,19 @@ sed -e 's|image: .*/golang-web:.*|image: harbor.example.test/apps/golang-web:v0.
 
 ## 6. Provide Harbor credentials
 
-The Makefile reads `REGISTRY_USERNAME` and `REGISTRY_TOKEN`, and passes the token on **stdin** —
-never on the command line, where any local user could read it from `ps`.
+**`export` these — do not pass them as `make VAR=...`.** The Makefile reads
+`REGISTRY_USERNAME` and `REGISTRY_TOKEN` from the environment and passes the token to the engine
+on **stdin**, so it never reaches argv, where any local user could read it from `ps`
+(`/proc/<pid>/cmdline` is world-readable).
+
+> ⚠️ **`make REGISTRY_TOKEN=... registry-login` defeats that.** A variable given on make's own
+> command line is in make's argv before the Makefile can do anything about it. Measured with a
+> canary: `export` -> **0** argv hits; `make VAR=` -> **1**.
+>
+> A Harbor robot is named `robot$project+name`, and until recently the `$` was **eaten**: make
+> expanded `$a` (an empty single-character variable), so `robot$apps+golang-web-push` reached the
+> engine as `robotpps+golang-web-push` and Harbor answered `unauthorized`. Both were fixed by
+> deferring the expansion to the recipe shell (`$$VAR` instead of `$(VAR)`).
 
 ### Option A — a robot account (recommended)
 
@@ -391,7 +519,9 @@ from the Supervisor. Neither hop needs Pinniped.
 ```sh
 export SUPERVISOR_KUBECONFIG="$HOME/.kube/supervisor.kubeconfig"
 
-VCF_CLI_VSPHERE_PASSWORD='<your-sso-password>' \
+read -rsp 'vCenter SSO password: ' VCF_CLI_VSPHERE_PASSWORD; echo
+export VCF_CLI_VSPHERE_PASSWORD
+
 KUBECONFIG="$SUPERVISOR_KUBECONFIG" \
   vcf context create supervisor --type k8s \
     --endpoint "https://${SUPERVISOR_ENDPOINT}" \
@@ -402,14 +532,30 @@ KUBECONFIG="$SUPERVISOR_KUBECONFIG" \
 `SUPERVISOR_CA` is the **vCenter VMCA root**, not Harbor's CA. vCenter serves it:
 
 ```sh
-getent hosts "$VCENTER_FQDN" || echo "your machine cannot resolve $VCENTER_FQDN — fix DNS first"
+# `getent` is glibc-only and does NOT exist on macOS, where it would report a DNS failure
+# that is not real. Try it, then fall back to something every platform has.
+getent hosts "$VCENTER_FQDN" 2>/dev/null \
+  || python3 -c 'import socket,sys; print(socket.gethostbyname(sys.argv[1]))' "$VCENTER_FQDN" \
+  || echo "this machine cannot resolve $VCENTER_FQDN — fix DNS before continuing"
 
 mkdir -p "$(dirname "$SUPERVISOR_CA")"
-curl -fsSk --max-time 60 -o /tmp/certs.zip "https://${VCENTER_FQDN}/certs/download.zip"
-unzip -o -j /tmp/certs.zip -d /tmp/vccerts
-cat /tmp/vccerts/*.0 > "$SUPERVISOR_CA"
-openssl x509 -in "$SUPERVISOR_CA" -noout -subject -enddate
+# A FRESH directory every time. `unzip -o -j` MERGES into an existing one, and a different
+# vCenter's root has a different hash filename, so it would not overwrite -- it would ACCUMULATE,
+# and `cat *.0` would silently fold a stale vCenter's CA into your trust bundle.
+VCTMP="$(mktemp -d)"
+curl -fsSk --max-time 60 -o "$VCTMP/certs.zip" "https://${VCENTER_FQDN}/certs/download.zip"
+unzip -o -j "$VCTMP/certs.zip" -d "$VCTMP/certs"
+cat "$VCTMP"/certs/*.0 > "$SUPERVISOR_CA"
+rm -rf "$VCTMP"
+
+# STOP if nothing was written. Without this the failure is silent: an empty CA file makes
+# every later --cacert call fail with a TLS error that names the cert, not the download.
+[ -s "$SUPERVISOR_CA" ] || { echo "FAILED: $SUPERVISOR_CA is empty — the fetch above did not work"; }
 ```
+
+⚠️ **`unzip -j` is load-bearing.** The zip stores the same root under `certs/lin/` *and*
+`certs/mac/`; `-j` flattens both to one file. Without it, `*.0` matches nothing and
+`SUPERVISOR_CA` ends up empty.
 
 ```
 ## Sample output
@@ -425,15 +571,35 @@ openssl x509 -in "$SUPERVISOR_CA" -noout -subject -enddate
 means you must confirm the fingerprint out of band before trusting it:
 
 ```sh
-openssl x509 -in "$SUPERVISOR_CA" -noout -fingerprint -sha256
+# `openssl x509 -in` reads ONLY THE FIRST certificate in a file. MEASURED: with a second
+# certificate appended, it reported one subject and one fingerprint and the other was
+# completely invisible -- so this form cannot fail on the thing it exists to catch.
+awk '/BEGIN CERT/{n++} END{print (n?n:0)" certificate(s) in the bundle"}' "$SUPERVISOR_CA"
+openssl crl2pkcs7 -nocrl -certfile "$SUPERVISOR_CA" \
+  | openssl pkcs7 -print_certs -noout -fingerprint -sha256 2>/dev/null \
+  || openssl crl2pkcs7 -nocrl -certfile "$SUPERVISOR_CA" | openssl pkcs7 -print_certs -noout
 ```
+
+**Every** fingerprint it lists must be one your administrator named. On a healthy fetch there is
+normally exactly one.
 
 Compare that with the fingerprint your platform administrator gives you. If you cannot, ask them
 for the file directly — do **not** reach for `--insecure-skip-tls-verify` on a shared cluster.
 
-> ⚠️ Passing the password in the environment as above keeps it out of `ps` output. Omit
-> `VCF_CLI_VSPHERE_PASSWORD` entirely and the CLI prompts for it instead, which is safer on a
-> shared machine. **vCenter SSO locks the account after repeated failures — type it carefully.**
+Then clear it as soon as the context exists:
+
+```sh
+unset VCF_CLI_VSPHERE_PASSWORD
+```
+
+> ⚠️ **Do not type the password inline** (`VCF_CLI_VSPHERE_PASSWORD='...' vcf context create ...`).
+> An environment prefix does keep it out of `ps`, but the whole line lands in your **shell
+> history** in cleartext, where it outlives the session. `read -rs` does not echo it and does not
+> record it. Omitting the variable entirely also works — the CLI prompts — but then it is not
+> exported to the `vcf` child on every shell.
+>
+> ⚠️ **vCenter SSO locks the account after repeated failed attempts.** Type it carefully; this is
+> not a credential to guess at.
 
 Check it worked:
 
