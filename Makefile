@@ -1,6 +1,8 @@
 .DEFAULT_GOAL := help
 
-OWNER := andriykalashnykov
+# `?=` NOT `:=` -- `:=` cannot be overridden by the environment, so `export OWNER=apps`
+# was silently ignored and images were built for the default project with no error.
+OWNER ?= andriykalashnykov
 PROJECT := golang-web
 # version.txt is the single source of truth -- `make release` writes it and
 # tags from it. It was previously duplicated here as a literal and drifted
@@ -440,9 +442,18 @@ coverage-check: deps
 	fi
 
 #image-build: @ Build Docker image
+# Kubernetes/VKS nodes are amd64. On an arm64 host a native build pushes fine and then
+# dies at runtime with `exec format error`, so default to amd64 there. Override with
+# `make image-build PLATFORM=linux/arm64`, or PLATFORM= to build natively.
+HOST_ARCH := $(shell uname -m)
+ifneq ($(filter arm64 aarch64,$(HOST_ARCH)),)
+PLATFORM ?= linux/amd64
+endif
+PLATFORM ?=
+
 image-build: build
 	@echo MY_GITREF is $(MY_GITREF)
-	@$(DOCKERCMD) buildx build --load --build-arg MY_VERSION=$(VERSION) --build-arg MY_BUILDTIME=$(BUILD_TIME) -f Dockerfile -t $(OPV) .
+	@$(DOCKERCMD) buildx build --load $(if $(PLATFORM),--platform $(PLATFORM)) --build-arg MY_VERSION=$(VERSION) --build-arg MY_BUILDTIME=$(BUILD_TIME) -f Dockerfile -t $(OPV) .
 
 #clean: @ Remove Docker image and build artifacts
 clean:

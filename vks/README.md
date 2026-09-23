@@ -385,11 +385,11 @@ make deps
 make image-build IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 ```
 
-> ⚠️ **Pass `OWNER` on the `make` command line, never `export`** — the Makefile uses `:=`, which
-> the environment cannot override, and there is no error. Confirm with the check below.
-
-> ⚠️ **On Apple Silicon**, add `--platform linux/amd64`. VKS nodes are `amd64`; an arm64 image
-> builds and pushes fine, then fails at runtime with `exec format error`.
+> `OWNER` may be passed on the `make` command line or exported — both work.
+>
+> On an arm64 host the build targets `linux/amd64` automatically, because VKS nodes are amd64
+> and a native arm64 image pushes fine and then dies with `exec format error`. Override with
+> `PLATFORM=linux/arm64`, or `PLATFORM=` to build natively.
 
 ## Verify the image name
 
@@ -730,8 +730,9 @@ podman/skopeo flag; docker ignores it.
 **Image pushed to the wrong project** — you used `export OWNER=...`. It has no effect; `OWNER` is
 a `:=` assignment. Use `make OWNER=...`. Confirm with the step-5 verify before pushing.
 
-**`exec format error` in the pod** — an arm64 image on amd64 nodes. Rebuild with
-`--platform linux/amd64`.
+**`exec format error` in the pod** — an arm64 image on amd64 nodes. The build targets amd64
+automatically on an arm64 host, so this means `PLATFORM` was overridden or the image predates
+that. Rebuild with `make image-build PLATFORM=linux/amd64` and push again.
 
 **Pod rejected at admission** — the guest cluster enforces the `restricted` Pod Security Standard
 cluster-wide. `k8s/golang-web.yaml` already complies (`runAsNonRoot`, `seccompProfile:
