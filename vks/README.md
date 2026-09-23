@@ -107,7 +107,18 @@ endpoint first (section 2 collects the rest):
 
 ```sh
 export SUPERVISOR_ENDPOINT="10.0.0.10"     # your Supervisor API endpoint
-export PLUGIN_OS="linux-amd64"             # macOS: darwin-arm64 (Apple Silicon) or darwin-amd64
+
+case "$(uname -s)" in
+  Linux)  export PLUGIN_OS=linux-amd64  ;;
+  Darwin) export PLUGIN_OS=darwin-amd64 ;;
+  *)      echo "unsupported OS: $(uname -s)" ;;
+esac
+case "$(uname -m)" in
+  arm64|aarch64)
+    [ "$(uname -s)" = Darwin ] \
+      && echo "arm64 Mac: using the amd64 build, which runs under Rosetta 2." \
+      || echo "arm64 Linux: the Supervisor serves no arm64 build — use the upstream kubectl below." ;;
+esac
 
 curl -fsSkO "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${PLUGIN_OS}/vsphere-plugin.zip"
 unzip -o vsphere-plugin.zip
@@ -118,6 +129,10 @@ kubectl version --client
 
 > This zip is only a way to get `kubectl`. It also contains `kubectl-vsphere` — deprecated, never
 > used here — which is why the last step deletes the rest.
+>
+> ⚠️ **The Supervisor serves no arm64 builds.** Measured: `linux-amd64`, `darwin-amd64` and
+> `windows-amd64` return 200; `linux-arm64` and `darwin-arm64` return **404**. Apple Silicon uses
+> the amd64 build under Rosetta 2; arm64 Linux must take the upstream kubectl below.
 >
 > ⚠️ `-k` skips TLS verification on a binary you then `sudo install`. If you already have the CA
 > (step 8a), use `--cacert "$SUPERVISOR_CA"` instead.
