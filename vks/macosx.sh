@@ -312,7 +312,9 @@ if lab_set; then
     "https://${HARBOR_FQDN}/api/v2.0/health" 2>&1 || printf '    UNREACHABLE\n'
 
   printf '  P2 Harbor serves its own CA:\n'
-  CA="$(mktemp -t harborca)"
+  # Plain mktemp, NOT the -t PREFIX form: BSD reads that arg as a prefix, GNU wants a
+  # template and errors "too few X's", leaving the variable EMPTY and the failure silent.
+  CA="$(mktemp)"
   curl -sk -m 20 "https://${HARBOR_FQDN}/api/v2.0/systeminfo/getcert" -o "$CA" 2>/dev/null
   if [ -s "$CA" ]; then
     printf '    bytes=%s\n' "$(wc -c < "$CA" | tr -d ' ')"
@@ -329,8 +331,14 @@ if lab_set; then
   printf '     (expect x509 unknown authority; SUCCESS means it is already trusted.\n'
   printf '      The password sent is the literal string x - not a credential.)\n'
   if [ "$V_ENGINE" = podman ]; then
-    printf 'x' | podman login --authfile "$(mktemp -t probeauth)" -u probe --password-stdin "$HARBOR_FQDN" 2>&1 \
+    # The authfile must NOT exist yet. mktemp creates an EMPTY file and podman PARSES it as
+    # JSON, dying with "unexpected end of JSON input" before it ever reaches the network --
+    # so this probe reported a local error instead of the TLS result it exists to measure.
+    # MEASURED on macOS. A path inside a fresh dir lets podman create it.
+    _afd="$(mktemp -d)"
+    printf 'x' | podman login --authfile "$_afd/auth.json" -u probe --password-stdin "$HARBOR_FQDN" 2>&1 \
       | sed 's/^/    podman: /' | head -2
+    rm -rf "$_afd"
   elif [ "$V_ENGINE" = docker ]; then
     printf 'x' | docker login -u probe --password-stdin "$HARBOR_FQDN" 2>&1 | sed 's/^/    docker: /' | head -2
   else
