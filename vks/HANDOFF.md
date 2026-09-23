@@ -123,11 +123,31 @@ export VKS_NAMESPACE=lab VKS_CLUSTER=lab-gc1
 ./vks/macosx.sh                 # BEFORE trust — P4 must say x509 unknown authority
 #   then README section 3: security add-trusted-cert + podman machine set --import-native-ca
 #                          + podman machine stop && podman machine start
-./vks/macosx.sh                 # AFTER  trust — the error must CHANGE to auth (401/unauthorized)
+./vks/macosx.sh                 # AFTER  trust — the error must CHANGE to "invalid username/password"
 ```
 
 TLS-failure → auth-failure is the proof. `probe`/`x` stays a bad credential either way, so a
-*successful* login would mean the CA was already trusted.
+*successful* login would mean the CA was already trusted. Match podman's **text**, not a status
+code — measured on Linux (podman 4.9.3, 2026-09-23), the two errors are exactly:
+
+- before: `pinging container registry harbor.env1.lab.test: Get "https://harbor.env1.lab.test/v2/": tls: failed to verify certificate: x509: certificate signed by unknown authority`
+- after: `Error: logging into "harbor.env1.lab.test": invalid username/password`
+
+**The Mac must deploy by digest** (README section 9 now does). This lab's worker nodes still
+cache older `golang-web:v0.0.3` images from earlier runs; deploying by tag started one that
+crash-looped. The digest block is proven on these same nodes.
+
+## Linux walk — 2026-09-23, against this lab after its restart
+
+Every README section run on Linux, podman AND docker, blocks extracted verbatim:
+**§2–§8, §10, §11 pass.** §9 by tag **FAILED** (cached image, CrashLoopBackOff, no logs), which
+led to deploying by digest; the new §9 block then passed on the same nodes, and its `NOT FOUND`
+branch applies nothing (deployment generation unchanged). P4's mechanism is proven on Linux
+(above). The Supervisor serves kubectl **v1.32.9**, four minors behind the guest's v1.36.2, so
+this lab needs the upstream-kubectl path. The robot name must go into the env file in **single
+quotes** — measured, double quotes turn `robot$apps+golang-web-push` into
+`robot+golang-web-push`. All 47 `sh` blocks parse under `bash -n` and `zsh -n`. Not exercised
+here: the `sudo install` lines (no passwordless sudo on the lab host) and every macOS block.
 
 ## Settled — do not re-derive
 
