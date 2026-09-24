@@ -121,8 +121,11 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plug
 sudo usermod -aG docker "$USER"     # then LOG OUT AND BACK IN, or `docker` needs sudo
 ```
 
-With both engines installed, podman is used. For docker, add `export CONTAINER_ENGINE=docker` to
-`~/.vks-golang-web.env`.
+With both engines installed, podman is used. For docker, add it to the env file:
+
+```sh
+grep -qs CONTAINER_ENGINE ~/.vks-golang-web.env || echo 'export CONTAINER_ENGINE=docker' >> ~/.vks-golang-web.env
+```
 
 ### Other tools
 
@@ -320,7 +323,7 @@ source ~/.vks-golang-web.env
 make registry-login IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 ```
 
-**Expect:** `Login Succeeded!`.
+**Expect:** `Login Succeeded` (podman adds `!`; docker adds a warning about unencrypted credentials).
 
 ## 6. Build and push the image
 
@@ -363,6 +366,8 @@ else
   kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" config use-context supervisor
 fi
 ```
+
+**Expect:** `Logged in successfully`, a list of saved contexts, then `Switched to context "supervisor"`.
 
 If it says `context "supervisor" already exists`, run the vcf-contexts block in step 10, then
 this one again.
@@ -556,7 +561,7 @@ source ~/.vks-golang-web.env
 colima ssh -- sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
 ```
 
-The files this guide wrote, and the clone (installed tools and base images stay):
+The files this guide wrote, and the clone (installed tools, base images and build cache stay):
 
 ```sh
 source ~/.vks-golang-web.env
@@ -573,7 +578,7 @@ rm -f ~/.vks-golang-web.env
 unset HARBOR_FQDN HARBOR_PROJECT SUPERVISOR_ENDPOINT VCENTER_FQDN VKS_CLUSTER VKS_NAMESPACE \
       SSO_USERNAME VCF_CLI_VSPHERE_PASSWORD HARBOR_ADMIN_PASSWORD REGISTRY_USERNAME \
       REGISTRY_TOKEN HARBOR_CA SUPERVISOR_CA SUPERVISOR_KUBECONFIG GUEST_KUBECONFIG \
-      IMAGE KUBECONFIG APP_IP
+      IMAGE KUBECONFIG APP_IP CONTAINER_ENGINE
 unset -f harbor_cfg 2>/dev/null || true
 ```
 
