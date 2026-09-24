@@ -227,11 +227,9 @@ command -v podman >/dev/null 2>&1 && podman --version
 command -v docker >/dev/null 2>&1 && docker --version
 kubectl version --client
 vcf version | head -1
-vcf plugin list
 ```
 
-**Expect:** no `MISSING` line, a version for your engine, `kubectl` and `vcf`, and every plugin
-`installed`.
+**Expect:** no `MISSING` line, and a version for your engine, `kubectl` and `vcf`.
 
 ## 3. Trust the Harbor CA
 
