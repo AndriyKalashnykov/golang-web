@@ -102,8 +102,9 @@ make image-push
 The credential is whatever `IMAGE_REGISTRY` issues: a GitHub PAT with
 `write:packages` for the `ghcr.io` default, a robot account for Harbor, an access
 token for Docker Hub. `make registry-login` prints the right guidance for the
-registry you have configured. For convenience against the default registry,
-`GH_ACCESS_TOKEN` and `CR_PAT` are accepted as fallbacks for `REGISTRY_TOKEN`.
+registry you have configured. `REGISTRY_TOKEN` is the only credential variable.
+The image goes to `IMAGE_REGISTRY/OWNER` (shown at the bottom of `make help`), so push
+to your own namespace with `make image-push OWNER=<you>`.
 
 > **KinD needs Docker for its own containers -- but your image is still built by
 > whichever engine you chose.** Two different things:
@@ -257,7 +258,7 @@ Run `make help` to see all available targets.
 | `make deps` | Install the pinned toolchain via mise (`.mise.toml`) |
 | `make deps-engine` | Ensure a container engine is present (installs podman if neither is) |
 | `make deps-buildx` | Verify the engine can run `buildx build` |
-| `make deps-verify` | Verify every pinned tool is on `PATH` |
+| `make deps-verify` | Check that every tool pinned in `.mise.toml` is installed (installs nothing) |
 | `make check-toolchain-alignment` | Assert the Go version matches across `go.mod`, `Dockerfile` and `.mise.toml` |
 | `make diagrams` | Render `docs/diagrams/*.puml` to PNG |
 | `make diagrams-check` | Verify the committed diagram PNGs match their `.puml` sources |
@@ -267,10 +268,10 @@ Run `make help` to see all available targets.
 | Target | Description |
 |--------|-------------|
 | `make build` | Build the Go binary |
-| `make run` | Run the application locally |
+| `make run` | Run the application locally on `APP_PORT` (default 8080) |
 | `make test` | Run tests with coverage |
 | `make format` | Auto-format Go source files |
-| `make clean` | Remove Docker image and build artifacts |
+| `make clean` | Remove the built image and build artifacts |
 | `make update` | Update dependency packages to latest versions |
 
 ### Quality & Security
@@ -291,29 +292,28 @@ Run `make help` to see all available targets.
 
 | Target | Description |
 |--------|-------------|
-| `make image-build` | Build Docker image |
+| `make image-build` | Build the container image |
 | `make image-test-fg` | Run container in foreground with test overrides |
-| `make image-test-cli` | Run container with shell entrypoint |
 | `make image-run-bg` | Run container in background |
-| `make image-cli-bg` | Get shell in running background container |
 | `make image-logs` | Tail container logs |
 | `make image-stop` | Stop background container |
 | `make registry-login` | Log in to the image registry so `image-push` can publish |
-| `make image-push` | Build and push the image to the configured registry |
+| `make image-push` | Build and push the image to `IMAGE_REGISTRY/OWNER` |
 
 ### Kubernetes
 
 | Target | Description |
 |--------|-------------|
-| `make k8s-apply` | Deploy to Kubernetes cluster |
-| `make k8s-delete` | Delete from Kubernetes cluster |
+| `make k8s-apply` | Deploy the pushed image to the current `kubectl` context (it names the context and namespace first) |
+| `make k8s-delete` | Delete the app from the current `kubectl` context |
 | `make deps-kind` | Verify KinD, kubectl and a KinD-capable engine (Docker) are available |
 | `make kind-cloud-provider-start` | Start cloud-provider-kind (supplies LoadBalancer IPs to KinD) |
-| `make kind-cloud-provider-stop` | Prune this cluster's `kindccm-*` sidecars (and the controller if unused) |
+| `make kind-cloud-provider-stop` | Clean up cloud-provider-kind after this cluster is gone (`kind-delete` runs it) |
+| `make kind-cloud-provider-restart` | Restart the shared LoadBalancer controller (affects every KinD cluster on this host) |
 | `make kind-create` | Create local KinD cluster with cloud-provider-kind LoadBalancer support |
-| `make kind-deploy` | Deploy to KinD and wait for rollout **and** a routable LoadBalancer |
+| `make kind-deploy` | Deploy to KinD and wait for rollout **and** a reachable service |
 | `make kind-undeploy` | Remove application from KinD cluster |
-| `make kind-delete` | Delete KinD cluster and prune this cluster's sidecars |
+| `make kind-delete` | Delete the KinD cluster, then prune its sidecars and stop the controller if unused |
 | `make e2e` | Run end-to-end tests against KinD cluster |
 
 LoadBalancer Services in the local cluster are served by
@@ -338,7 +338,7 @@ Two details worth knowing if you run more than one KinD cluster:
 | Target | Description |
 |--------|-------------|
 | `make ci` | Run full local CI pipeline |
-| `make ci-run` | Run GitHub Actions workflow locally using [act](https://github.com/nektos/act) |
+| `make ci-run` | Run the GitHub Actions workflow locally using [act](https://github.com/nektos/act) (needs a running Docker) |
 
 ### Utilities
 
@@ -349,7 +349,7 @@ Two details worth knowing if you run more than one KinD cluster:
 | `make deps-prune` | Remove unused dependencies |
 | `make deps-prune-check` | Verify no prunable dependencies (CI gate) |
 | `make renovate-bootstrap` | Verify Node (installed via mise) is available for `npx renovate` |
-| `make renovate-validate` | Validate Renovate configuration |
+| `make renovate-validate` | Validate `renovate.json` (offline, no token) |
 
 ## CI/CD
 
