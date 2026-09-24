@@ -206,6 +206,44 @@ cosign verify ghcr.io/andriykalashnykov/golang-web:latest \
 
 Both flags are required: the identity regexp binds the signature to this repo's workflow, and the issuer confirms the certificate came from GitHub Actions OIDC rather than a leaked key.
 
+## Deploy to Kubernetes with kubectl
+
+[`k8s/golang-web.yaml`](k8s/golang-web.yaml) is a Deployment plus a `LoadBalancer` Service. It names no
+namespace, so `-n` decides where it lands. It runs as non-root with a read-only root filesystem, so a
+namespace that enforces Pod Security `restricted` (the VKS default) admits it.
+
+Deploy into a namespace of your choice (re-runnable):
+
+```bash
+NS=golang-web-demo
+kubectl create namespace "$NS" --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -n "$NS" -f k8s/golang-web.yaml
+kubectl rollout status -n "$NS" deployment/golang-web --timeout=120s
+```
+
+Open it. The page is served under `/myhello/` (the manifest sets `APP_CONTEXT`); `/` returns 404.
+
+```bash
+kubectl port-forward -n "$NS" svc/golang-web-service 8080:8080 >/dev/null & PF=$!
+sleep 3                                # let the forward start listening
+curl http://localhost:8080/myhello/    # "Hello, World" and MY_POD_NAMESPACE: golang-web-demo
+curl http://localhost:8080/healthz
+kill "$PF"
+```
+
+If the cluster assigns LoadBalancer IPs (`EXTERNAL-IP` is not `<pending>`):
+
+```bash
+IP=$(kubectl get svc -n "$NS" golang-web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+curl "http://$IP:8080/myhello/"
+```
+
+Remove everything:
+
+```bash
+kubectl delete namespace "$NS"
+```
+
 ## Available Make Targets
 
 Run `make help` to see all available targets.
