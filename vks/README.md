@@ -179,13 +179,16 @@ rm -rf "$T"
 ### VCF CLI
 
 Download both files for your platform (`Linux_AMD64`, `Darwin_ARM64` or `Darwin_AMD64`) from
-Broadcom. Tick **"I agree to the Terms and Conditions"** on each page, or the download icons do
-nothing.
+Broadcom. Tick **"I agree to the Terms and Conditions"** on each page (it stays inert until you open
+both Terms links), or the download icons do nothing.
 
-| file | link |
-|---|---|
-| `VCF-Consumption-CLI-<platform>-9.1.1.0.25662425.tar.gz` | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545612&viewGroup=true) |
-| `VCF-Consumption-CLI-PluginBundle-<platform>-9.1.1.0.25665404.tar.gz` | [VCF CLI plugins](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545621&viewGroup=true) |
+| file | where to click | direct link |
+|---|---|---|
+| `VCF-Consumption-CLI-<platform>-9.1.1.0.25662425.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI** | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545612&viewGroup=true) |
+| `VCF-Consumption-CLI-PluginBundle-<platform>-9.1.1.0.25665404.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI Plugins** | [VCF CLI plugins](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545621&viewGroup=true) |
+
+- Pick the release first — until you do, the page reads "No data found". The direct links skip this.
+- Take the row for your platform, not the multi-GB platform-less bundles beside it.
 
 Set the two paths to your downloads, then run:
 
