@@ -6,7 +6,8 @@ From your platform administrator:
 - the Supervisor endpoint, the vCenter DNS name, the vSphere Namespace and the guest cluster name
 - a guest cluster that already trusts Harbor's CA
 - an SSO user with the **Edit** role on that namespace, and its password
-- network access from this machine to all of the above
+- network access from this machine to all of the above, and internet access to your package
+  repositories, github.com, docker.io, gcr.io and dl.k8s.io
 
 Works in `bash` and `zsh`, on Linux and macOS.
 
@@ -23,7 +24,7 @@ export VKS_NAMESPACE="my-namespace"              # the vSphere Namespace holding
 export SSO_USERNAME="administrator@vsphere.local"
 
 export VCF_CLI_VSPHERE_PASSWORD='<your vCenter SSO password>'
-export HARBOR_ADMIN_PASSWORD=''                  # only to create a robot in step 5
+export HARBOR_ADMIN_PASSWORD=''                  # steps 5 and 10 only
 export REGISTRY_USERNAME=''                      # step 5 fills these two
 export REGISTRY_TOKEN=''
 
@@ -48,7 +49,7 @@ EOF
 chmod 600 ~/.vks-golang-web.env
 ```
 
-Fill in your values; credentials go in **single quotes**. If the block above said the file already
+Fill in your values; credentials go in **single quotes** (a `'` inside one is written `'\''`). If the block above said the file already
 exists, edit that one:
 
 ```sh
@@ -172,12 +173,12 @@ nothing.
 | `VCF-Consumption-CLI-<platform>-9.1.1.0.25662425.tar.gz` | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545612&viewGroup=true) |
 | `VCF-Consumption-CLI-PluginBundle-<platform>-9.1.1.0.25665404.tar.gz` | [VCF CLI plugins](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545621&viewGroup=true) |
 
-In the directory holding them, set the two exact file names, then run:
+Set the two paths to your downloads, then run:
 
 ```sh
 source ~/.vks-golang-web.env
-CLI_TGZ="VCF-Consumption-CLI-Linux_AMD64-9.1.1.0.25662425.tar.gz"
-PLUGINS_TGZ="VCF-Consumption-CLI-PluginBundle-Linux_AMD64-9.1.1.0.25665404.tar.gz"
+CLI_TGZ="$HOME/Downloads/VCF-Consumption-CLI-Linux_AMD64-9.1.1.0.25662425.tar.gz"
+PLUGINS_TGZ="$HOME/Downloads/VCF-Consumption-CLI-PluginBundle-Linux_AMD64-9.1.1.0.25665404.tar.gz"
 
 T="$(mktemp -d)"
 tar -xzf "$CLI_TGZ" -C "$T"
@@ -286,7 +287,8 @@ rm -f /tmp/robot.json "$CFG"
 
 **Expect:** two lines — the robot name and its secret. The secret is shown once.
 
-In `~/.vks-golang-web.env`, replace the two `REGISTRY_*` lines with (single quotes):
+In `~/.vks-golang-web.env`, replace the two `REGISTRY_*` lines with the name and secret printed
+above (single quotes):
 
 ```sh
 export REGISTRY_USERNAME='robot$apps+golang-web-push'
@@ -377,7 +379,8 @@ case "$(uname -s)/$(uname -m)" in
 esac
 T="$(mktemp -d)"
 [ -n "$V" ] && curl -fsSL -o "$T/kubectl" "https://dl.k8s.io/release/${V}/bin/${K}/kubectl" \
-  && sudo install -m 0755 "$T/kubectl" /usr/local/bin/kubectl
+  && sudo install -m 0755 "$T/kubectl" /usr/local/bin/kubectl \
+  || echo "kubectl NOT replaced: still the Supervisor's, which may be too old for this cluster"
 rm -rf "$T"
 
 kubectl get nodes
@@ -514,8 +517,8 @@ for c in $(vcf context list 2>/dev/null | awk '$1 ~ /^supervisor:/{print $1}'); 
   vcf context delete "$c" -y --skip-delete-kubeconfig-context
 done
 vcf context delete supervisor -y --skip-delete-kubeconfig-context
-rm -f ~/.config/vcf/logs/audit/cli_audit.log
 vcf context list
+rm -rf ~/.config/vcf/logs ~/.kube/cache
 ```
 
 The Harbor CA — podman, Linux and macOS:
@@ -539,7 +542,7 @@ source ~/.vks-golang-web.env
 colima ssh -- sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
 ```
 
-The files this guide wrote, and the clone:
+The files this guide wrote, and the clone (installed tools and base images stay):
 
 ```sh
 source ~/.vks-golang-web.env
