@@ -34,6 +34,8 @@ export GUEST_KUBECONFIG="$HOME/.kube/${VKS_CLUSTER}.kubeconfig"
 
 export KUBECONFIG="$GUEST_KUBECONFIG"
 
+# harbor_cfg [USER PASSWORD]: writes a curl config with a Harbor login to $CFG (default: admin),
+# used as `curl -K "$CFG"` in steps 6, 7, 9 and 11 so no password is on the command line.
 harbor_cfg() {
   local u p
   if [ $# -ge 1 ]; then u="$1"; p="$2"; else u=admin; p="$HARBOR_ADMIN_PASSWORD"; fi
@@ -283,7 +285,8 @@ make image-build IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 
 ## 6. Harbor credentials
 
-Create a robot (needs `HARBOR_ADMIN_PASSWORD`; skip if you were given one):
+Create a robot (needs `HARBOR_ADMIN_PASSWORD`; skip if you were given one). `harbor_cfg` comes from
+the env file (step 1):
 
 ```sh
 source ~/.vks-golang-web.env
