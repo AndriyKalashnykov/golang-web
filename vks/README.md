@@ -70,7 +70,7 @@ source ~/.vks-golang-web.env
 xcode-select --install
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 B=/opt/homebrew/bin/brew; [ -x "$B" ] || B=/usr/local/bin/brew
-echo "eval \"\$($B shellenv)\"" >> ~/.zprofile
+grep -qs "brew shellenv" ~/.zprofile || echo "eval \"\$($B shellenv)\"" >> ~/.zprofile
 eval "$($B shellenv)"
 brew --version
 [ "$(uname -m)" = arm64 ] && softwareupdate --install-rosetta --agree-to-license
@@ -82,7 +82,8 @@ macOS, podman:
 
 ```sh
 brew install podman
-podman machine init && podman machine start
+podman machine inspect >/dev/null 2>&1 || podman machine init
+podman info >/dev/null 2>&1 || podman machine start
 ```
 
 macOS, docker (Colima):
@@ -139,8 +140,7 @@ sudo apt-get install -y jq git make unzip curl openssl
 
 ### kubectl
 
-The Supervisor's kubectl, downloaded with vCenter's CA; step 7 replaces it with your guest cluster's
-version.
+vCenter's CA first:
 
 ```sh
 source ~/.vks-golang-web.env
@@ -149,8 +149,20 @@ T="$(mktemp -d)"
 curl -fsSk --max-time 60 -o "$T/certs.zip" "https://${VCENTER_FQDN}/certs/download.zip"
 unzip -oqj "$T/certs.zip" -d "$T/certs"
 cat "$T"/certs/*.0 > "$SUPERVISOR_CA"
+rm -rf "$T"
 openssl x509 -in "$SUPERVISOR_CA" -noout -subject -fingerprint -sha256
+```
+
+**Expect:** a `subject=` line naming `CA` and `vsphere`, and a fingerprint equal to your
+administrator's — if not, stop.
+
+Then the Supervisor's kubectl, downloaded with that CA; step 7 replaces it with your guest cluster's
+version:
+
+```sh
+source ~/.vks-golang-web.env
 case "$(uname -s)" in Darwin) P=darwin-amd64 ;; *) P=linux-amd64 ;; esac
+T="$(mktemp -d)"
 curl -fsS --cacert "$SUPERVISOR_CA" -o "$T/plugin.zip" "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${P}/vsphere-plugin.zip"
 unzip -oq "$T/plugin.zip" -d "$T"
 sudo install -d /usr/local/bin
@@ -159,8 +171,7 @@ rm -rf "$T"
 /usr/local/bin/kubectl version --client
 ```
 
-**Expect:** a `subject=` line naming `CA` and `vsphere`, a fingerprint equal to your administrator's
-(if not, stop), then `Client Version: v1.…+vmware…`.
+**Expect:** `Client Version: v1.…+vmware…`.
 
 ### VCF CLI
 
@@ -448,7 +459,7 @@ source ~/.vks-golang-web.env
 kubectl wait svc/golang-web-service --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' --timeout=120s
 export APP_IP="$(kubectl get svc golang-web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
 echo "http://${APP_IP}:8080/myhello/"
-curl -s "http://${APP_IP}:8080/myhello/"
+curl -sS --max-time 10 "http://${APP_IP}:8080/myhello/"
 ```
 
 **Expect:** `Hello, World` and the pod's details.
@@ -506,6 +517,7 @@ for e in podman docker; do
   command -v "$e" >/dev/null 2>&1 || continue
   "$e" rmi -f "${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web:$(cat version.txt)" 2>/dev/null
   "$e" logout "$HARBOR_FQDN" 2>/dev/null
+  "$e" image prune -f >/dev/null
 done
 ```
 
@@ -548,6 +560,7 @@ The files this guide wrote, and the clone (installed tools and base images stay)
 source ~/.vks-golang-web.env
 rm -f  "$HARBOR_CA" "$SUPERVISOR_CA" "$SUPERVISOR_KUBECONFIG" "$GUEST_KUBECONFIG"
 rmdir  "$HOME/.config/vks-golang-web" 2>/dev/null
+rmdir "$HOME/.config/containers/certs.d" "$HOME/.kube" 2>/dev/null
 cd .. && rm -rf golang-web
 ```
 
