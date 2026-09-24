@@ -112,6 +112,7 @@ KIND_IMAGE          := $(OPV)-kind
 # tag upstream; passing it explicitly stops act from prompting (no prompt = no EOF crash
 # in a non-interactive shell).
 ACT_RUNNER_IMAGE    ?= catthehacker/ubuntu:act-latest
+ACT_ARCH            ?=
 
 # === Container engine ===
 # podman is preferred (rootless by default, no daemon); docker is fully supported.
@@ -900,8 +901,19 @@ ci-run: deps
 	@# which the daemon (inside Colima's VM) cannot mount -- "mkdir ...docker.sock: operation
 	@# not supported" (measured). /var/run/docker.sock is the daemon's own socket on Linux,
 	@# Colima and Docker Desktop alike.
-	@act push --container-architecture linux/amd64 \
-		--artifact-server-path /tmp/act-artifacts --rm \
+	@# Job containers run in the Docker engine's own architecture unless ACT_ARCH is set.
+	@# MEASURED on an Apple-silicon Mac with Colima (no Rosetta): linux/amd64 runs under
+	@# qemu-user, the Go toolchain panics ("growslice: len out of range") while mise installs
+	@# govulncheck, and the workflow's mise step fails; linux/arm64 passes all jobs.
+	@plat='$(ACT_ARCH)'; \
+	if [ -z "$$plat" ]; then \
+	  arch=$$(docker info --format '{{.Architecture}}') || { echo "docker info failed (output above); start Docker and retry."; exit 1; }; \
+	  case "$$arch" in aarch64|arm64) plat=linux/arm64;; x86_64|amd64) plat=linux/amd64;; \
+	    *) echo "Docker engine architecture '$$arch' has no act runner mapping here. Set one: make ci-run ACT_ARCH=linux/<arch>"; exit 1;; esac; \
+	fi; \
+	echo "Running the CI workflow with act in $$plat job containers..."; \
+	[ "$$plat" = linux/amd64 ] || echo "Note: GitHub runs this workflow on linux/amd64; this $$plat run does not prove amd64."; \
+	act push --container-architecture "$$plat" --rm \
 		--container-daemon-socket unix:///var/run/docker.sock \
 		-P ubuntu-latest=$(ACT_RUNNER_IMAGE)
 

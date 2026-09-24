@@ -75,9 +75,13 @@ kind and plantuml have hard requirements (see the note further down).
 podman-built image deploys to the docker-based KinD cluster. On **macOS** (Apple Silicon,
 macOS 26.6.2), `make deps`, `make image-build` and `make image-push` are verified with podman
 and with docker via Colima. The builder stage cross-compiles to `linux/amd64`, so nothing is
-emulated (see [vks/README.md](vks/README.md)). The KinD targets (`make kind-create`, `make e2e`)
-have **not** been run on macOS. On macOS podman runs in a VM; if it is stopped, `make image-build`
-stops at its buildx check and says to run `podman machine start`.
+emulated (see [vks/README.md](vks/README.md)). Every `make` target was also run on both
+platforms (Linux on a fresh Ubuntu VM, macOS on Apple Silicon with podman and Colima), including
+the KinD flow: on macOS, cloud-provider-kind publishes the LoadBalancer on `127.0.0.1:<Service port>` (8080 by default)
+(`--enable-lb-port-mapping`), where `make e2e` reaches it. `make ci-run` runs the workflow's jobs
+in the Docker engine's architecture, so on Apple Silicon it runs linux/arm64 and says it does not
+prove amd64. On macOS podman runs in a VM; if it is stopped, the engine targets say to run
+`podman machine start`.
 
 `make deps` covers everything needed to **build** an image locally on Linux and
 macOS: it installs an engine if none exists and verifies the engine can actually
@@ -338,7 +342,7 @@ Two details worth knowing if you run more than one KinD cluster:
 | Target | Description |
 |--------|-------------|
 | `make ci` | Run full local CI pipeline |
-| `make ci-run` | Run the GitHub Actions workflow locally using [act](https://github.com/nektos/act) (needs a running Docker) |
+| `make ci-run` | Run the GitHub Actions workflow locally using [act](https://github.com/nektos/act) (needs a running Docker). Jobs run in the Docker engine's architecture; override with `ACT_ARCH=linux/amd64` |
 
 ### Utilities
 

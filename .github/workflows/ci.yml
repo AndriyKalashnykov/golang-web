@@ -134,6 +134,9 @@ jobs:
         run: make coverage-check
 
       - name: Upload coverage artifact
+        # Skipped under `make ci-run`: act 0.2.89's artifact server rejects upload-artifact@v7
+        # ("unknown field mime_type", nektos/act#6022), so the step could only fail there.
+        if: ${{ !env.ACT }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         continue-on-error: true
         with:
