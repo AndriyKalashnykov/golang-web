@@ -5,12 +5,43 @@ Resume point for the `vks/README.md` work. Read this before touching `vks/`.
 ## Where it stands
 
 `vks/README.md` builds `golang-web`, pushes to Harbor, deploys to a VKS guest cluster.
-It is **proven end-to-end on Linux, twice, with podman and with docker**, every block run
-standalone. Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`).
+It is **proven end-to-end on Linux and macOS, with podman and with docker** — last re-walked
+2026-09-24, every block in its own fresh shell (next section). Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`).
 
 macOS is proven too — see the next section. The old probe script `vks/macosx.sh` and its
 `vks/macosx.res` were REMOVED (2026-09-23): running every README block verbatim on a real Mac
 superseded the subset they checked. They are in git history; references to them below are history.
+
+## ✅ ALL FOUR PATHS RE-WALKED, EACH BLOCK IN A NEW TERMINAL — 2026-09-24
+
+The walk followed the source-line audit (three blocks don't use the env file: step 2 Check,
+step 4 clone, step 10 vcf contexts). Every README block for the path ran verbatim, in order, and
+each ran in its **own fresh login shell** with nothing loaded, so a block missing a needed
+`source` fails. Pass/fail came from each block's **Expect** line, not its exit code (a block's
+exit code is only its last command's). The checks were: step 2 versions, both CA fingerprints,
+`Login Succeeded`, the pushed digest, the SSO login, nodes `Ready` with matching client/server
+versions, `successfully rolled out`, `IMAGEID` equal to the deployed digest, `Hello, World` over
+the LoadBalancer and over the port-forward, `/myhello/` and `/healthz` 200 with `/` 404, and the
+repo and robot deleted. Results:
+
+| path | where | result |
+|---|---|---|
+| Linux podman | clean `ubuntu:24.04` container, non-root user with sudo, rootless podman 4.9.3 | 20/20 |
+| Linux docker | clean `ubuntu:24.04` container, docker-ce from step 2 (dockerd started by hand, no systemd) | 20/20 |
+| macOS podman | the rented Mac, zsh, podman 6.1.2 machine | 20/20 |
+| macOS docker | the rented Mac, zsh, Colima | 20/20 |
+
+- **One real defect, fixed in #179 (`cdda1ad`).** The Dockerfile's `FROM golang:…` is a short
+  name. podman from apt on a stock Ubuntu 24.04 has no unqualified-search registries, so step 6
+  died with `short-name "golang@sha256:…" did not resolve`. It had passed before only because
+  the lab host and the podman machine VM configure docker.io. It is now
+  `docker.io/library/golang:…` with the same digest; `check-toolchain-alignment` accepts that form.
+- Two walk attempts hit an Ubuntu mirror 404 on `libexpat1` during step 2's `apt-get install`.
+  This was transient: the retry passed.
+- Harness setup, not under test: the same Mac tunnels, loopback aliases and socat forwarders as
+  before, plus one for the app's LoadBalancer IP, which changes with every deploy (.159, then
+  .137). All of it was removed afterwards, along with the containers and the host tunnels, and
+  Colima was stopped. Harbor ended with no `golang-web` repo and no robot.
 
 ## ✅ THE WHOLE README PROVEN ON macOS, BOTH ENGINES — 2026-09-23
 
