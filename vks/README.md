@@ -190,12 +190,17 @@ both Terms links), or the download icons do nothing.
 - Pick the release first — until you do, the page reads "No data found". The direct links skip this.
 - Take the row for your platform, not the multi-GB platform-less bundles beside it.
 
-Set the two paths to your downloads, then run:
+The block picks this machine's files from `~/Downloads`; if you saved them elsewhere, change that folder.
 
 ```sh
-source ~/.vks-golang-web.env
-CLI_TGZ="$HOME/Downloads/VCF-Consumption-CLI-Linux_AMD64-9.1.1.0.25662425.tar.gz"
-PLUGINS_TGZ="$HOME/Downloads/VCF-Consumption-CLI-PluginBundle-Linux_AMD64-9.1.1.0.25665404.tar.gz"
+case "$(uname -s)/$(uname -m)" in
+  Linux/x86_64)  P=Linux_AMD64 ;;
+  Darwin/arm64)  P=Darwin_ARM64 ;;
+  Darwin/x86_64) P=Darwin_AMD64 ;;
+  *) P=unsupported; echo "no VCF CLI build for $(uname -s)/$(uname -m)" ;;
+esac
+CLI_TGZ="$HOME/Downloads/VCF-Consumption-CLI-${P}-9.1.1.0.25662425.tar.gz"
+PLUGINS_TGZ="$HOME/Downloads/VCF-Consumption-CLI-PluginBundle-${P}-9.1.1.0.25665404.tar.gz"
 
 T="$(mktemp -d)"
 tar -xzf "$CLI_TGZ" -C "$T"
