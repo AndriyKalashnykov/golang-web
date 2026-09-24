@@ -43,8 +43,10 @@ repo and robot deleted. Results:
   .137). All of it was removed afterwards, along with the containers and the host tunnels, and
   Colima was stopped. Harbor ended with no `golang-web` repo and no robot.
 
-**Mac torn down 2026-09-24: nothing further needs it, and it can be deleted now** (the 24 h
-minimum passed at 13:41). Removed:
+**Mac cleaned up 2026-09-24, and KEPT (owner decision): vks-airgap-cicd still needs it.**
+B735 (macOS jump box) and B736 (arm64 build tags) are open in that repo's `BACKLOG.md`, and
+their done-when criteria and open items need a real Mac. Do NOT delete the Scaleway server until
+they are done or dropped. Removed from the Mac:
 
 - the network scaffolding (tunnels, socat, loopback aliases, `/etc/hosts` in the Mac and both VMs);
 - the leftover `~/vks-airgap-cicd` clone, which held a `.env` and a `secrets/` dir;
@@ -58,8 +60,9 @@ minimum passed at 13:41). Removed:
 Left, and gone with the machine: Homebrew and its packages (podman, colima, docker,
 docker-buildx, jq, socat, git, make, GNU utilities), `/usr/local/bin/{vcf,kubectl}` from the
 README, `~/.zprofile` (only the README's Homebrew line), empty engine configs, and the podman and
-Colima VMs, both stopped. Still to do by the owner: delete the Scaleway server, close ticket
-#1619590.
+Colima VMs, both stopped. To resume there: `podman machine start` or `colima start`, re-clone
+vks-airgap-cicd, and copy the Darwin VCF CLI archives back from the lab host's `~/Downloads/vcf`.
+Delete the server and close ticket #1619590 only once B735/B736 no longer need it.
 
 ## ✅ THE WHOLE README PROVEN ON macOS, BOTH ENGINES — 2026-09-23
 
@@ -82,7 +85,7 @@ the merged code (9046066). The macOS walks ran before the last Dockerfile/Makefi
 them the Mac re-ran `make image-build` with both engines, not the whole README.
 
 The Mac scaffolding (socat, lo0 aliases, `/etc/hosts`) and the lab-host tunnels were removed
-2026-09-23. (The Mac was fully torn down 2026-09-24; see the section above.)
+2026-09-23. (Cleaned up 2026-09-24 and KEPT for vks-airgap-cicd B735/B736; see the section above.)
 
 Fixes this found, each MEASURED failing before and passing after:
 - **Apple's `/usr/bin/make` (GNU Make 3.81, Apple-patched) ignored the Makefile's exported PATH** for
@@ -143,7 +146,7 @@ the server → Delete). The lab-host tunnel is a background `ssh -N -R …`; kil
 | hardware / OS | **M1-M**, 8 GB, 256 GB — **macOS Tahoe 26.6.2** (same build as the last Mac run) |
 | access | `ssh m1@51.159.120.46` (key `udesk` = the lab host's `~/.ssh/id_ed25519`); VNC port 59010 |
 | state at creation (13:41) | "Reinstalling", ~2 h per Scaleway; billed only once ready, €0.11/h |
-| **deletable from** | **2026-09-24 13:41** (Apple's 24 h minimum) — P4 is done and the Mac is torn down: delete it |
+| **deletable from** | **2026-09-24 13:41** (Apple's 24 h minimum), but KEPT: vks-airgap-cicd B735/B736 still need it |
 
 The M4-S turned out to need an explicit quota; only the M1-M had stock. Any Apple silicon works
 for P4. Pre-flight and tunnel steps are unchanged — see "Once on the Mac" below.
