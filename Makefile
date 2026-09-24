@@ -463,7 +463,9 @@ PLATFORM ?= linux/amd64
 endif
 PLATFORM ?=
 
-image-build: build deps-buildx
+# No `build` prerequisite: the Dockerfile compiles main.go in its own builder stage, so the host
+# binary (and the mise toolchain `build: deps` installs) is not needed to build the image.
+image-build: deps-buildx
 	@echo MY_GITREF is $(MY_GITREF)
 	@$(DOCKERCMD) buildx build --load $(if $(PLATFORM),--platform $(PLATFORM)) --build-arg MY_VERSION=$(VERSION) --build-arg MY_BUILDTIME=$(BUILD_TIME) -f Dockerfile -t $(OPV) .
 

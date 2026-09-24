@@ -3,8 +3,8 @@
 From your platform administrator:
 
 - the Harbor DNS name, a project you may push to, and a robot account or the Harbor admin password
-- the Supervisor endpoint, the vCenter DNS name, the vSphere Namespace, the guest cluster name and
-  its Kubernetes version
+- the Supervisor endpoint, the vCenter DNS name, the vSphere Namespace and the guest cluster name
+- a guest cluster that already trusts Harbor's CA
 - an SSO user with the **Edit** role on that namespace, and its password
 - network access from this machine to all of the above
 
@@ -23,8 +23,8 @@ export VKS_NAMESPACE="my-namespace"              # the vSphere Namespace holding
 export SSO_USERNAME="administrator@vsphere.local"
 
 export VCF_CLI_VSPHERE_PASSWORD='<your vCenter SSO password>'
-export HARBOR_ADMIN_PASSWORD=''                  # only to create a robot in step 6
-export REGISTRY_USERNAME=''                      # step 6 fills these two
+export HARBOR_ADMIN_PASSWORD=''                  # only to create a robot in step 5
+export REGISTRY_USERNAME=''                      # step 5 fills these two
 export REGISTRY_TOKEN=''
 
 export HARBOR_CA="$HOME/.config/vks-golang-web/harbor-ca.crt"
@@ -35,11 +35,11 @@ export GUEST_KUBECONFIG="$HOME/.kube/${VKS_CLUSTER}.kubeconfig"
 export KUBECONFIG="$GUEST_KUBECONFIG"
 
 # harbor_cfg [USER PASSWORD]: writes a curl config with a Harbor login to $CFG (default: admin),
-# used as `curl -K "$CFG"` in steps 6, 7, 9 and 11 so no password is on the command line.
+# used as `curl -K "$CFG"` in steps 5, 6, 8 and 10 so no password is on the command line.
 harbor_cfg() {
   local u p
   if [ $# -ge 1 ]; then u="$1"; p="$2"; else u=admin; p="$HARBOR_ADMIN_PASSWORD"; fi
-  [ -n "$u" ] && [ -n "$p" ] || { echo "harbor_cfg: empty user or password — fill the env file (step 6)" >&2; return 1; }
+  [ -n "$u" ] && [ -n "$p" ] || { echo "harbor_cfg: empty user or password — fill the env file (step 5)" >&2; return 1; }
   u="${u//\\/\\\\}"; u="${u//\"/\\\"}"; p="${p//\\/\\\\}"; p="${p//\"/\\\"}"
   CFG="$(mktemp)"; ( umask 077; printf 'user = "%s:%s"\n' "$u" "$p" > "$CFG" )
 }
@@ -48,8 +48,14 @@ EOF
 chmod 600 ~/.vks-golang-web.env
 ```
 
-Fill in `~/.vks-golang-web.env`; credentials go in **single quotes**. If the block says the file
-already exists, edit that file instead. Then load it — in every new terminal:
+Fill in your values; credentials go in **single quotes**. If the block above said the file already
+exists, edit that one:
+
+```sh
+"${EDITOR:-vi}" ~/.vks-golang-web.env
+```
+
+Load it — in every new terminal:
 
 ```sh
 source ~/.vks-golang-web.env
@@ -66,6 +72,7 @@ B=/opt/homebrew/bin/brew; [ -x "$B" ] || B=/usr/local/bin/brew
 echo "eval \"\$($B shellenv)\"" >> ~/.zprofile
 eval "$($B shellenv)"
 brew --version
+[ "$(uname -m)" = arm64 ] && softwareupdate --install-rosetta --agree-to-license
 ```
 
 ### Container engine — pick one
@@ -131,43 +138,28 @@ sudo apt-get install -y jq git make unzip curl openssl
 
 ### kubectl
 
-```sh
-source ~/.vks-golang-web.env
-export KUBECTL_VERSION="v1.36.2"           # your guest cluster's version, from your administrator
-case "$(uname -s)/$(uname -m)" in
-  Darwin/arm64)  KOS=darwin/arm64 ;;
-  Darwin/*)      KOS=darwin/amd64 ;;
-  Linux/aarch64) KOS=linux/arm64  ;;
-  *)             KOS=linux/amd64  ;;
-esac
-T="$(mktemp -d)"
-curl -fsSL -o "$T/kubectl" "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/${KOS}/kubectl"
-sudo install -d /usr/local/bin
-sudo install -m 0755 "$T/kubectl" /usr/local/bin/kubectl
-rm -rf "$T"
-
-/usr/local/bin/kubectl version --client
-echo "PATH kubectl: $(command -v kubectl)"
-```
-
-**Expect:** your version, then `PATH kubectl: /usr/local/bin/kubectl`.
-
-No access to `dl.k8s.io`: use the Supervisor's kubectl instead (older, amd64 only):
+The Supervisor's kubectl, downloaded with vCenter's CA; step 7 replaces it with your guest cluster's
+version.
 
 ```sh
 source ~/.vks-golang-web.env
-case "$(uname -s)/$(uname -m)" in
-  Darwin/*)     PLUGIN_OS=darwin-amd64 ;;
-  *)            PLUGIN_OS=linux-amd64  ;;
-esac
+mkdir -p "$(dirname "$SUPERVISOR_CA")"
 T="$(mktemp -d)"
-curl -fsSk -o "$T/plugin.zip" "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${PLUGIN_OS}/vsphere-plugin.zip"
+curl -fsSk --max-time 60 -o "$T/certs.zip" "https://${VCENTER_FQDN}/certs/download.zip"
+unzip -oqj "$T/certs.zip" -d "$T/certs"
+cat "$T"/certs/*.0 > "$SUPERVISOR_CA"
+openssl x509 -in "$SUPERVISOR_CA" -noout -subject -fingerprint -sha256
+case "$(uname -s)" in Darwin) P=darwin-amd64 ;; *) P=linux-amd64 ;; esac
+curl -fsS --cacert "$SUPERVISOR_CA" -o "$T/plugin.zip" "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${P}/vsphere-plugin.zip"
 unzip -oq "$T/plugin.zip" -d "$T"
 sudo install -d /usr/local/bin
-sudo install "$T/bin/kubectl" /usr/local/bin/kubectl
+sudo install -m 0755 "$T/bin/kubectl" /usr/local/bin/kubectl
 rm -rf "$T"
 /usr/local/bin/kubectl version --client
 ```
+
+**Expect:** a `subject=` line naming `CA` and `vsphere`, a fingerprint equal to your administrator's
+(if not, stop), then `Client Version: v1.…+vmware…`.
 
 ### VCF CLI
 
@@ -224,7 +216,7 @@ curl -fsSk "https://${HARBOR_FQDN}/api/v2.0/systeminfo/getcert" -o "$HARBOR_CA"
 openssl x509 -in "$HARBOR_CA" -noout -fingerprint -sha256
 ```
 
-**Expect:** a SHA-256 fingerprint. Confirm it with your Harbor administrator.
+**Expect:** a SHA-256 fingerprint equal to your administrator's — if not, stop.
 
 Install it for your engine — podman, Linux and macOS:
 
@@ -266,24 +258,11 @@ curl -s --cacert "$HARBOR_CA" -o /dev/null -w 'http=%{http_code}\n' \
 source ~/.vks-golang-web.env
 git clone https://github.com/AndriyKalashnykov/golang-web.git
 cd golang-web
-make deps
 ```
 
 Run everything below from this directory.
 
-## 5. Build the image
-
-```sh
-source ~/.vks-golang-web.env
-export IMAGE="${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web:$(cat version.txt)"
-echo "$IMAGE"
-
-make image-build IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
-```
-
-**Expect:** the image name, with your Harbor and project, then a finished build.
-
-## 6. Harbor credentials
+## 5. Harbor credentials
 
 Create a robot (needs `HARBOR_ADMIN_PASSWORD`; skip if you were given one). `harbor_cfg` comes from
 the env file (step 1):
@@ -307,7 +286,7 @@ rm -f /tmp/robot.json "$CFG"
 
 **Expect:** two lines — the robot name and its secret. The secret is shown once.
 
-Put them in `~/.vks-golang-web.env`, in single quotes:
+In `~/.vks-golang-web.env`, replace the two `REGISTRY_*` lines with (single quotes):
 
 ```sh
 export REGISTRY_USERNAME='robot$apps+golang-web-push'
@@ -330,10 +309,12 @@ make registry-login IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 
 **Expect:** `Login Succeeded`.
 
-## 7. Push the image
+## 6. Build and push the image
 
 ```sh
 source ~/.vks-golang-web.env
+export IMAGE="${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web:$(cat version.txt)"
+echo "$IMAGE"
 make image-push IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 ```
 
@@ -348,41 +329,27 @@ curl -fsS --cacert "$HARBOR_CA" -K "$CFG" \
 rm -f "$CFG"
 ```
 
-**Expect:** a digest and your version tag.
+**Expect:** the image name, a finished build and push, then a digest and your version tag.
 
-## 8. Get the kubeconfigs
-
-Supervisor CA:
-
-```sh
-source ~/.vks-golang-web.env
-mkdir -p "$(dirname "$SUPERVISOR_CA")"
-VCTMP="$(mktemp -d)"
-curl -fsSk --max-time 60 -o "$VCTMP/certs.zip" "https://${VCENTER_FQDN}/certs/download.zip"
-unzip -oqj "$VCTMP/certs.zip" -d "$VCTMP/certs"
-cat "$VCTMP"/certs/*.0 > "$SUPERVISOR_CA"
-rm -rf "$VCTMP"
-
-[ -s "$SUPERVISOR_CA" ] || echo "FAILED: $SUPERVISOR_CA is empty — the fetch above did not work"
-openssl x509 -in "$SUPERVISOR_CA" -noout -subject -fingerprint -sha256
-```
-
-**Expect:** `subject=CN = CA, DC = vsphere, …` and a fingerprint.
+## 7. Get the kubeconfigs
 
 Log in to the Supervisor. **Three failed logins lock the SSO account.**
 
 ```sh
 source ~/.vks-golang-web.env
-KUBECONFIG="$SUPERVISOR_KUBECONFIG" \
-  vcf context create supervisor --type k8s \
-    --endpoint "https://${SUPERVISOR_ENDPOINT}" \
-    --username "$SSO_USERNAME" \
-    --ca-certificate "$SUPERVISOR_CA"
-
-kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" config use-context supervisor
+if [ -z "$VCF_CLI_VSPHERE_PASSWORD" ] || [ "${VCF_CLI_VSPHERE_PASSWORD#<}" != "$VCF_CLI_VSPHERE_PASSWORD" ]; then
+  echo "Set VCF_CLI_VSPHERE_PASSWORD in ~/.vks-golang-web.env first (vcf reads the password from it)"
+else
+  KUBECONFIG="$SUPERVISOR_KUBECONFIG" \
+    vcf context create supervisor --type k8s \
+      --endpoint "https://${SUPERVISOR_ENDPOINT}" \
+      --username "$SSO_USERNAME" \
+      --ca-certificate "$SUPERVISOR_CA"
+  kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" config use-context supervisor
+fi
 ```
 
-If it says `context "supervisor" already exists`, run the vcf-contexts block in step 11, then
+If it says `context "supervisor" already exists`, run the vcf-contexts block in step 10, then
 this one again.
 
 ```sh
@@ -401,13 +368,25 @@ source ~/.vks-golang-web.env
     get secret "${VKS_CLUSTER}-kubeconfig" -o jsonpath='{.data.value}' \
     | base64 -d > "$GUEST_KUBECONFIG" )
 
+V="$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')"; V="${V%%+*}"
+case "$(uname -s)/$(uname -m)" in
+  Darwin/arm64)  K=darwin/arm64 ;;
+  Darwin/*)      K=darwin/amd64 ;;
+  Linux/aarch64) K=linux/arm64  ;;
+  *)             K=linux/amd64  ;;
+esac
+T="$(mktemp -d)"
+[ -n "$V" ] && curl -fsSL -o "$T/kubectl" "https://dl.k8s.io/release/${V}/bin/${K}/kubectl" \
+  && sudo install -m 0755 "$T/kubectl" /usr/local/bin/kubectl
+rm -rf "$T"
+
 kubectl get nodes
 kubectl version -o json | jq -r '"client \(.clientVersion.gitVersion)  server \(.serverVersion.gitVersion)"'
 ```
 
-**Expect:** every node `Ready`, and client and server at most one minor version apart.
+**Expect:** every node `Ready`, and the same client and server version (`v1.36.2` and `v1.36.2+vmware.2`).
 
-## 9. Deploy
+## 8. Deploy
 
 ```sh
 source ~/.vks-golang-web.env
@@ -415,7 +394,7 @@ kubectl create namespace golang-web --dry-run=client -o yaml | kubectl apply -f 
 kubectl config set-context --current --namespace=golang-web
 ```
 
-Private Harbor project only:
+Registry pull secret:
 
 ```sh
 source ~/.vks-golang-web.env
@@ -427,7 +406,7 @@ D="$(mktemp -d)"
     > "$D/dockercfg.json" )
 kubectl create secret generic harbor-creds \
   --type=kubernetes.io/dockerconfigjson \
-  --from-file=.dockerconfigjson="$D/dockercfg.json"
+  --from-file=.dockerconfigjson="$D/dockercfg.json" --dry-run=client -o yaml | kubectl apply -f -
 rm -rf "$D"
 kubectl patch serviceaccount default -p '{"imagePullSecrets":[{"name":"harbor-creds"}]}'
 ```
@@ -442,7 +421,7 @@ DIGEST="$(curl -fsS --cacert "$HARBOR_CA" -K "$CFG" \
   "https://${HARBOR_FQDN}/api/v2.0/projects/${HARBOR_PROJECT}/repositories/golang-web/artifacts/$(cat version.txt)" \
   | jq -r '.digest // empty')"
 rm -f "$CFG"
-echo "${IMAGE} -> ${DIGEST:-NOT FOUND — read the curl error above: 404 = not pushed (step 7); 401 = wrong credentials or HARBOR_PROJECT; 403 = the robot lacks artifact read; certificate = HARBOR_CA (step 3)}"
+echo "${IMAGE} -> ${DIGEST:-NOT FOUND — read the curl error above: 404 = not pushed (step 6); 401 = wrong credentials or HARBOR_PROJECT; 403 = the robot lacks artifact read; certificate = HARBOR_CA (step 3)}"
 
 [ -n "$DIGEST" ] && \
   sed "s|image: .*/golang-web:.*|image: ${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web@${DIGEST}|" \
@@ -459,7 +438,7 @@ kubectl get pods -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,IMAG
 
 **Expect:** `IMAGEID` ends with the digest printed above.
 
-## 10. Reach the app
+## 9. Reach the app
 
 ```sh
 source ~/.vks-golang-web.env
@@ -486,7 +465,7 @@ curl -s http://localhost:8080/myhello/
 
 `/myhello/` and `/healthz` return 200; `/` returns 404 by design.
 
-## 11. Clean up
+## 10. Clean up
 
 The deployment:
 
@@ -535,7 +514,8 @@ for c in $(vcf context list 2>/dev/null | awk '$1 ~ /^supervisor:/{print $1}'); 
   vcf context delete "$c" -y --skip-delete-kubeconfig-context
 done
 vcf context delete supervisor -y --skip-delete-kubeconfig-context
-vcf context list          # confirm none remain
+rm -f ~/.config/vcf/logs/audit/cli_audit.log
+vcf context list
 ```
 
 The Harbor CA — podman, Linux and macOS:
@@ -559,12 +539,13 @@ source ~/.vks-golang-web.env
 colima ssh -- sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
 ```
 
-The files this guide wrote (then delete the `golang-web` clone):
+The files this guide wrote, and the clone:
 
 ```sh
 source ~/.vks-golang-web.env
 rm -f  "$HARBOR_CA" "$SUPERVISOR_CA" "$SUPERVISOR_KUBECONFIG" "$GUEST_KUBECONFIG"
 rmdir  "$HOME/.config/vks-golang-web" 2>/dev/null
+cd .. && rm -rf golang-web
 ```
 
 The variables:
@@ -587,10 +568,11 @@ unset -f harbor_cfg 2>/dev/null || true
 | `docker: unknown command: docker buildx` (macOS) | Re-run the `ln -sfn … docker-buildx` line in step 2. |
 | `dial unix /var/run/docker.sock` (macOS) | `colima start` |
 | `bad CPU type in executable` (macOS) | `softwareupdate --install-rosetta --agree-to-license` |
+| `ImagePullBackOff` with `x509` in `kubectl describe pod` | The guest cluster does not trust Harbor's CA — ask your administrator. |
 | `vcf plugin list` hangs on `Refreshing plugin inventory cache` | `Ctrl-C`; the installed plugins need no registry. |
-| `403` on the step 7 or 9 lookup | The robot needs `artifact` read and list; create it with step 6. |
-| `unauthorized` on push | Re-run step 6's login; a robot stops working when its `duration` (days) ends. |
-| Pod crash-loops or serves an old build | Deploy by digest (step 9), then check `IMAGEID`. |
+| `403` on the step 6 or 8 lookup | The robot needs `artifact` read and list; create it with step 5. |
+| `unauthorized` on push | Re-run step 5's login; a robot stops working when its `duration` (days) ends. |
+| Pod crash-loops or serves an old build | Deploy by digest (step 8), then check `IMAGEID`. |
 | `exec format error` in the pod | `make image-build PLATFORM=linux/amd64`, then push again. |
 | Pod rejected at admission | The cluster enforces `restricted`; `k8s/golang-web.yaml` complies — keep your changes compliant. |
-| `EXTERNAL-IP` stays `<pending>` | Use the port-forward in step 10. |
+| `EXTERNAL-IP` stays `<pending>` | Use the port-forward in step 9. |
