@@ -190,17 +190,21 @@ both Terms links), or the download icons do nothing.
 - Pick the release first — until you do, the page reads "No data found". The direct links skip this.
 - Take the row for your platform, not the multi-GB platform-less bundles beside it.
 
-The block picks this machine's files from `~/Downloads`; if you saved them elsewhere, change that folder.
+The block picks this machine's newest downloads from `~/Downloads`; if you saved them elsewhere,
+change `DL`.
 
 ```sh
+DL="$HOME/Downloads"
 case "$(uname -s)/$(uname -m)" in
   Linux/x86_64)  P=Linux_AMD64 ;;
   Darwin/arm64)  P=Darwin_ARM64 ;;
   Darwin/x86_64) P=Darwin_AMD64 ;;
   *) P=unsupported; echo "no VCF CLI build for $(uname -s)/$(uname -m)" ;;
 esac
-CLI_TGZ="$HOME/Downloads/VCF-Consumption-CLI-${P}-9.1.1.0.25662425.tar.gz"
-PLUGINS_TGZ="$HOME/Downloads/VCF-Consumption-CLI-PluginBundle-${P}-9.1.1.0.25665404.tar.gz"
+CLI_TGZ="$(find "$DL" -maxdepth 1 -name "VCF-Consumption-CLI-${P}-*.tar.gz" | sort -V | tail -1)"
+PLUGINS_TGZ="$(find "$DL" -maxdepth 1 -name "VCF-Consumption-CLI-PluginBundle-${P}-*.tar.gz" | sort -V | tail -1)"
+echo "CLI: ${CLI_TGZ:-NOT FOUND in $DL}"
+echo "plugins: ${PLUGINS_TGZ:-NOT FOUND in $DL}"
 
 T="$(mktemp -d)"
 tar -xzf "$CLI_TGZ" -C "$T"
