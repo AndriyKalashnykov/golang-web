@@ -217,7 +217,6 @@ vcf version | head -1
 ### Check
 
 ```sh
-source ~/.vks-golang-web.env
 for t in curl unzip openssl jq git make kubectl vcf; do
   command -v "$t" >/dev/null 2>&1 || echo "MISSING: $t"
 done
@@ -278,7 +277,6 @@ curl -s --cacert "$HARBOR_CA" -o /dev/null -w 'http=%{http_code}\n' \
 ## 4. Check out the repo
 
 ```sh
-source ~/.vks-golang-web.env
 git clone https://github.com/AndriyKalashnykov/golang-web.git
 cd golang-web
 ```
@@ -539,7 +537,6 @@ done
 The vcf contexts:
 
 ```sh
-source ~/.vks-golang-web.env
 for c in $(vcf context list 2>/dev/null | awk '$1 ~ /^supervisor:/{print $1}'); do
   vcf context delete "$c" -y --skip-delete-kubeconfig-context
 done
