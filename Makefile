@@ -13,19 +13,15 @@ VERSION := $(shell cat version.txt 2>/dev/null || echo v0.0.1)
 # pod goes ImagePullBackOff against a tag that does not exist remotely.
 IMAGE_REGISTRY ?= ghcr.io
 # Registry credentials are REGISTRY-neutral: this may be GHCR, Harbor, Docker Hub,
-# ECR, Quay... Only the DEFAULT happens to be GHCR. GH_ACCESS_TOKEN / CR_PAT are
-# accepted as fallbacks purely so an already-exported GitHub PAT works out of the
-# box against the default registry -- they are NOT the canonical name.
-# (Contrast `renovate-validate`, which keeps GH_ACCESS_TOKEN deliberately: that
-# credential must be a GitHub token, so the provider belongs in its name.)
+# ECR, Quay... Only the DEFAULT happens to be GHCR. REGISTRY_TOKEN is the one name
+# for every registry (GH_ACCESS_TOKEN / CR_PAT fallbacks were removed: nothing used
+# them, and they silently sent a GitHub PAT to whatever registry you logged in to).
 REGISTRY_USERNAME ?= $(OWNER)
-REGISTRY_TOKEN    ?= $(or $(GH_ACCESS_TOKEN),$(CR_PAT))
 # Exported so the RECIPE SHELL can read them as `$$VAR`. Without this the recipe would have to
 # use `$(VAR)`, which is a make-time expansion -- see the comment on registry-login.
 export REGISTRY_TOKEN
 export REGISTRY_USERNAME
 OPV := $(IMAGE_REGISTRY)/$(OWNER)/$(PROJECT):$(VERSION)
-WEBPORT := 8080:8080
 CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 
 # === Tool Versions ===
@@ -83,7 +79,12 @@ export PATH := $(HOME)/.local/share/mise/shims:$(HOME)/.local/bin:$(PATH)
 SHELL := /usr/bin/env bash
 
 # === Tunables (override on the command line or via the environment) ===
+# APP_PORT: the port on THIS machine for `run`, `image-run-bg` and `image-test-fg`.
+# The app reads PORT (main.go, default 8080); the container always listens on 8080.
 APP_PORT           ?= 8080
+WEBPORT            := $(APP_PORT):8080
+# SERVICE_PORT: the port of golang-web-service in k8s/golang-web.yaml (KinD, e2e).
+SERVICE_PORT       ?= 8080
 ROLLOUT_TIMEOUT    ?= 120s
 LB_WAIT_TIMEOUT    ?= 120s
 LB_ROUTE_RETRIES   ?= 60
@@ -102,7 +103,16 @@ CURL_MAX_TIME      ?= 3
 COVERAGE_THRESHOLD ?= 75
 
 KIND_CLUSTER_NAME   := golang-web
-KIND_IMAGE          := $(OPV)
+# The KinD path builds its OWN tag, for the KinD node's architecture (see kind-create).
+# It must never reuse OPV: on an arm64 host OPV is built linux/amd64 for real clusters,
+# and an amd64 image in an arm64 KinD node never passed its startup probe (measured on
+# macOS/Colima: node arm64, image amd64, "connection refused" until killed; native OK).
+KIND_IMAGE          := $(OPV)-kind
+# act's "Medium" runner image, the one act itself offers on first run. It is a moving
+# tag upstream; passing it explicitly stops act from prompting (no prompt = no EOF crash
+# in a non-interactive shell).
+ACT_RUNNER_IMAGE    ?= catthehacker/ubuntu:act-latest
+ACT_ARCH            ?=
 
 # === Container engine ===
 # podman is preferred (rootless by default, no daemon); docker is fully supported.
@@ -134,8 +144,46 @@ DOCKERCMD := $(CONTAINER_ENGINE)
 # contract. Image targets stay dual-engine via $(DOCKERCMD).
 KIND_ENGINE ?= docker
 
-# uname is used only to pick the right podman install command in `deps`.
+# uname picks the podman install command in `deps` and the start hint below.
 HOST_OS := $(shell uname -s)
+
+# $(call engine_ready,<engine>): stop with a next step unless <engine> can run containers.
+# A CLI can be installed while its engine is not running (podman machine stopped, Colima
+# stopped, dockerd down); `info` fails fast then (measured on macOS: 0.05 s). perl's alarm
+# bounds it anyway, because macOS has no `timeout` and a wedged daemon can hang.
+define engine_ready
+if [ "$(1)" = none ]; then echo "No container engine found (podman or docker). Run: make deps"; exit 1; fi; \
+command -v $(1) >/dev/null 2>&1 || { echo "$(1) is not installed (or not on PATH)."; \
+	case "$(1)" in podman) echo "  Install it: make deps";; *) echo "  Install it: https://docs.docker.com/get-docker/";; esac; exit 1; }; \
+rc=0; err=$$( (perl -e 'alarm 15; exec @ARGV or exit 127' $(1) info >/dev/null) 2>&1 ) || rc=$$?; \
+if [ $$rc -ne 0 ]; then \
+	case "$$err" in \
+	  *[Pp]ermission?denied*) \
+	    echo "$(1) is running, but this user may not use it: $$(printf '%s' "$$err" | head -1)"; \
+	    echo "  Fix: sudo usermod -aG docker $$USER   then log out and back in";; \
+	  *) if [ $$rc -eq 142 ]; then echo "$(1) did not answer within 15 s (it may be hung). Check: $(1) info"; else \
+	    echo "$(1) is installed but not running."; \
+	    case "$(HOST_OS)/$(1)" in \
+	      Darwin/podman) if podman machine inspect --format '{{.State}}' 2>/dev/null | grep -qx running; then \
+	          echo "  Its VM is running but does not answer. Restart it:  podman machine stop && podman machine start"; \
+	        else echo "  Start its VM:  podman machine start"; fi; \
+	        (docker info >/dev/null 2>&1) && echo "  Or use Docker, which is running: add CONTAINER_ENGINE=docker to the make command";; \
+	      Darwin/docker) echo "  Start it:  colima start   (or open Docker Desktop / OrbStack)";; \
+	      */docker)      echo "  Start it:  sudo systemctl start docker";; \
+	      *)             echo "  Check it:  $(1) info";; \
+	    esac; fi;; \
+	esac; \
+	exit 1; \
+fi
+endef
+
+# $(call port_free,<port>,<target>): stop with a next step if something already listens on <port>.
+define port_free
+if (exec 3<>/dev/tcp/127.0.0.1/$(1)) 2>/dev/null; then \
+	echo "Port $(1) on this machine is already in use."; \
+	echo "  Free it, or use another port:  make $(2) APP_PORT=9090"; \
+	exit 1; fi
+endef
 
 BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 # unique id from last git commit
@@ -145,20 +193,20 @@ MY_GITREF := $(shell git rev-parse --short HEAD)
 help:
 	@echo "Usage: make COMMAND"
 	@echo "Commands :"
-	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-22s\033[0m - %s\n", $$1, $$2}'
+	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-28s\033[0m - %s\n", $$1, $$2}'
 	@echo ""
-	@echo "Container engines (resolved now; run 'make engines' for what each one does):"
-	@printf "\033[32m%-22s\033[0m - %s\n" "CONTAINER_ENGINE" "$(CONTAINER_ENGINE)  <- builds YOUR image; this is the one you set"
-	@printf "\033[32m%-22s\033[0m - %s\n" "KIND_ENGINE" "$(KIND_ENGINE)  <- kind's own containers; not yours to change"
-	@printf "\033[32m%-22s\033[0m - %s\n" "DIAGRAMS_ENGINE" "$(DIAGRAMS_ENGINE)  <- plantuml render"
+	@echo "Resolved now (override any of them on the command line):"
+	@printf "\033[32m%-28s\033[0m - %s\n" "CONTAINER_ENGINE" "$(CONTAINER_ENGINE)  <- builds and runs YOUR image (make engines explains)"
+	@printf "\033[32m%-28s\033[0m - %s\n" "KIND_ENGINE" "$(KIND_ENGINE)  <- kind's own containers; not yours to change"
+	@printf "\033[32m%-28s\033[0m - %s\n" "Image (image-push target)" "$(OPV)  <- set OWNER / IMAGE_REGISTRY for your own"
 	@echo ""
 	@echo "  one command : make image-build CONTAINER_ENGINE=docker"
 	@echo "  whole shell : export CONTAINER_ENGINE=docker"
 
 #engines: @ Show which container engine each path uses, and how to override it
 engines:
-	@echo "CONTAINER_ENGINE = $(CONTAINER_ENGINE)"
-	@echo "    Builds YOUR application image (image-build, image-run, e2e's build step)."
+	@echo "CONTAINER_ENGINE = $(CONTAINER_ENGINE)$(if $(filter none,$(CONTAINER_ENGINE)),  <- no engine found: run 'make deps' (installs podman))"
+	@echo "    Builds and runs YOUR image (image-*, diagrams, e2e's build step)."
 	@echo "    THIS is the knob you set. Auto-detected: podman if present, else docker."
 	@echo "    Override:  make image-build CONTAINER_ENGINE=docker"
 	@echo "               export CONTAINER_ENGINE=docker      # for the whole shell"
@@ -171,11 +219,6 @@ engines:
 	@echo "    CONTAINER_ENGINE, kind-create bridges the two image stores with"
 	@echo "    '<engine> save' + 'kind load image-archive'."
 	@echo ""
-	@echo "DIAGRAMS_ENGINE = $(DIAGRAMS_ENGINE)"
-	@echo "    Runs the plantuml container for 'make diagrams'. Prefers docker: rootless"
-	@echo "    podman needs --userns=keep-id locally and still cannot write on a GitHub"
-	@echo "    runner, so pinning it removes a silent no-op. Falls back to podman."
-	@echo ""
 	@echo "Engines found on this host:"
 	@for e in podman docker; do \
 		if command -v $$e >/dev/null 2>&1; then \
@@ -184,14 +227,13 @@ engines:
 	done
 
 #deps: @ Install the pinned toolchain via mise (.mise.toml)
-deps:
+deps: deps-engine
 	@# mise owns every tool version. This replaces the old
 	@# `command -v <tool> >/dev/null || go install ...@$(VERSION)` guards,
 	@# which SHORT-CIRCUITED whenever any version of the tool was already on
 	@# PATH -- so the pinned version was never actually installed and local
 	@# tools silently drifted from the pins. `mise install` is idempotent and
 	@# always converges on the pinned version, on Linux and macOS alike.
-	@$(MAKE) --no-print-directory deps-engine
 	@if ! command -v mise >/dev/null 2>&1; then \
 		if [ -n "$$CI" ]; then \
 			echo "Error: mise not installed in CI. Ensure jdx/mise-action runs before 'make deps'."; \
@@ -204,16 +246,28 @@ deps:
 		echo "mise installed. make targets find its tools themselves (this Makefile puts"; \
 		echo "~/.local/share/mise/shims on PATH), so no shell setup is needed. Installing them now."; \
 	fi
-	@mise install --yes
+	@# Every target depends on deps, so install ONLY when something is missing: an
+	@# up-to-date box printed ~15 lines of "already installed" before each target's
+	@# own output. When a tool IS missing, mise's output is shown unfiltered.
+	@# `mise ls --local --missing` exits 0 either way; its OUTPUT is the answer.
+	@# If `mise ls` itself fails (a broken .mise.toml), run the install anyway so the user
+	@# sees mise's real error instead of a silent success.
+	@missing=$$(mise ls --local --missing 2>/dev/null | awk '{print $$1}' | tr '\n' ' ') || missing="(could not list; installing)"; \
+	if [ -n "$$missing" ]; then \
+		echo "Installing pinned tools: $$missing"; \
+		mise install --yes; \
+	fi
 
 #deps-engine: @ Ensure a container engine is present (installs podman if neither is)
 deps-engine:
 	@# Either engine works. podman is installed when neither is present because it
 	@# is rootless by default and needs no daemon; docker is equally supported and
 	@# is picked up automatically if it is the one already installed.
+	@# The engine is only NAMED here, once per top-level make (not in nested makes).
+	@# Whether it is RUNNING is checked by the targets that need it (engine_ready), so
+	@# a stopped podman VM no longer prints an ERROR before `make build` or `make test`.
 	@if [ "$(CONTAINER_ENGINE)" != "none" ]; then \
-		echo "Container engine: $(CONTAINER_ENGINE) ($$($(CONTAINER_ENGINE) --version 2>/dev/null | head -1))"; \
-		$(MAKE) --no-print-directory deps-buildx || echo "  (a warning here: only image targets need buildx; they check it again and stop)"; \
+		[ "$(MAKELEVEL)" != 0 ] || echo "Container engine: $(CONTAINER_ENGINE) ($$($(CONTAINER_ENGINE) --version 2>/dev/null | head -1))"; \
 		exit 0; \
 	fi; \
 	echo "No container engine found (looked for podman, then docker)."; \
@@ -244,7 +298,8 @@ deps-buildx:
 	@# built-in buildah shim, but for DOCKER on Debian/Ubuntu buildx is a SEPARATE
 	@# package (`docker-buildx-plugin`) -- a plain `apt-get install docker.io` yields a
 	@# docker that cannot build this image. Check it here rather than failing mid-build.
-	@$(CONTAINER_ENGINE) buildx version >/dev/null 2>&1 && exit 0; \
+	@$(call engine_ready,$(CONTAINER_ENGINE))
+	@$(CONTAINER_ENGINE) buildx version >/dev/null 2>&1 && { [ "$(MAKELEVEL)" != 0 ] || echo "$(CONTAINER_ENGINE) buildx is available."; exit 0; }; \
 	echo "ERROR: '$(CONTAINER_ENGINE) buildx' is not available -- 'make image-build' cannot run."; \
 	if [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
 		case "$(HOST_OS)" in \
@@ -256,12 +311,11 @@ deps-buildx:
 		          echo "  Or switch engines:   make image-build CONTAINER_ENGINE=podman";; \
 		esac; \
 	else \
-		echo "  podman provides buildx via buildah. On macOS, is the VM running? podman machine start"; \
-		echo "  Otherwise upgrade podman (>= 4.0)."; \
+		echo "  podman provides buildx via buildah: upgrade podman to 4.0 or newer."; \
 	fi; \
 	exit 1
 
-#registry-login: @ Log in to $(IMAGE_REGISTRY) so `make image-push` can publish
+#registry-login: @ Log in to IMAGE_REGISTRY (see the footer) so `make image-push` can publish
 registry-login:
 	@# The token is passed on STDIN, never on the command line -- anything in argv is
 	@# visible to any local user via `ps` / /proc/<pid>/cmdline for the life of the call.
@@ -271,37 +325,39 @@ registry-login:
 	@# SHELL, which reads it from the exported environment instead -- argv stays clean.
 	@# The same applies to REGISTRY_USERNAME: a Harbor robot is named `robot$$project+name`, and
 	@# make ate the `$a`, turning robot$$apps+golang-web-push into robotpps+golang-web-push.
-	@tok="$$REGISTRY_TOKEN"; usr="$$REGISTRY_USERNAME"; \
-	[ -n "$$usr" ] || usr='$(REGISTRY_USERNAME)'; \
-	if [ -z "$$tok" ]; then \
+	@if [ -z "$$REGISTRY_TOKEN" ]; then \
 		echo "ERROR: no credential for $(IMAGE_REGISTRY) in the environment."; \
 		echo "    export REGISTRY_TOKEN=<token-or-password>"; \
-		echo "    export REGISTRY_USERNAME=<user>   # optional; defaults to $(OWNER)"; \
+		echo "    export REGISTRY_USERNAME=<user>   # optional; defaults to OWNER ($(OWNER))"; \
 		echo "    make registry-login"; \
+		echo "  Not $(OWNER)? Set your own namespace too: make registry-login OWNER=<you>"; \
 		case "$(IMAGE_REGISTRY)" in \
 		  ghcr.io) echo "  For ghcr.io this is a GitHub PAT with 'write:packages':"; \
-		           echo "  https://github.com/settings/tokens"; \
-		           echo "  (GH_ACCESS_TOKEN / CR_PAT are also accepted for convenience.)";; \
+		           echo "  https://github.com/settings/tokens";; \
 		  *)       echo "  Use whatever credential $(IMAGE_REGISTRY) issues (Harbor robot"; \
 		           echo "  account, Docker Hub access token, ECR password, ...).";; \
 		esac; \
 		exit 1; \
-	fi; \
-	printf '%s' "$$tok" | $(CONTAINER_ENGINE) login $(IMAGE_REGISTRY) -u "$$usr" --password-stdin
+	fi
+	@$(call engine_ready,$(CONTAINER_ENGINE))
+	@# REGISTRY_USERNAME is exported (default: OWNER), so the SHELL reads it -- never `$(...)`
+	@# here, or a Harbor robot name like robot$$apps+x is expanded by make and by the shell.
+	@printf '%s' "$$REGISTRY_TOKEN" | $(CONTAINER_ENGINE) login $(IMAGE_REGISTRY) -u "$$REGISTRY_USERNAME" --password-stdin
 
-#deps-verify: @ Verify every pinned tool is on PATH (fails with a pointer to `make deps`)
-deps-verify: deps
-	@missing=""; \
-	for t in go golangci-lint gosec gitleaks actionlint shellcheck hadolint trivy govulncheck; do \
-		command -v "$$t" >/dev/null 2>&1 || missing="$$missing $$t"; \
-	done; \
-	if [ -n "$$missing" ]; then \
-		echo "Error: not on PATH:$$missing"; \
-		echo "Run 'make deps', and ensure mise is activated in your shell:"; \
-		echo "  eval \"\$$(~/.local/bin/mise activate bash)\"   # or the zsh equivalent"; \
-		exit 1; \
-	fi; \
-	echo "All pinned tools present."
+#deps-verify: @ Check that every tool pinned in .mise.toml is installed (installs nothing)
+deps-verify:
+	@# It used to depend on `deps`, so it INSTALLED everything (podman via sudo, mise, 12
+	@# tools) and then reported success -- it could never fail. It also checked
+	@# `command -v`, which a mise shim satisfies even when the PINNED version is missing.
+	@command -v mise >/dev/null 2>&1 || { echo "mise is not installed. Run: make deps"; exit 1; }
+	@# mise's own error must stay visible: with a broken .mise.toml `mise ls` fails with EMPTY
+	@# output, which read as "nothing missing" and printed "All 0 ... installed" (measured).
+	@all=$$(mise ls --local) || { echo "mise could not read .mise.toml (error above). Fix it, then: make deps"; exit 1; }; \
+	count=$$(printf '%s\n' "$$all" | grep -c .); \
+	[ "$$count" -gt 0 ] || { echo "mise lists no tools from .mise.toml; is this the repo root?"; exit 1; }; \
+	missing=$$(mise ls --local --missing | awk '{print $$1}' | tr '\n' ' '); \
+	if [ -n "$$missing" ]; then echo "Missing pinned tools: $$missing"; echo "Run: make deps"; exit 1; fi; \
+	echo "All $$count pinned tools in .mise.toml are installed."
 
 #check-toolchain-alignment: @ Verify the Go version agrees across go.mod, Dockerfile and .mise.toml
 check-toolchain-alignment:
@@ -346,7 +402,7 @@ lint: deps
 
 #lint-ci: @ Lint GitHub Actions workflows
 lint-ci: deps
-	@actionlint
+	@actionlint && echo "GitHub Actions workflows: no issues."
 
 #sec: @ Run security scanner
 sec: deps
@@ -361,74 +417,41 @@ secrets: deps
 	@gitleaks detect --source . --verbose --redact
 
 #diagrams: @ Render docs/diagrams/*.puml to PNG
-# How to map the invoking user into the plantuml container, per engine.
-# ROOTLESS PODMAN maps `-u <uid>` to a SUBUID, not the host uid, so the container
-# cannot write the host-owned bind mount -- plantuml prints "Cannot write to file"
-# and STILL EXITS 0, so the render silently produces nothing. --userns=keep-id
-# maps the host uid through instead. Measured with the pinned tag:
-#   -u uid:gid      -> "Cannot write to file", rc=0, PNG untouched
-#   --userns=keep-id-> renders, byte-identical to docker's output
-# The plantuml render is pinned to DOCKER, for the same reason the KinD path is.
-# Measured: docker with -u uid:gid renders byte-identically here; rootless podman
-# needs --userns=keep-id locally and STILL fails on the GitHub runner -- run
-# 35798784796 logged "Cannot write to file" with keep-id applied and JAVA_TOOL_OPTIONS
-# picked up, because the runner's podman maps uids differently again. Docker is
-# present on ubuntu-latest and on this box, so pinning removes the variability
-# instead of chasing a third uid-mapping. podman stays the fallback where docker
-# is absent, with the keep-id mapping that does work locally.
-DIAGRAMS_ENGINE ?= $(if $(shell command -v docker 2>/dev/null),docker,$(DOCKERCMD))
-PLANTUML_RUN_FLAGS := $(if $(filter podman,$(DIAGRAMS_ENGINE)),--userns=keep-id,-u "$$(id -u):$$(id -g)")
-
-# The container user has no passwd entry, so OpenJDK resolves user.home to "?"
-# and writes its fontconfig cache into the BIND MOUNT -- littering the repo with
-# docs/diagrams/?/.java/fonts and docs/diagrams/.java/fonts. `-e HOME=/tmp` does
-# NOT fix it: OpenJDK derives user.home from getpwuid(), not $HOME. Only
-# -Duser.home redirects it.
-
+# Each .puml is piped through plantuml's stdin and the PNG read from its stdout, so
+# nothing is bind-mounted. That removes three measured failures of the old `-v` form:
+# rootless podman could not write the mount (plantuml still exited 0), act's copied
+# workdir was invisible to the host daemon, and --bind to fix that left root-owned
+# files (manager, .git/index) in the checkout. Measured: the piped render is
+# byte-identical to the committed PNG with docker AND podman, an invalid diagram exits
+# 200 with the error on stderr, empty input exits 50 -- so the exit code is trustworthy.
+# `docker.io/` is spelled out: podman on stock Ubuntu has no unqualified-search registry.
 diagrams:
-	@# Pre-create the output dir AS THE INVOKING USER: `docker run -v` creates a
-	@# missing bind-mount source as root, and the next non-root write then fails.
+	@$(call engine_ready,$(CONTAINER_ENGINE))
 	@mkdir -p docs/diagrams/out
-	@# The marker predates the render, so every expected PNG must end up NEWER
-	@# than it. plantuml exits 0 even when it cannot write, so an exit-code check
-	@# alone cannot catch a silent no-op -- and a no-op makes diagrams-check pass
-	@# VACUOUSLY (nothing rewritten => nothing for `git diff` to see).
-	@marker=$$(mktemp); \
-	$(DIAGRAMS_ENGINE) run --rm $(PLANTUML_RUN_FLAGS) \
-		-e JAVA_TOOL_OPTIONS=-Duser.home=/tmp \
-		-v "$$PWD/docs/diagrams:/data" \
-		plantuml/plantuml:$(PLANTUML_VERSION) \
-		-tpng -o /data/out /data/*.puml; \
-	rc=$$?; \
-	if [ $$rc -ne 0 ]; then rm -f "$$marker"; echo "ERROR: plantuml exited $$rc"; exit 1; fi; \
-	for puml in docs/diagrams/*.puml; do \
+	@for puml in docs/diagrams/*.puml; do \
 		png="docs/diagrams/out/$$(basename "$$puml" .puml).png"; \
-		if [ ! -f "$$png" ]; then rm -f "$$marker"; echo "ERROR: $$png was not produced"; exit 1; fi; \
-		if [ ! "$$png" -nt "$$marker" ]; then \
-			rm -f "$$marker"; \
-			echo "ERROR: $$png was NOT written by this run (engine=$(DIAGRAMS_ENGINE))."; \
-			echo "  plantuml exits 0 even when it cannot write the bind mount."; \
-			exit 1; \
-		fi; \
+		$(CONTAINER_ENGINE) run --rm -i docker.io/plantuml/plantuml:$(PLANTUML_VERSION) -tpng -pipe \
+			< "$$puml" > "$$png.tmp" || { rc=$$?; rm -f "$$png.tmp"; echo "ERROR: plantuml exit $$rc on $$puml (message above)."; exit 1; }; \
+		[ -s "$$png.tmp" ] || { rm -f "$$png.tmp"; echo "ERROR: plantuml produced no image for $$puml."; exit 1; }; \
+		mv "$$png.tmp" "$$png"; \
 	done; \
-	rm -f "$$marker"; \
 	echo "Diagrams rendered to docs/diagrams/out/."
 
 #diagrams-check: @ Verify committed diagram PNGs match their .puml sources
 diagrams-check:
 	@# Drift gate: re-render and diff. A committed PNG that no longer matches its
 	@# source means the README is advertising a stale architecture.
-	@command -v $(DIAGRAMS_ENGINE) >/dev/null 2>&1 || { echo "Skipping diagrams-check: $(DIAGRAMS_ENGINE) not available."; exit 0; }
-	@grep -q "C4-PlantUML/$(C4_PLANTUML_VERSION)/" docs/diagrams/*.puml || { \
+	@if [ "$(CONTAINER_ENGINE)" = none ]; then echo "Skipped diagrams-check: no container engine (run make deps to install podman)."; exit 0; fi; \
+	grep -q "C4-PlantUML/$(C4_PLANTUML_VERSION)/" docs/diagrams/*.puml || { \
 		echo "ERROR: a .puml !include does not pin C4-PlantUML $(C4_PLANTUML_VERSION)"; \
-		grep -n 'C4-PlantUML' docs/diagrams/*.puml; exit 1; }
-	@$(MAKE) --no-print-directory diagrams >/dev/null
-	@if ! git diff --quiet -- docs/diagrams/out/; then \
+		grep -n 'C4-PlantUML' docs/diagrams/*.puml; exit 1; }; \
+	out=$$($(MAKE) --no-print-directory diagrams 2>&1) || { printf '%s\n' "$$out"; exit 1; }; \
+	if ! git diff --quiet -- docs/diagrams/out/; then \
 		echo "ERROR: committed diagram PNGs are stale. Run 'make diagrams' and commit the result:"; \
 		git diff --stat -- docs/diagrams/out/; \
 		exit 1; \
-	fi
-	@echo "Diagrams up to date with their .puml sources."
+	fi; \
+	echo "Diagrams up to date with their .puml sources."
 
 #static-check: @ Run all quality and security checks
 static-check: check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config diagrams-check
@@ -437,10 +460,13 @@ static-check: check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy
 #format: @ Auto-format Go source files
 format: deps
 	@golangci-lint fmt ./...
+	@changed=$$(git status --porcelain -- '*.go' | wc -l | tr -d ' '); \
+	echo "Go sources formatted ($$changed file(s) now differ from git)."
 
 #run: @ Run the application locally
 run: deps
-	@go run main.go
+	@$(call port_free,$(APP_PORT),run)
+	@PORT=$(APP_PORT) go run main.go
 
 #coverage-check: @ Verify test coverage meets threshold
 coverage-check: deps
@@ -453,15 +479,22 @@ coverage-check: deps
 		echo "Coverage $${total}% meets $${threshold}% threshold"; \
 	fi
 
-#image-build: @ Build Docker image
+#image-build: @ Build the container image
 # Kubernetes/VKS nodes are amd64. On an arm64 host a native build pushes fine and then
 # dies at runtime with `exec format error`, so default to amd64 there. Override with
 # `make image-build PLATFORM=linux/arm64`, or PLATFORM= to build natively.
+# (The KinD targets do NOT use this default; they build for the KinD node instead.)
 HOST_ARCH := $(shell uname -m)
 ifneq ($(filter arm64 aarch64,$(HOST_ARCH)),)
 PLATFORM ?= linux/amd64
 endif
 PLATFORM ?=
+ifneq ($(filter arm64 aarch64,$(HOST_ARCH)),)
+ifeq ($(PLATFORM),linux/amd64)
+EMULATION_NOTE := echo "Note: this arm64 machine runs the linux/amd64 image under emulation (it is built for amd64 clusters). Native: add PLATFORM="
+endif
+endif
+EMULATION_NOTE ?= true
 
 # No `build` prerequisite: the Dockerfile compiles main.go in its own builder stage, so the host
 # binary (and the mise toolchain `build: deps` installs) is not needed to build the image.
@@ -469,17 +502,30 @@ image-build: deps-buildx
 	@echo MY_GITREF is $(MY_GITREF)
 	@$(DOCKERCMD) buildx build --load $(if $(PLATFORM),--platform $(PLATFORM)) --build-arg MY_VERSION=$(VERSION) --build-arg MY_BUILDTIME=$(BUILD_TIME) -f Dockerfile -t $(OPV) .
 
-#clean: @ Remove Docker image and build artifacts
+#clean: @ Remove the built image and build artifacts
 clean:
-	@$(DOCKERCMD) image rm $(OPV) || true
 	@rm -f manager coverage.out
+	@if [ "$(DOCKERCMD)" = none ]; then echo "Removed build artifacts (no container engine: image not checked)."; exit 0; fi; \
+	if ! perl -e 'alarm 15; exec @ARGV or exit 127' $(DOCKERCMD) info >/dev/null 2>&1; then \
+		echo "Removed build artifacts. $(DOCKERCMD) is not running, so image $(OPV) was not checked."; exit 0; fi; \
+	if [ -n "$$($(DOCKERCMD) ps -q --filter ancestor=$(OPV))$$($(DOCKERCMD) ps -q --filter ancestor=$(KIND_IMAGE))" ]; then \
+		echo "Image $(OPV) is used by a running container. Stop it first: make image-stop"; exit 1; fi; \
+	removed=""; for img in $(OPV) $(KIND_IMAGE); do \
+		if $(DOCKERCMD) image inspect $$img >/dev/null 2>&1; then $(DOCKERCMD) image rm $$img >/dev/null && removed="$$removed $$img"; fi; \
+	done; \
+	if [ -n "$$removed" ]; then echo "Removed build artifacts and image(s):$$removed"; else echo "Removed build artifacts; no image to remove."; fi
 
 #update: @ Update dependency packages to latest versions
 update: deps
-	@go get -u ./...; go mod tidy
+	@before=$$(cat go.mod go.sum | cksum); go get -u ./... && go mod tidy || exit 1; \
+	if [ "$$before" = "$$(cat go.mod go.sum | cksum)" ]; then echo "Dependencies already up to date."; \
+	else echo "Dependencies updated (go.mod / go.sum changed):"; git diff --stat -- go.mod go.sum; fi
 
 #image-test-fg: @ Run container in foreground with test overrides
 image-test-fg: image-build
+	@$(call port_free,$(APP_PORT),image-test-fg)
+	@$(EMULATION_NOTE)
+	@echo "Serving on http://localhost:$(APP_PORT)/myhello/ -- Ctrl-C to stop."
 	@$(DOCKERCMD) run -it -p $(WEBPORT) \
 	-e APP_CONTEXT=/myhello/ \
 	-e MY_NODE_NAME=node1 \
@@ -489,44 +535,58 @@ image-test-fg: image-build
 	-e MY_POD_SERVICE_ACCOUNT=podsa1 \
 	--rm $(OPV)
 
-#image-test-cli: @ Run container with shell entrypoint
-image-test-cli:
-	@$(DOCKERCMD) run -it --rm --entrypoint "/bin/sh" $(OPV)
-
 #image-run-bg: @ Run container in background
-image-run-bg: image-build
-	@$(DOCKERCMD) run -d -p $(WEBPORT) --rm --name $(PROJECT) $(OPV)
-
-#image-cli-bg: @ Get shell in running background container
-image-cli-bg: image-build
-	@$(DOCKERCMD) exec -it $(PROJECT) /bin/sh
+image-run-bg:
+	@$(call engine_ready,$(DOCKERCMD))
+	@if [ -n "$$($(DOCKERCMD) ps -q --filter name=^$(PROJECT)$$)" ]; then \
+		echo "$(PROJECT) is already running. Logs: make image-logs   stop: make image-stop"; exit 1; fi
+	@$(call port_free,$(APP_PORT),image-run-bg)
+	@$(MAKE) --no-print-directory image-build
+	@$(EMULATION_NOTE)
+	@$(DOCKERCMD) run -d -p $(WEBPORT) --rm --name $(PROJECT) $(OPV) >/dev/null && \
+	echo "$(PROJECT) running: http://localhost:$(APP_PORT)/   logs: make image-logs   stop: make image-stop"
 
 #image-logs: @ Tail container logs
 image-logs:
+	@$(call engine_ready,$(DOCKERCMD))
+	@[ -n "$$($(DOCKERCMD) ps -q --filter name=^$(PROJECT)$$)" ] || { echo "$(PROJECT) is not running. Start it: make image-run-bg"; exit 1; }
 	@$(DOCKERCMD) logs -f $(PROJECT)
 
 #image-stop: @ Stop background container
 image-stop:
-	@$(DOCKERCMD) stop $(PROJECT)
+	@$(call engine_ready,$(DOCKERCMD))
+	@if [ -n "$$($(DOCKERCMD) ps -q --filter name=^$(PROJECT)$$)" ]; then \
+		$(DOCKERCMD) stop $(PROJECT) >/dev/null && echo "Stopped $(PROJECT)."; \
+	else echo "$(PROJECT) is not running; nothing to stop."; fi
 
-#image-push: @ Push image to Docker Hub
+#image-push: @ Push the image to IMAGE_REGISTRY/OWNER (see the footer)
 image-push: image-build
 	@# A bare `push` against an unauthenticated engine fails with `denied` / `unauthorized`
 	@# and no hint about what to do. Say it here instead.
 	@$(CONTAINER_ENGINE) push $(OPV) || { \
 		echo ""; \
-		echo "Push failed. If this was an auth error, log in first:"; \
-		echo "    export REGISTRY_TOKEN=<credential for $(IMAGE_REGISTRY)>"; \
-		echo "    make registry-login"; \
+		echo "Push to $(OPV) failed."; \
+		echo "  Not your namespace? Push to yours:  make image-push OWNER=<you> [IMAGE_REGISTRY=<registry>]"; \
+		echo "  Not logged in?  export REGISTRY_TOKEN=<credential for $(IMAGE_REGISTRY)>; make registry-login"; \
 		exit 1; }
 
-#k8s-apply: @ Deploy to Kubernetes cluster
-k8s-apply:
-	@sed -e 's|image: .*/$(PROJECT):.*|image: $(OPV)|' k8s/golang-web.yaml | kubectl apply -f -
+# $(call kube_target,<verb>): name the cluster and namespace a kubectl target is about to touch.
+# k8s/golang-web.yaml sets no namespace, so the CONTEXT's namespace applies (default: "default").
+define kube_target
+ctx=$$(kubectl config current-context 2>/dev/null) || { echo "No kubectl context is set. Pick a cluster: kubectl config use-context <name>  (or: make kind-deploy)"; exit 1; }; \
+ns=$$(kubectl config view --minify -o jsonpath='{..namespace}' 2>/dev/null); \
+echo "$(1) context '$$ctx', namespace '$${ns:-default}'."
+endef
 
-#k8s-delete: @ Delete from Kubernetes cluster
+#k8s-apply: @ Deploy the pushed image to the CURRENT kubectl context
+k8s-apply:
+	@$(call kube_target,Deploying $(OPV) to); \
+	sed -e 's|image: .*/$(PROJECT):.*|image: $(OPV)|' k8s/golang-web.yaml | kubectl apply -f -
+
+#k8s-delete: @ Delete the app from the CURRENT kubectl context
 k8s-delete:
-	@kubectl delete -f k8s/golang-web.yaml --ignore-not-found=true
+	@$(call kube_target,Deleting golang-web from); \
+	kubectl delete -f k8s/golang-web.yaml --ignore-not-found=true
 
 #deps-kind: @ Verify KinD, kubectl and a KinD-capable engine are available
 deps-kind: deps
@@ -545,6 +605,7 @@ deps-kind: deps
 		echo "  the KinD path does not, because cloud-provider-kind mounts the Docker socket."; \
 		echo "  Install Docker: https://docs.docker.com/get-docker/"; \
 		exit 1; }
+	@$(call engine_ready,$(KIND_ENGINE))
 
 #kind-cloud-provider-start: @ Start cloud-provider-kind (supplies LoadBalancer IPs to KinD)
 kind-cloud-provider-start: deps-kind
@@ -553,15 +614,31 @@ kind-cloud-provider-start: deps-kind
 	@# IPs from that network's subnet. No in-cluster DaemonSet, no
 	@# IPAddressPool/L2Advertisement YAML, and none of MetalLB's nftables
 	@# fragility on recent kindest/node images. Idempotent.
+	@# On macOS the engine runs in a VM, so the LoadBalancer IP (kind network, e.g.
+	@# 172.18.0.4) is NOT reachable from the Mac: kind-deploy waited 319 s and failed.
+	@# --enable-lb-port-mapping makes each Service port also reachable on the Mac's
+	@# localhost at the SAME port number (measured: 8080 -> localhost:8080). Linux keeps
+	@# the plain controller: the LB IP is routable there (measured on Ubuntu 24.04).
 	@IMAGE="registry.k8s.io/cloud-provider-kind/cloud-controller-manager:v$(CLOUD_PROVIDER_KIND_VERSION)"; \
+	FLAGS="$(if $(filter Darwin,$(HOST_OS)),--enable-lb-port-mapping)"; \
 	if [ -n "$$($(KIND_ENGINE) ps -aq --filter name=^cloud-provider-kind$$)" ]; then \
+		if [ -n "$$FLAGS" ] && ! $(KIND_ENGINE) inspect -f '{{json .Args}}' cloud-provider-kind | grep -q -- "$$FLAGS"; then \
+			echo "cloud-provider-kind is already running WITHOUT $$FLAGS, which macOS needs to reach"; \
+			echo "the LoadBalancer from this Mac. It is shared by every KinD cluster here: recreate"; \
+			args=$$($(KIND_ENGINE) inspect -f '{{range .Args}}{{.}} {{end}}' cloud-provider-kind); \
+			echo "it with its current arguments PLUS $$FLAGS (it serves other projects too):"; \
+			echo "  current arguments: $${args:-none}"; \
+			echo "  $(KIND_ENGINE) rm -f cloud-provider-kind && $(KIND_ENGINE) run -d --name cloud-provider-kind --restart unless-stopped \\"; \
+			echo "    --network kind -v /var/run/docker.sock:/var/run/docker.sock $$IMAGE $$args$$FLAGS"; \
+			exit 1; \
+		fi; \
 		$(KIND_ENGINE) start cloud-provider-kind >/dev/null 2>&1 || true; \
 	else \
 		echo "Starting cloud-provider-kind v$(CLOUD_PROVIDER_KIND_VERSION)..."; \
 		$(KIND_ENGINE) run -d --name cloud-provider-kind --restart unless-stopped \
 			--network kind \
 			-v /var/run/docker.sock:/var/run/docker.sock \
-			"$$IMAGE" >/dev/null; \
+			"$$IMAGE" $$FLAGS >/dev/null; \
 	fi; \
 	if [ -z "$$($(KIND_ENGINE) ps -q --filter name=^cloud-provider-kind$$)" ]; then \
 		echo "ERROR: cloud-provider-kind container failed to start"; \
@@ -570,14 +647,24 @@ kind-cloud-provider-start: deps-kind
 	fi; \
 	echo "cloud-provider-kind running."
 
-#kind-cloud-provider-stop: @ Prune this cluster's kindccm-* sidecars (and the controller if unused)
+#kind-cloud-provider-stop: @ Clean up cloud-provider-kind after this cluster is gone (kind-delete runs it)
 #kind-cloud-provider-restart: @ Restart the SHARED LB controller (affects every KinD cluster on this host)
-kind-cloud-provider-restart:
-	@echo "Restarting cloud-provider-kind. Other KinD clusters on this host:"
-	@kind get clusters 2>/dev/null | grep -v "^$(KIND_CLUSTER_NAME)$$" | sed 's/^/  /' || true
+kind-cloud-provider-restart: deps-kind
+	@[ -n "$$($(KIND_ENGINE) ps -aq --filter name=^cloud-provider-kind$$)" ] || { echo "cloud-provider-kind is not running. Start it: make kind-cloud-provider-start"; exit 1; }
+	@others=$$(kind get clusters 2>/dev/null | grep -vx "$(KIND_CLUSTER_NAME)" | tr '\n' ' '); \
+	echo "Restarting cloud-provider-kind (shared; other KinD clusters here: $${others:-none})..."
 	@$(KIND_ENGINE) restart cloud-provider-kind >/dev/null && echo "Restarted."
 
 kind-cloud-provider-stop:
+	@# kind-delete runs this AFTER deleting the cluster. Called directly while the
+	@# cluster exists, it would delete the sidecars that cluster's LoadBalancer still
+	@# uses, so refuse instead.
+	@clusters=$$(kind get clusters 2>/dev/null) || { echo "Cannot list KinD clusters (is kind/docker working?); nothing stopped."; exit 1; }; \
+	if printf '%s\n' "$$clusters" | grep -qx "$(KIND_CLUSTER_NAME)"; then \
+		echo "KinD cluster '$(KIND_CLUSTER_NAME)' still exists and uses cloud-provider-kind; nothing stopped."; \
+		echo "  To remove the cluster and clean up after it: make kind-delete"; \
+		exit 1; \
+	fi
 	@# cloud-provider-kind spawns a per-Service Envoy sidecar named
 	@# kindccm-<hash>. These SURVIVE `kind delete cluster` and keep holding
 	@# IPs in the kind Docker subnet; a later kind-create can land on an
@@ -591,23 +678,58 @@ kind-cloud-provider-stop:
 	@ORPHANS=$$($(KIND_ENGINE) ps -aq \
 		--filter "label=io.x-k8s.cloud-provider-kind.cluster=$(KIND_CLUSTER_NAME)" 2>/dev/null); \
 	if [ -n "$$ORPHANS" ]; then \
-		echo "Removing kindccm-* sidecars for cluster '$(KIND_CLUSTER_NAME)'..."; \
+		echo "Removing leftover kindccm-* sidecars of '$(KIND_CLUSTER_NAME)'..."; \
 		$(KIND_ENGINE) rm -f $$ORPHANS >/dev/null 2>&1 || true; \
 	fi
 	@# The controller is a HOST-WIDE SINGLETON shared by every KinD cluster on
 	@# this machine. Only stop it once no KinD clusters remain, or tearing this
 	@# one down would strip LoadBalancer support from the others.
-	@REMAINING=$$(kind get clusters 2>/dev/null | grep -v "^$(KIND_CLUSTER_NAME)$$" | grep -c . || true); \
-	if [ "$${REMAINING:-0}" -eq 0 ]; then \
+	@clusters=$$(kind get clusters 2>/dev/null) || { echo "Cannot list KinD clusters; leaving cloud-provider-kind alone."; exit 1; }; \
+	REMAINING=$$(printf '%s\n' "$$clusters" | grep -c . || true); \
+	if [ "$${REMAINING:-0}" -ne 0 ]; then \
+		echo "$$REMAINING other KinD cluster(s) present; leaving cloud-provider-kind running."; \
+	elif [ -n "$$($(KIND_ENGINE) ps -aq --filter name=^cloud-provider-kind$$)" ]; then \
 		$(KIND_ENGINE) rm -f cloud-provider-kind >/dev/null 2>&1 || true; \
 		echo "No KinD clusters remain; cloud-provider-kind stopped."; \
 	else \
-		echo "$$REMAINING other KinD cluster(s) present; leaving cloud-provider-kind running."; \
+		echo "No KinD clusters remain; cloud-provider-kind was not running."; \
 	fi
 
+# Context AND namespace: k8s/golang-web.yaml sets no namespace, so without one every call
+# used the context's namespace -- MEASURED on a box where kind-golang-web carried a
+# namespace that did not exist, so apply, lookups and undeploy all missed the app.
+KIND_NAMESPACE ?= default
+KCTX := --context kind-$(KIND_CLUSTER_NAME) --namespace $(KIND_NAMESPACE)
+# The label cloud-provider-kind puts on THIS Service's sidecar (one sidecar per Service).
+KIND_LB_LABEL := io.x-k8s.cloud-provider-kind.loadbalancer.name=$(KIND_CLUSTER_NAME)/$(KIND_NAMESPACE)/golang-web-service
+
+# $(call kind_url): set URL to where THIS cluster's golang-web answers, or leave it empty.
+# Candidates: the LoadBalancer IP (routable on Linux) and, where cloud-provider-kind
+# publishes the Service port (macOS), that host port. A 200 is NOT proof: on macOS a
+# local `make image-run-bg` on the same port answered instead of the cluster (measured),
+# so the reply must name this cluster's node (MY_NODE_NAME, from the Downward API).
+define kind_url
+lbip=$$(kubectl $(KCTX) get svc golang-web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
+cands=""; [ -z "$$lbip" ] || cands="http://$$lbip:$(SERVICE_PORT)"; \
+sc=$$($(KIND_ENGINE) ps -q --filter label=$(KIND_LB_LABEL) | head -1); \
+if [ -n "$$sc" ]; then hp=$$($(KIND_ENGINE) port "$$sc" $(SERVICE_PORT)/tcp 2>/dev/null | head -1 | sed 's/.*://'); \
+  [ -z "$$hp" ] || cands="$$cands http://127.0.0.1:$$hp"; fi; \
+URL=""; for u in $$cands; do \
+  case "$$(curl -s --max-time $(CURL_MAX_TIME) "$$u/myhello/" 2>/dev/null)" in \
+    *"MY_NODE_NAME: $(KIND_CLUSTER_NAME)-control-plane"*) URL=$$u; break;; esac; done
+endef
+
 #kind-create: @ Create local KinD cluster with cloud-provider-kind LoadBalancer support
-kind-create: deps-kind image-build
-	@if kind get clusters 2>/dev/null | grep -q "^$(KIND_CLUSTER_NAME)$$"; then \
+kind-create: deps-kind
+	@# Build for the KinD NODE's architecture, taken from the engine kind runs on --
+	@# not PLATFORM's arm64-host default (amd64, for real clusters). Own tag: KIND_IMAGE.
+	@$(call engine_ready,$(KIND_ENGINE)); \
+	arch=$$($(KIND_ENGINE) info --format '{{.Architecture}}'); \
+	case "$$arch" in aarch64|arm64) plat=linux/arm64;; x86_64|amd64) plat=linux/amd64;; \
+	  *) echo "Unknown KinD node architecture '$$arch' ($(KIND_ENGINE) info)."; exit 1;; esac; \
+	echo "Building $(KIND_IMAGE) for the KinD node ($$plat)..."; \
+	$(MAKE) --no-print-directory image-build PLATFORM=$$plat OPV=$(KIND_IMAGE)
+	@if kind get clusters 2>/dev/null | grep -qx "$(KIND_CLUSTER_NAME)"; then \
 		echo "KinD cluster '$(KIND_CLUSTER_NAME)' already exists, switching context..."; \
 		kubectl config use-context kind-$(KIND_CLUSTER_NAME); \
 	else \
@@ -634,10 +756,27 @@ kind-create: deps-kind image-build
 
 #kind-deploy: @ Deploy application to KinD cluster and wait for rollout + routable LB
 kind-deploy: kind-create
-	@echo "Deploying to KinD cluster..."
-	@sed -e 's|image: .*/$(PROJECT):.*|image: $(OPV)|' k8s/golang-web.yaml | kubectl apply -f -
+	@# On macOS the Service port is published on this Mac's localhost. If something else
+	@# already serves it, the cluster cannot publish there -- say so before deploying.
+	@if [ "$(HOST_OS)" = Darwin ] && (exec 3<>/dev/tcp/127.0.0.1/$(SERVICE_PORT)) 2>/dev/null \
+	   && [ -z "$$($(KIND_ENGINE) ps -q --filter label=$(KIND_LB_LABEL))" ]; then \
+		case "$$(curl -s --max-time $(CURL_MAX_TIME) http://127.0.0.1:$(SERVICE_PORT)/myhello/ 2>/dev/null)" in \
+		  *"MY_NODE_NAME: $(KIND_CLUSTER_NAME)-control-plane"*) ;; \
+		  *) echo "Port $(SERVICE_PORT) on this Mac is already in use, and KinD publishes the Service there."; \
+		     echo "  Free it first (a local golang-web? make image-stop)."; exit 1;; \
+		esac; \
+	fi
+	@echo "Deploying $(KIND_IMAGE) to KinD cluster '$(KIND_CLUSTER_NAME)'..."
+	@# imagePullPolicy: Never -- the pod must run the image kind-create loaded, never a
+	@# registry copy that happens to share the tag.
+	@perl -pe 's|^(\s*)image: .*/$(PROJECT):.*|$$1image: $(KIND_IMAGE)\n$$1imagePullPolicy: Never|' k8s/golang-web.yaml \
+		| kubectl $(KCTX) apply -f -
 	@echo "Waiting for deployment rollout..."
-	@kubectl rollout status deployment/golang-web --timeout=$(ROLLOUT_TIMEOUT)
+	@kubectl $(KCTX) rollout status deployment/golang-web --timeout=$(ROLLOUT_TIMEOUT) || { \
+		echo ""; echo "Rollout did not finish. Pod state:"; \
+		kubectl $(KCTX) get pods -l app=golang-web -o wide; \
+		kubectl $(KCTX) get events --field-selector involvedObject.kind=Pod --sort-by=.lastTimestamp | tail -5; \
+		exit 1; }
 	@# Two-phase LoadBalancer readiness. Phase 1 waits for cloud-provider-kind
 	@# to ASSIGN an IP. Phase 2 waits for the data path to be ROUTABLE: the IP
 	@# appears in status.loadBalancer.ingress before the kindccm Envoy sidecar
@@ -650,9 +789,13 @@ kind-deploy: kind-create
 	@# and it never re-establishes one, so the IP stays <pending> forever with the
 	@# pod perfectly healthy. Say so, because a bare `kubectl wait` timeout points at
 	@# the Service and the real cause is a container on the host.
-	@kubectl wait --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' \
+	@kubectl $(KCTX) wait --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' \
 		svc/golang-web-service --timeout=$(LB_WAIT_TIMEOUT) || { \
 		echo ""; \
+		if $(KIND_ENGINE) logs cloud-provider-kind 2>&1 | grep -q 'already allocated'; then \
+			echo "No LoadBalancer IP: cloud-provider-kind could not publish port $(SERVICE_PORT) on this"; \
+			echo "machine because something else holds it. Free that port, then: make kind-deploy"; \
+			exit 1; fi; \
 		echo "No LoadBalancer IP. The pod may be fine -- check the CONTROLLER:"; \
 		echo "  $(KIND_ENGINE) logs --tail 20 cloud-provider-kind"; \
 		echo "If its last line is a watch EOF and nothing follows, it is wedged. Restart it:"; \
@@ -661,39 +804,43 @@ kind-deploy: kind-create
 		echo "host ($$(kind get clusters 2>/dev/null | tr '\n' ' ')) -- restarting it"; \
 		echo "re-reconciles THEIR LoadBalancers too, which can change their IPs."; \
 		exit 1; }
-	@EXTERNAL_IP=$$(kubectl get svc golang-web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}'); \
-	echo "Waiting for LoadBalancer route (phase 2/2) at $$EXTERNAL_IP..."; \
-	for i in $$(seq 1 $(LB_ROUTE_RETRIES)); do \
-		CODE=$$(curl -s -o /dev/null -w '%{http_code}' --max-time $(CURL_MAX_TIME) "http://$$EXTERNAL_IP:$(APP_PORT)/healthz" 2>/dev/null || echo 000); \
-		if [ "$$CODE" = "200" ]; then \
-			echo "Service routable at http://$$EXTERNAL_IP:$(APP_PORT)"; \
-			exit 0; \
-		fi; \
+	@echo "Waiting for the service to answer (phase 2/2)..."
+	@for i in $$(seq 1 $(LB_ROUTE_RETRIES)); do \
+		$(call kind_url); \
+		if [ -n "$$URL" ]; then echo "Service reachable at $$URL/myhello/"; exit 0; fi; \
 		sleep $(LB_POLL_INTERVAL); \
 	done; \
-	echo "ERROR: LoadBalancer $$EXTERNAL_IP not routable after $(LB_ROUTE_RETRIES) attempts"; \
-	kubectl get svc golang-web-service -o wide; \
-	kubectl get pods -l app=golang-web; \
+	echo "ERROR: golang-web in KinD did not answer after $(LB_ROUTE_RETRIES) attempts (tried: $${cands:-none -- no LoadBalancer IP})."; \
+	kubectl $(KCTX) get svc golang-web-service -o wide; \
+	kubectl $(KCTX) get pods -l app=golang-web; \
 	exit 1
 
 #kind-undeploy: @ Remove application from KinD cluster
-kind-undeploy:
-	@kubectl delete -f k8s/golang-web.yaml --ignore-not-found=true
+kind-undeploy: deps-kind
+	@kind get clusters 2>/dev/null | grep -qx "$(KIND_CLUSTER_NAME)" || { echo "No KinD cluster '$(KIND_CLUSTER_NAME)'; nothing to undeploy."; exit 0; }; \
+	out=$$(kubectl $(KCTX) delete -f k8s/golang-web.yaml --ignore-not-found=true 2>&1) || { printf '%s\n' "$$out"; exit 1; }; \
+	if [ -n "$$out" ]; then printf '%s\n' "$$out"; else echo "golang-web was not deployed in '$(KIND_CLUSTER_NAME)'; nothing to remove."; fi
 
-#kind-delete: @ Delete KinD cluster, stop cloud-provider-kind, prune kindccm-* sidecars
-kind-delete: kind-cloud-provider-stop
-	@kind delete cluster --name $(KIND_CLUSTER_NAME) 2>/dev/null || true
-	@echo "KinD cluster '$(KIND_CLUSTER_NAME)' deleted."
+#kind-delete: @ Delete KinD cluster, then stop cloud-provider-kind and prune its sidecars
+kind-delete: deps-kind
+	@# Delete the cluster FIRST: kind-cloud-provider-stop refuses while it exists, and
+	@# the sidecars it prunes survive the delete (they carry the cluster label).
+	@if kind get clusters 2>/dev/null | grep -qx "$(KIND_CLUSTER_NAME)"; then \
+		kind delete cluster --name $(KIND_CLUSTER_NAME) >/dev/null 2>&1 || { echo "kind delete cluster --name $(KIND_CLUSTER_NAME) failed."; exit 1; }; \
+		echo "KinD cluster '$(KIND_CLUSTER_NAME)' deleted."; \
+	else echo "No KinD cluster '$(KIND_CLUSTER_NAME)' to delete."; fi
+	@$(MAKE) --no-print-directory kind-cloud-provider-stop
 
 #e2e: @ Run end-to-end tests against KinD cluster
 e2e: kind-deploy
 	@echo "=== E2E Tests ==="
-	@EXTERNAL_IP=$$(kubectl get svc golang-web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}'); \
-	BASE_URL="http://$$EXTERNAL_IP:8080"; \
+	@$(call kind_url); \
+	[ -n "$$URL" ] || { echo "golang-web in KinD is not reachable (tried: $${cands:-none}). Run: make kind-deploy"; exit 1; }; \
+	BASE_URL="$$URL"; \
 	PASS=0; FAIL=0; \
 	echo "Base URL: $$BASE_URL"; \
 	echo ""; \
-	echo "--- Test 1: GET / returns 200 and Hello ---"; \
+	echo "--- Test 1: GET /myhello/ returns 200 and Hello ---"; \
 	RESP=$$(curl -sf "$$BASE_URL/myhello/"); \
 	if echo "$$RESP" | grep -q "Hello, World"; then \
 		echo "  PASS: Got 'Hello, World'"; PASS=$$((PASS+1)); \
@@ -742,19 +889,43 @@ e2e: kind-deploy
 ci: deps deps-verify format deps-prune-check static-check coverage-check build
 	@echo "Local CI pipeline passed."
 
-#ci-run: @ Run GitHub Actions workflow locally using act
+#ci-run: @ Run GitHub Actions workflow locally using act (needs a running Docker)
 ci-run: deps
-	@docker container prune -f 2>/dev/null || true
-	@act push --container-architecture linux/amd64 \
-		--artifact-server-path /tmp/act-artifacts
+	@# No `docker container prune -f` any more: MEASURED, it deleted an unrelated stopped
+	@# container belonging to someone else. act removes its own stale job containers, and
+	@# --rm removes them after a failure too (a failed job's container was left running).
+	@command -v docker >/dev/null 2>&1 || { echo "ci-run needs Docker: act runs each job in a Docker container. Install it: https://docs.docker.com/get-docker/"; exit 1; }
+	@$(call engine_ready,docker)
+	@# --container-daemon-socket: act bind-mounts the Docker socket into each job container.
+	@# By default it uses the CLIENT's socket path; with Colima that is ~/.colima/docker.sock,
+	@# which the daemon (inside Colima's VM) cannot mount -- "mkdir ...docker.sock: operation
+	@# not supported" (measured). /var/run/docker.sock is the daemon's own socket on Linux,
+	@# Colima and Docker Desktop alike.
+	@# Job containers run in the Docker engine's own architecture unless ACT_ARCH is set.
+	@# MEASURED on an Apple-silicon Mac with Colima (no Rosetta): linux/amd64 runs under
+	@# qemu-user, the Go toolchain panics ("growslice: len out of range") while mise installs
+	@# govulncheck, and the workflow's mise step fails; linux/arm64 passes all jobs.
+	@plat='$(ACT_ARCH)'; \
+	if [ -z "$$plat" ]; then \
+	  arch=$$(docker info --format '{{.Architecture}}') || { echo "docker info failed (output above); start Docker and retry."; exit 1; }; \
+	  case "$$arch" in aarch64|arm64) plat=linux/arm64;; x86_64|amd64) plat=linux/amd64;; \
+	    *) echo "Docker engine architecture '$$arch' has no act runner mapping here. Set one: make ci-run ACT_ARCH=linux/<arch>"; exit 1;; esac; \
+	fi; \
+	echo "Running the CI workflow with act in $$plat job containers..."; \
+	[ "$$plat" = linux/amd64 ] || echo "Note: GitHub runs this workflow on linux/amd64; this $$plat run does not prove amd64."; \
+	act push --container-architecture "$$plat" --rm \
+		--container-daemon-socket unix:///var/run/docker.sock \
+		-P ubuntu-latest=$(ACT_RUNNER_IMAGE)
 
 #release: @ Create and push a new tag
-release: deps
-	@bash -c 'read -p "New tag (current: $(CURRENTTAG)): " newtag && \
-		echo "$$newtag" | grep -qE "^v[0-9]+\.[0-9]+\.[0-9]+$$" || { echo "Error: Tag must match vN.N.N"; exit 1; } && \
-		if git rev-parse -q --verify "refs/tags/$$newtag" >/dev/null 2>&1; then echo "ERROR: tag $$newtag already exists locally. Pick a new version or delete it: git tag -d $$newtag"; exit 1; fi && \
-		if git ls-remote --exit-code --tags origin "refs/tags/$$newtag" >/dev/null 2>&1; then echo "ERROR: tag $$newtag already exists on origin. Pick a new version."; exit 1; fi && \
-		echo -n "Create and push $$newtag? [y/N] " && read ans && [ "$${ans:-N}" = y ] && \
+release:
+	@# Only git is needed here (no `deps`: it printed tool noise right before the prompt).
+	@bash -c 'read -r -p "New tag (current: $(CURRENTTAG)): " newtag || { echo "Aborted: no tag entered."; exit 1; }; \
+		echo "$$newtag" | grep -qE "^v[0-9]+\.[0-9]+\.[0-9]+$$" || { echo "Error: Tag must match vN.N.N"; exit 1; }; \
+		if git rev-parse -q --verify "refs/tags/$$newtag" >/dev/null 2>&1; then echo "ERROR: tag $$newtag already exists locally. Pick a new version or delete it: git tag -d $$newtag"; exit 1; fi; \
+		if git ls-remote --exit-code --tags origin "refs/tags/$$newtag" >/dev/null 2>&1; then echo "ERROR: tag $$newtag already exists on origin. Pick a new version."; exit 1; fi; \
+		read -r -p "Create and push $$newtag? [y/N] " ans || ans=N; \
+		case "$$ans" in y|Y|yes|YES) ;; *) echo "Aborted: nothing tagged or pushed."; exit 0;; esac; \
 		echo $$newtag > ./version.txt && \
 		git add version.txt && \
 		git commit -s -m "Cut $$newtag release" && \
@@ -776,37 +947,43 @@ renovate-bootstrap: deps
 		echo "Error: node not found. Run 'make deps' to install it via mise (.mise.toml)."; \
 		exit 1; \
 	}
+	@echo "node $$(node --version) is available for npx."
 
-#renovate-validate: @ Validate Renovate configuration
+#renovate-validate: @ Validate the Renovate configuration (renovate.json)
 renovate-validate: renovate-bootstrap
-	@if [ -n "$$GH_ACCESS_TOKEN" ]; then \
-		GITHUB_COM_TOKEN=$$GH_ACCESS_TOKEN npx --yes renovate@$(RENOVATE_VERSION) --platform=local; \
-	else \
-		echo "Warning: GH_ACCESS_TOKEN not set, some dependency lookups may fail"; \
-		npx --yes renovate@$(RENOVATE_VERSION) --platform=local; \
-	fi
+	@# renovate-config-validator checks the config itself: no GitHub token, ~1 s, and a
+	@# broken option exits 1 naming it. The previous full `--platform=local` run did
+	@# dependency LOOKUPS instead, hit the GitHub rate limit without a token, took 24 s,
+	@# and never said whether the config was valid.
+	@npx --yes --package=renovate@$(RENOVATE_VERSION) -- renovate-config-validator
 
 #deps-prune: @ Remove unused dependencies
 deps-prune: deps
-	@echo "--- Go: running go mod tidy ---"
-	@go mod tidy
+	@before=$$(cat go.mod go.sum | cksum); go mod tidy || exit 1; \
+	if [ "$$before" = "$$(cat go.mod go.sum | cksum)" ]; then echo "Nothing to prune: go.mod / go.sum already tidy."; \
+	else echo "Pruned (go mod tidy changed go.mod / go.sum):"; git diff --stat -- go.mod go.sum; fi
 
 #deps-prune-check: @ Verify no prunable dependencies (CI gate)
 deps-prune-check: deps
-	@go mod tidy; \
-	if ! git diff --exit-code go.mod go.sum >/dev/null 2>&1; then \
-		echo "Error: go.mod/go.sum not tidy. Run 'go mod tidy'."; \
-		git checkout go.mod go.sum; \
+	@# Compare against a SNAPSHOT of the working files, never against git: the old
+	@# `git diff` + `git checkout go.mod go.sum` threw away uncommitted go.mod edits
+	@# (MEASURED: an added line was gone after the check).
+	@tmp=$$(mktemp -d) && cp go.mod go.sum "$$tmp"/ || { echo "Could not snapshot go.mod/go.sum; not running go mod tidy."; exit 1; }; \
+	go mod tidy || { cp "$$tmp"/go.mod "$$tmp"/go.sum .; rm -rf "$$tmp"; exit 1; }; \
+	if cmp -s go.mod "$$tmp"/go.mod && cmp -s go.sum "$$tmp"/go.sum; then \
+		rm -rf "$$tmp"; echo "No prunable dependencies found."; \
+	else \
+		cp "$$tmp"/go.mod "$$tmp"/go.sum . || { echo "RESTORE FAILED: your originals are in $$tmp"; exit 1; }; rm -rf "$$tmp"; \
+		echo "go.mod / go.sum are not tidy (left exactly as they were). Fix: make deps-prune"; \
 		exit 1; \
-	fi; \
-	echo "No prunable dependencies found."
+	fi
 
 .PHONY: help engines deps deps-engine deps-buildx registry-login deps-verify deps-kind check-toolchain-alignment \
 	diagrams diagrams-check \
 	test build lint lint-ci sec vulncheck secrets \
 	trivy-fs trivy-config static-check format run coverage-check \
 	image-build clean update \
-	image-test-fg image-test-cli image-run-bg image-cli-bg \
+	image-test-fg image-run-bg \
 	image-logs image-stop image-push \
 	k8s-apply k8s-delete \
 	kind-cloud-provider-start kind-cloud-provider-stop kind-cloud-provider-restart \
