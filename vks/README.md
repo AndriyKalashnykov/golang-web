@@ -210,9 +210,11 @@ mkdir "$T/plugins" && tar -xzf "$PLUGINS_TGZ" -C "$T/plugins"
 vcf plugin install all --local-source "$T/plugins"
 rm -rf "$T"
 vcf version | head -1
+vcf plugin list
 ```
 
-**Expect:** `version: v9.1.1.0.25662425` (or the release you downloaded).
+**Expect:** `version: v9.1.1.0.25662425` (or the release you downloaded), then the plugins, each
+`installed` (for 9.1.1: 13 on Linux, 12 on macOS).
 
 ### Check
 
