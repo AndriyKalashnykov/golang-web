@@ -163,7 +163,9 @@ if [ $$rc -ne 0 ]; then \
 	  *) if [ $$rc -eq 142 ]; then echo "$(1) did not answer within 15 s (it may be hung). Check: $(1) info"; else \
 	    echo "$(1) is installed but not running."; \
 	    case "$(HOST_OS)/$(1)" in \
-	      Darwin/podman) echo "  Start its VM:  podman machine start"; \
+	      Darwin/podman) if podman machine inspect --format '{{.State}}' 2>/dev/null | grep -qx running; then \
+	          echo "  Its VM is running but does not answer. Restart it:  podman machine stop && podman machine start"; \
+	        else echo "  Start its VM:  podman machine start"; fi; \
 	        (docker info >/dev/null 2>&1) && echo "  Or use Docker, which is running: add CONTAINER_ENGINE=docker to the make command";; \
 	      Darwin/docker) echo "  Start it:  colima start   (or open Docker Desktop / OrbStack)";; \
 	      */docker)      echo "  Start it:  sudo systemctl start docker";; \
@@ -190,12 +192,12 @@ MY_GITREF := $(shell git rev-parse --short HEAD)
 help:
 	@echo "Usage: make COMMAND"
 	@echo "Commands :"
-	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-26s\033[0m - %s\n", $$1, $$2}'
+	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-28s\033[0m - %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Resolved now (override any of them on the command line):"
-	@printf "\033[32m%-26s\033[0m - %s\n" "CONTAINER_ENGINE" "$(CONTAINER_ENGINE)  <- builds and runs YOUR image (make engines explains)"
-	@printf "\033[32m%-26s\033[0m - %s\n" "KIND_ENGINE" "$(KIND_ENGINE)  <- kind's own containers; not yours to change"
-	@printf "\033[32m%-26s\033[0m - %s\n" "Image (image-push target)" "$(OPV)  <- set OWNER / IMAGE_REGISTRY for your own"
+	@printf "\033[32m%-28s\033[0m - %s\n" "CONTAINER_ENGINE" "$(CONTAINER_ENGINE)  <- builds and runs YOUR image (make engines explains)"
+	@printf "\033[32m%-28s\033[0m - %s\n" "KIND_ENGINE" "$(KIND_ENGINE)  <- kind's own containers; not yours to change"
+	@printf "\033[32m%-28s\033[0m - %s\n" "Image (image-push target)" "$(OPV)  <- set OWNER / IMAGE_REGISTRY for your own"
 	@echo ""
 	@echo "  one command : make image-build CONTAINER_ENGINE=docker"
 	@echo "  whole shell : export CONTAINER_ENGINE=docker"
@@ -533,10 +535,12 @@ image-test-fg: image-build
 	--rm $(OPV)
 
 #image-run-bg: @ Run container in background
-image-run-bg: image-build
+image-run-bg:
+	@$(call engine_ready,$(DOCKERCMD))
 	@if [ -n "$$($(DOCKERCMD) ps -q --filter name=^$(PROJECT)$$)" ]; then \
 		echo "$(PROJECT) is already running. Logs: make image-logs   stop: make image-stop"; exit 1; fi
 	@$(call port_free,$(APP_PORT),image-run-bg)
+	@$(MAKE) --no-print-directory image-build
 	@$(EMULATION_NOTE)
 	@$(DOCKERCMD) run -d -p $(WEBPORT) --rm --name $(PROJECT) $(OPV) >/dev/null && \
 	echo "$(PROJECT) running: http://localhost:$(APP_PORT)/   logs: make image-logs   stop: make image-stop"
@@ -891,8 +895,14 @@ ci-run: deps
 	@# --rm removes them after a failure too (a failed job's container was left running).
 	@command -v docker >/dev/null 2>&1 || { echo "ci-run needs Docker: act runs each job in a Docker container. Install it: https://docs.docker.com/get-docker/"; exit 1; }
 	@$(call engine_ready,docker)
+	@# --container-daemon-socket: act bind-mounts the Docker socket into each job container.
+	@# By default it uses the CLIENT's socket path; with Colima that is ~/.colima/docker.sock,
+	@# which the daemon (inside Colima's VM) cannot mount -- "mkdir ...docker.sock: operation
+	@# not supported" (measured). /var/run/docker.sock is the daemon's own socket on Linux,
+	@# Colima and Docker Desktop alike.
 	@act push --container-architecture linux/amd64 \
 		--artifact-server-path /tmp/act-artifacts --rm \
+		--container-daemon-socket unix:///var/run/docker.sock \
 		-P ubuntu-latest=$(ACT_RUNNER_IMAGE)
 
 #release: @ Create and push a new tag
