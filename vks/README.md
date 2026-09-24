@@ -49,8 +49,8 @@ EOF
 chmod 600 ~/.vks-golang-web.env
 ```
 
-Fill in your values; credentials go in **single quotes** (a `'` inside one is written `'\''`). If the block above said the file already
-exists, edit that one:
+Open it and fill in your values; credentials go in **single quotes** (a `'` inside one is written
+`'\''`). If the block above said the file already exists, it keeps your earlier values:
 
 ```sh
 "${EDITOR:-vi}" ~/.vks-golang-web.env
@@ -161,7 +161,7 @@ version:
 
 ```sh
 source ~/.vks-golang-web.env
-case "$(uname -s)" in Darwin) P=darwin-amd64 ;; *) P=linux-amd64 ;; esac
+case "$(uname -s)" in Darwin) P=darwin-amd64 ;; *) P=linux-amd64 ;; esac   # the Supervisor publishes amd64 only
 T="$(mktemp -d)"
 curl -fsS --cacert "$SUPERVISOR_CA" -o "$T/plugin.zip" "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${P}/vsphere-plugin.zip"
 unzip -oq "$T/plugin.zip" -d "$T"
@@ -320,7 +320,7 @@ source ~/.vks-golang-web.env
 make registry-login IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 ```
 
-**Expect:** `Login Succeeded`.
+**Expect:** `Login Succeeded!`.
 
 ## 6. Build and push the image
 
@@ -330,6 +330,8 @@ export IMAGE="${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web:$(cat version.txt)"
 echo "$IMAGE"
 make image-push IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 ```
+
+**Expect:** the image name, then a finished build and push.
 
 Check:
 
@@ -342,7 +344,7 @@ curl -fsS --cacert "$HARBOR_CA" -K "$CFG" \
 rm -f "$CFG"
 ```
 
-**Expect:** the image name, a finished build and push, then a digest and your version tag.
+**Expect:** a digest and your version tag.
 
 ## 7. Get the kubeconfigs
 
@@ -398,7 +400,7 @@ kubectl get nodes
 kubectl version -o json | jq -r '"client \(.clientVersion.gitVersion)  server \(.serverVersion.gitVersion)"'
 ```
 
-**Expect:** every node `Ready`, and the same client and server version (`v1.36.2` and `v1.36.2+vmware.2`).
+**Expect:** every node `Ready`, and the same client and server version (e.g. `v1.36.2` and `v1.36.2+vmware.2`).
 
 ## 8. Deploy
 
@@ -560,7 +562,7 @@ The files this guide wrote, and the clone (installed tools and base images stay)
 source ~/.vks-golang-web.env
 rm -f  "$HARBOR_CA" "$SUPERVISOR_CA" "$SUPERVISOR_KUBECONFIG" "$GUEST_KUBECONFIG"
 rmdir  "$HOME/.config/vks-golang-web" 2>/dev/null
-rmdir "$HOME/.config/containers/certs.d" "$HOME/.kube" 2>/dev/null
+rmdir "$HOME/.config/containers/certs.d" "$HOME/.config/containers" "$HOME/.kube" 2>/dev/null
 cd .. && rm -rf golang-web
 ```
 
