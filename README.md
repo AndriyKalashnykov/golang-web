@@ -112,8 +112,6 @@ A statically linked Go binary in a distroless image, behind a LoadBalancer Servi
 
 <p align="center"><img src="docs/diagrams/out/c4-container.png" alt="C4 Container diagram for golang-web" width="800"></p>
 
-Source: [`docs/diagrams/c4-container.puml`](docs/diagrams/c4-container.puml); regenerate with `make diagrams`.
-
 ## Endpoints
 
 | Path | Method | Purpose |
