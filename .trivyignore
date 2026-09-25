@@ -5,3 +5,7 @@ KSV-0110
 # KSV-0125: Image uses ghcr.io (GitHub Container Registry) — this is our own registry,
 # not untrusted. Trivy's default trusted registries list doesn't include ghcr.io.
 KSV-0125
+
+# KSV-0011: no CPU limit, deliberately. A 10m limit (1 ms of CPU per 100 ms) stretched reclaim
+# and start-up into multi-second stalls that failed liveness probes (117 restarts in 46 h, measured).
+KSV-0011
