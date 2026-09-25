@@ -453,8 +453,13 @@ diagrams-check:
 	fi; \
 	echo "Diagrams up to date with their .puml sources."
 
+#scripts-test: @ Shellcheck and test the CI helper scripts in .github/scripts
+scripts-test: deps
+	@shellcheck .github/scripts/*.sh
+	@bash .github/scripts/ghcr-prune-untagged_test.sh
+
 #static-check: @ Run all quality and security checks
-static-check: check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config diagrams-check
+static-check: check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config diagrams-check scripts-test
 	@echo "Static check passed."
 
 #format: @ Auto-format Go source files
