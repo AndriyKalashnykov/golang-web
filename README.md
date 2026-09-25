@@ -188,6 +188,10 @@ Remove everything:
 kubectl delete namespace "$NS"
 ```
 
+## Deploy to VMware VKS
+
+To build the image, push it to Harbor and deploy it to a VKS guest cluster, follow [`vks/README.md`](vks/README.md).
+
 ## References
 
 - [Docker 101: A Basic Web Server Displaying Hello World](https://ashishb.net/tech/docker-101-a-basic-web-server-displaying-hello-world/)
