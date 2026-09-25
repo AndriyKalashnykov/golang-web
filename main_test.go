@@ -131,6 +131,7 @@ func TestHandleHealth(t *testing.T) {
 }
 
 func TestHandleApp(t *testing.T) {
+	t.Setenv("MESSAGE_TO", "") // the greeting assertion must not depend on the caller's shell
 	t.Setenv("MY_NODE_NAME", "test-node")
 	t.Setenv("MY_POD_NAME", "test-pod")
 	t.Setenv("MY_POD_NAMESPACE", "test-ns")
@@ -175,6 +176,7 @@ func TestHandleApp(t *testing.T) {
 }
 
 func TestHandleAppDefaultEnv(t *testing.T) {
+	t.Setenv("MESSAGE_TO", "") // the greeting assertion must not depend on the caller's shell
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", http.NoBody)
 	rr := httptest.NewRecorder()
 
@@ -193,6 +195,18 @@ func TestHandleAppDefaultEnv(t *testing.T) {
 		if !strings.Contains(body, d) {
 			t.Errorf("body missing default %q, got:\n%s", d, body)
 		}
+	}
+}
+
+func TestHandleAppMessageTo(t *testing.T) {
+	t.Setenv("MESSAGE_TO", "Gopher")
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", http.NoBody)
+	rr := httptest.NewRecorder()
+
+	handleApp(rr, req)
+
+	if body := rr.Body.String(); !strings.HasPrefix(body, "Hello, Gopher\n") {
+		t.Errorf("MESSAGE_TO not used, got:\n%s", body)
 	}
 }
 

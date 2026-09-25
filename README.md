@@ -119,6 +119,7 @@ Source: [`docs/diagrams/c4-container.puml`](docs/diagrams/c4-container.puml); re
 |----------|-------------|---------|
 | `PORT` | Listen port | `8080` |
 | `APP_CONTEXT` | Base context path | `/` |
+| `MESSAGE_TO` | Noun in the greeting (`Hello, <MESSAGE_TO>`) | `World` |
 
 ### Kubernetes Downward API Variables
 
