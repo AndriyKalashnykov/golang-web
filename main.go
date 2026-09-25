@@ -12,7 +12,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-// messageTo is the default noun.
+// messageTo is the default noun; the MESSAGE_TO environment variable overrides it.
 var messageTo = "World"
 
 // Version is built into binary using ldflags.
@@ -81,7 +81,7 @@ func handleApp(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	// Print main hello message.
-	_, err := fmt.Fprintf(w, "Hello, %s\n", messageTo)
+	_, err := fmt.Fprintf(w, "Hello, %s\n", getenv("MESSAGE_TO", messageTo))
 	if err != nil {
 		fmt.Println(err)
 	}
