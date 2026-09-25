@@ -34,14 +34,15 @@ spec:
           capabilities:
             drop: ["ALL"]
 
-        # resource limits
+        # 8Mi/10m caused liveness restarts (117 in 46 h): the pod cgroup hit its memory limit,
+        # the kernel evicted the binary's code pages, and reclaim under a 1 ms/100 ms CPU quota
+        # stalled the process past three probe timeouts.
         resources:
           requests:
-            memory: "4Mi"
-            cpu: "5m"
-          limits:
-            memory: "8Mi"
+            memory: "32Mi"
             cpu: "10m"
+          limits:
+            memory: "32Mi"
 
         env:
 
@@ -83,26 +84,33 @@ spec:
         - name: PORT
           value: "8080"
 
+        # Go heap soft limit, below limits.memory; change both together. Needs the "B" suffix:
+        # "20Mi" makes the Go runtime exit (malformed GOMEMLIMIT).
+        - name: GOMEMLIMIT
+          value: "20MiB"
+
         startupProbe:
           httpGet:
             path: /healthz
             port: 8080
-          failureThreshold: 10
           periodSeconds: 2
+          timeoutSeconds: 2
+          failureThreshold: 15
 
         livenessProbe:
           httpGet:
             path: /healthz
             port: 8080
-          initialDelaySeconds: 3
-          periodSeconds: 3
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 3
 
         readinessProbe:
           httpGet:
             path: /healthz
             port: 8080
-          initialDelaySeconds: 3
-          periodSeconds: 3
+          periodSeconds: 5
+          timeoutSeconds: 2
 
 ---
 apiVersion: v1
