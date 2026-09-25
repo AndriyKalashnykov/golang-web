@@ -112,8 +112,6 @@ A statically linked Go binary in a distroless image, behind a LoadBalancer Servi
 
 <p align="center"><img src="docs/diagrams/out/c4-container.png" alt="C4 Container diagram for golang-web" width="800"></p>
 
-Source: [`docs/diagrams/c4-container.puml`](docs/diagrams/c4-container.puml); regenerate with `make diagrams`.
-
 ## Endpoints
 
 | Path | Method | Purpose |
@@ -189,15 +187,6 @@ Remove everything:
 ```bash
 kubectl delete namespace "$NS"
 ```
-
-## CI/CD
-
-| Workflow | Triggers | Jobs |
-|----------|----------|------|
-| [`ci.yml`](.github/workflows/ci.yml) | push to `main`, tags `v*`, pull requests | `static-check` (`make static-check`), then `build` and `test`; on tags, `docker` builds, scans and pushes the image |
-| [`cleanup-runs.yml`](.github/workflows/cleanup-runs.yml) | weekly, manual | Deletes old workflow runs, caches and untagged images |
-
-[Renovate](https://docs.renovatebot.com/) updates dependencies and automerges them.
 
 ## References
 
