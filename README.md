@@ -58,6 +58,16 @@ echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc   # bash
 echo 'eval "$(~/.local/bin/mise activate zsh)"' >> ~/.zshrc     # zsh (macOS default)
 ```
 
+### Settings
+
+```bash
+cp .env.example .env   # then uncomment and edit the settings you change
+```
+
+The Makefile reads `.env`. Your shell and the command line still win: command line
+(`make run APP_PORT=9090`) > shell (even an exported empty value) > `.env` > default. `make check-env` fails if `.env.example`
+misses a setting the code reads.
+
 ### Container engine
 
 | You want | Run |

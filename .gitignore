@@ -7,3 +7,6 @@
 manager
 coverage.out
 golang-web
+
+# Local settings (see .env.example); may hold REGISTRY_TOKEN.
+.env

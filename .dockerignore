@@ -11,3 +11,4 @@ manager
 k8s/
 renovate.json
 version.txt
+.env
