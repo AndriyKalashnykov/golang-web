@@ -63,18 +63,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      contents: read    # checkout of the prune script
       packages: write
     env:
       GH_TOKEN: ${{ github.token }}
       KEEP_MINIMUM: 5
     steps:
-      - name: Delete untagged container images
-        run: |
-          PACKAGE="golang-web"
-          OWNER="${{ github.repository_owner }}"
-          gh api "orgs/${OWNER}/packages/container/${PACKAGE}/versions" \
-            --jq "[.[] | select(.metadata.container.tags | length == 0)] | sort_by(.created_at) | reverse | .[${KEEP_MINIMUM}:][] | .id" 2>/dev/null \
-          | xargs -r -I{} gh api --method DELETE "orgs/${OWNER}/packages/container/${PACKAGE}/versions/{}" 2>/dev/null || \
-          gh api "users/${OWNER}/packages/container/${PACKAGE}/versions" \
-            --jq "[.[] | select(.metadata.container.tags | length == 0)] | sort_by(.created_at) | reverse | .[${KEEP_MINIMUM}:][] | .id" 2>/dev/null \
-          | xargs -r -I{} gh api --method DELETE "users/${OWNER}/packages/container/${PACKAGE}/versions/{}" 2>/dev/null || true
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Keeps every untagged version a tagged image references (platform images, attestations)
+      # and every referrer (e.g. a signature); deletes only orphans beyond the newest KEEP_MINIMUM.
+      - name: Delete orphaned untagged container images
+        env:
+          OWNER: ${{ github.repository_owner }}
+          PACKAGE: golang-web
+        run: .github/scripts/ghcr-prune-untagged.sh
