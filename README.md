@@ -190,15 +190,6 @@ Remove everything:
 kubectl delete namespace "$NS"
 ```
 
-## CI/CD
-
-| Workflow | Triggers | Jobs |
-|----------|----------|------|
-| [`ci.yml`](.github/workflows/ci.yml) | push to `main`, tags `v*`, pull requests | `static-check` (`make static-check`), then `build` and `test`; on tags, `docker` builds, scans and pushes the image |
-| [`cleanup-runs.yml`](.github/workflows/cleanup-runs.yml) | weekly, manual | Deletes old workflow runs, caches and untagged images |
-
-[Renovate](https://docs.renovatebot.com/) updates dependencies and automerges them.
-
 ## References
 
 - [Docker 101: A Basic Web Server Displaying Hello World](https://ashishb.net/tech/docker-101-a-basic-web-server-displaying-hello-world/)
