@@ -380,11 +380,11 @@ check-toolchain-alignment:
 
 #trivy-fs: @ Scan filesystem for vulnerabilities, secrets, and misconfigurations
 trivy-fs: deps
-	@trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH .
+	@trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 .
 
 #trivy-config: @ Scan K8s manifests for security misconfigurations
 trivy-config: deps
-	@trivy config k8s/
+	@trivy config --severity CRITICAL,HIGH --exit-code 1 k8s/
 
 #test: @ Run tests with coverage
 test: deps
