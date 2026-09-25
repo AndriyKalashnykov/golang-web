@@ -64,6 +64,10 @@ Colima VMs, both stopped. To resume there: `podman machine start` or `colima sta
 vks-airgap-cicd, and copy the Darwin VCF CLI archives back from the lab host's `~/Downloads/vcf`.
 Delete the server and close ticket #1619590 only once B735/B736 no longer need it.
 
+**Used again 2026-09-24/25** for the repo-wide Makefile, README and `.env` verification (see the
+root HANDOFF.md). Left as found: podman machine and Colima stopped, `~/go` and every clone and
+harness file removed. Colima's VM still caches the images those runs pulled (act runner, kind node).
+
 ## ✅ THE WHOLE README PROVEN ON macOS, BOTH ENGINES — 2026-09-23
 
 Every macOS block run VERBATIM in zsh on the rented Mac (macOS 26.6.2, arm64), selected by exact
