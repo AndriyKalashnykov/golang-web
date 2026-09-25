@@ -176,7 +176,10 @@ func TestHandleApp(t *testing.T) {
 }
 
 func TestHandleAppDefaultEnv(t *testing.T) {
-	t.Setenv("MESSAGE_TO", "") // the greeting assertion must not depend on the caller's shell
+	// The defaults must not depend on the caller's shell or .env (the Makefile exports these).
+	for _, k := range []string{"MESSAGE_TO", "MY_NODE_NAME", "MY_POD_NAME", "MY_POD_NAMESPACE", "MY_POD_IP", "MY_POD_SERVICE_ACCOUNT"} {
+		t.Setenv(k, "")
+	}
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", http.NoBody)
 	rr := httptest.NewRecorder()
 
@@ -291,6 +294,7 @@ func TestNewServeMux(t *testing.T) {
 }
 
 func TestNewServeMuxDefaultContext(t *testing.T) {
+	t.Setenv("APP_CONTEXT", "") // the default context must not depend on the caller's shell or .env
 	mux := newServeMux()
 	srv := httptest.NewServer(mux)
 	defer srv.Close()

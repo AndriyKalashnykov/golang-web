@@ -1,5 +1,9 @@
 .DEFAULT_GOAL := help
 
+# Local settings: copy .env.example to .env (gitignored) and uncomment what you change.
+# Its lines are `?=`, so precedence is: command line > shell > .env > the defaults below.
+-include .env
+
 # `?=` NOT `:=` -- `:=` cannot be overridden by the environment, so `export OWNER=apps`
 # was silently ignored and images were built for the default project with no error.
 OWNER ?= andriykalashnykov
@@ -21,6 +25,12 @@ REGISTRY_USERNAME ?= $(OWNER)
 # use `$(VAR)`, which is a make-time expansion -- see the comment on registry-login.
 export REGISTRY_TOKEN
 export REGISTRY_USERNAME
+# The app's own settings (main.go getenv), exported so `make run` and image-run-bg pass them
+# on from .env or the shell. Unset ones reach the app empty, which it treats as its default.
+# PORT is not listed: `make run` sets it from APP_PORT. `make check-env` keeps this list complete.
+# Keep it on one line: check-env reads it.
+APP_ENV_VARS := APP_CONTEXT MESSAGE_TO MY_NODE_NAME MY_POD_NAME MY_POD_NAMESPACE MY_POD_IP MY_POD_SERVICE_ACCOUNT
+export $(APP_ENV_VARS)
 OPV := $(IMAGE_REGISTRY)/$(OWNER)/$(PROJECT):$(VERSION)
 CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 
@@ -380,7 +390,7 @@ check-toolchain-alignment:
 
 #trivy-fs: @ Scan filesystem for vulnerabilities, secrets, and misconfigurations
 trivy-fs: deps
-	@trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 .
+	@trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 --skip-files .env .
 
 #trivy-config: @ Scan K8s manifests for security misconfigurations
 trivy-config: deps
@@ -457,9 +467,14 @@ diagrams-check:
 scripts-test: deps
 	@shellcheck .github/scripts/*.sh
 	@bash .github/scripts/ghcr-prune-untagged_test.sh
+	@bash .github/scripts/check-env_test.sh
+
+#check-env: @ Verify .env.example documents every setting the Makefile and the Go code read
+check-env:
+	@bash .github/scripts/check-env.sh
 
 #static-check: @ Run all quality and security checks
-static-check: check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config diagrams-check scripts-test
+static-check: check-env check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config diagrams-check scripts-test
 	@echo "Static check passed."
 
 #format: @ Auto-format Go source files
@@ -496,10 +511,12 @@ endif
 PLATFORM ?=
 ifneq ($(filter arm64 aarch64,$(HOST_ARCH)),)
 ifeq ($(PLATFORM),linux/amd64)
-EMULATION_NOTE := echo "Note: this arm64 machine runs the linux/amd64 image under emulation (it is built for amd64 clusters). Native: add PLATFORM="
+_emulation_note := echo "Note: this arm64 machine runs the linux/amd64 image under emulation (it is built for amd64 clusters). Native: add PLATFORM="
 endif
 endif
-EMULATION_NOTE ?= true
+ifndef _emulation_note
+_emulation_note := true
+endif
 
 # No `build` prerequisite: the Dockerfile compiles main.go in its own builder stage, so the host
 # binary (and the mise toolchain `build: deps` installs) is not needed to build the image.
@@ -529,7 +546,7 @@ update: deps
 #image-test-fg: @ Run container in foreground with test overrides
 image-test-fg: image-build
 	@$(call port_free,$(APP_PORT),image-test-fg)
-	@$(EMULATION_NOTE)
+	@$(_emulation_note)
 	@echo "Serving on http://localhost:$(APP_PORT)/myhello/ -- Ctrl-C to stop."
 	@$(DOCKERCMD) run -it -p $(WEBPORT) \
 	-e APP_CONTEXT=/myhello/ \
@@ -547,8 +564,8 @@ image-run-bg:
 		echo "$(PROJECT) is already running. Logs: make image-logs   stop: make image-stop"; exit 1; fi
 	@$(call port_free,$(APP_PORT),image-run-bg)
 	@$(MAKE) --no-print-directory image-build
-	@$(EMULATION_NOTE)
-	@$(DOCKERCMD) run -d -p $(WEBPORT) --rm --name $(PROJECT) $(OPV) >/dev/null && \
+	@$(_emulation_note)
+	@$(DOCKERCMD) run -d -p $(WEBPORT) $(foreach v,$(APP_ENV_VARS),$(if $($(v)),-e $(v))) --rm --name $(PROJECT) $(OPV) >/dev/null && \
 	echo "$(PROJECT) running: http://localhost:$(APP_PORT)/   logs: make image-logs   stop: make image-stop"
 
 #image-logs: @ Tail container logs
@@ -910,6 +927,9 @@ ci-run: deps
 	@# MEASURED on an Apple-silicon Mac with Colima (no Rosetta): linux/amd64 runs under
 	@# qemu-user, the Go toolchain panics ("growslice: len out of range") while mise installs
 	@# govulncheck, and the workflow's mise step fails; linux/arm64 passes all jobs.
+	@# --env-file /dev/null: act would otherwise load ./.env, which is make syntax (`?=`), not
+	@# dotenv: act dies on it (measured), and in dotenv form it would inject local settings and
+	@# REGISTRY_TOKEN into the CI containers, so the run would no longer mirror GitHub.
 	@plat='$(ACT_ARCH)'; \
 	if [ -z "$$plat" ]; then \
 	  arch=$$(docker info --format '{{.Architecture}}') || { echo "docker info failed (output above); start Docker and retry."; exit 1; }; \
@@ -918,7 +938,7 @@ ci-run: deps
 	fi; \
 	echo "Running the CI workflow with act in $$plat job containers..."; \
 	[ "$$plat" = linux/amd64 ] || echo "Note: GitHub runs this workflow on linux/amd64; this $$plat run does not prove amd64."; \
-	act push --container-architecture "$$plat" --rm \
+	act push --container-architecture "$$plat" --rm --env-file /dev/null \
 		--container-daemon-socket unix:///var/run/docker.sock \
 		-P ubuntu-latest=$(ACT_RUNNER_IMAGE)
 
