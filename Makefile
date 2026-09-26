@@ -54,7 +54,7 @@ CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 CLOUD_PROVIDER_KIND_VERSION := 0.11.1
 # Renovate CLI, run via `npx renovate@$(RENOVATE_VERSION)`; not a mise tool.
 # renovate: datasource=npm depName=renovate
-RENOVATE_VERSION    := 44.108.1
+RENOVATE_VERSION    := 44.111.1
 # PlantUML renderer for docs/diagrams/*.puml. Runs as a container (not a mise
 # tool) so no JRE is needed on the host.
 # renovate: datasource=docker depName=plantuml/plantuml
