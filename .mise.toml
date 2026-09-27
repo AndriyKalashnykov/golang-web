@@ -17,7 +17,7 @@ go = "1.27.1"
 node = "24"
 
 # === Linters / quality gates ===
-"aqua:golangci/golangci-lint" = "2.13.2"
+"aqua:golangci/golangci-lint" = "2.14.0"
 "aqua:rhysd/actionlint"       = "1.7.12"
 "aqua:koalaman/shellcheck"    = "0.11.0"
 "aqua:hadolint/hadolint"      = "2.15.1"
