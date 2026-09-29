@@ -6,11 +6,68 @@ Resume point for the `vks/README.md` work. Read this before touching `vks/`.
 
 `vks/README.md` builds `golang-web`, pushes to Harbor, deploys to a VKS guest cluster.
 It is **proven end-to-end on Linux and macOS, with podman and with docker** — last re-walked
-2026-09-24, every block in its own fresh shell (next section). Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`).
+2026-09-28 (see below; the 2026-09-24 walk was the one before), every block in its own fresh shell (next section). Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`).
 
 macOS is proven too — see the next section. The old probe script `vks/macosx.sh` and its
 `vks/macosx.res` were REMOVED (2026-09-23): running every README block verbatim on a real Mac
 superseded the subset they checked. They are in git history; references to them below are history.
+
+## ✅ ROUND 2 — kubectl, plugins and Linux arm64 — 2026-09-28
+
+Researched by agents, the design attacked by three adversaries (VKS, Kubernetes, shell) before it
+was built, then walked verbatim on FIVE paths: Linux podman, Linux docker, macOS podman, macOS
+Colima, and **Linux arm64** (clean aarch64 `ubuntu:24.04` in Colima's VM). All pass steps 1–10.
+
+- **kubectl is upstream (dl.k8s.io), native on every platform**, via `kubectl_install` in
+  `~/.vks-golang-web.functions`: bootstrap `stable.txt`, then pinned to the Supervisor's version in
+  step 7, then to the guest's. Measured: v1.37.1 → v1.34.9 → v1.36.2 on all five paths. The
+  Supervisor-served kubectl was linux/darwin **amd64 only** and v1.32.9 against a v1.34 Supervisor
+  (already outside ±1 skew). `vcf context create` needs no kubectl at all.
+- **No VCF CLI plugins needed**: with ZERO plugins, `vcf context create` succeeded in 2 s and
+  installed nothing; context list/delete work. The PluginBundle download is gone.
+- **Functions live in their own file**, rewritten by step 1 every time, because the env file is
+  written under `set -C` and an existing user would never receive a new function. The upgrade
+  path (old step 1 from `main`, then the new one) was walked: one `source` line, both functions load.
+- **Rosetta stays**: podman's vfkit is started with `--device rosetta,…,install` (seen in a running
+  machine's argv). **`xcode-select --install` is gone**: the Homebrew installer installs CLT itself
+  (measured on a fresh macOS guest) and falls back to xcode-select itself when interactive.
+- **Fresh macOS proven** two ways: a tart vanilla macOS 26.6.2 guest (no CLT/Homebrew/Rosetta)
+  passed the Homebrew block and every `brew install`; engine VMs cannot start there (M1 has no
+  nested virtualization), so a brand-new host user started podman and Colima from zero state.
+  tart needs a user keychain: over SSH, create and unlock one, or it fails `Failed to create new HostKey`.
+- **The Supervisor's own VCF CLI download** (`/wcp/vcf-cli/`) answers 503 here: it proxies VCF
+  Operations' Fleet Depot Service (KB 449965). Public packages.broadcom.com stops at v9.0.2. So the
+  portal stays the source; the README mentions the Supervisor page for VCF-Operations sites.
+- **Evidence** (measured in the 2026-09-28 session; the logs were not committed): the five walk
+  logs; the zero-plugin `vcf context create`; the tart guest runs of the Homebrew and engine
+  blocks; the new-user podman/Colima runs; the vfkit argv. The implementation was attacked by
+  the same three adversaries after it was built; their fixes (noclobber-proof `>|`, newline-safe
+  append, one "cannot reach dl.k8s.io" message, printed Supervisor/guest versions, a runnable
+  fallback row) were re-walked.
+- **Open:** whether the portal has a **9.1.1 Linux_ARM64** archive (the arm64 walk used 9.1.0.0400,
+  the one line `CLI_TGZ` changed); an engine VM start on a Mac that has never had Rosetta.
+
+## ✅ ALL FOUR PATHS RE-WALKED AGAIN — 2026-09-28 (the flow BEFORE round 2: plugin bundle, Supervisor kubectl)
+
+Same method (each block verbatim in its own fresh login shell, pass/fail from the Expect lines):
+Linux podman and Linux docker in clean `ubuntu:24.04` containers, macOS podman and Colima on the
+rented Mac — all four pass steps 1–10. The Mac ran on the same tunnel/alias/socat scaffolding as
+before, all removed afterwards; the lab had been down since a host reboot and was started with
+`make lab-start`. Fixed in the README from this walk, each MEASURED:
+
+- Step 7 said three failed logins lock the SSO account. The SSO policy is 5 failures per 180 s
+  with a 300 s auto-unlock (nested-vsphere-lab DOCTRINE.md B223); three is the VCSA root policy.
+- Step 3's `colima restart` was not needed: login failed `x509: unknown authority` without the
+  CA, succeeded with it and no restart, and failed again once it was removed.
+- Step 10 removed all of `~/.kube/cache`, including other clusters' cache; it now leaves it.
+- macOS 26 ships `/usr/bin/jq`, so `brew install jq` is a no-op there (noted, kept for older macOS).
+- The Darwin VCF CLI archives were tagged with Safari's quarantine flag to match a browser
+  download: `vcf` (Developer ID: VMware) and its plugins installed and ran. The walk ran over
+  SSH, and a negative control proves SSH ENFORCES Gatekeeper: a quarantined ad-hoc-signed binary
+  was killed (`rc=137`), the same binary unquarantined ran. A GUI Terminal applies the same
+  policy (a dialog instead of a kill). The one step no harness can run is the Broadcom portal
+  download itself (it needs a Broadcom login); on Linux there is no quarantine, so staging the
+  archive in `~/Downloads` is already equivalent to downloading it.
 
 ## ✅ ALL FOUR PATHS RE-WALKED, EACH BLOCK IN A NEW TERMINAL — 2026-09-24
 
