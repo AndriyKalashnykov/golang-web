@@ -5,14 +5,22 @@ Resume point for the `vks/README.md` work. Read this before touching `vks/`.
 ## Where it stands
 
 `vks/README.md` builds `golang-web`, pushes to Harbor, deploys to a VKS guest cluster.
-**All work is merged; nothing is in flight** (PRs #203–#211, last merge 2026-09-29). Every path
-was walked end to end on the final text, every block in its own fresh shell: Linux podman, Linux
-docker, macOS podman, macOS Colima, and Linux arm64 **with docker**. Pinned to **VCF CLI 9.1.1.0**
-(`vcf version` → `v9.1.1.0.25662425`).
+**All work is merged; nothing is in flight** (PRs #203–#212, last merge 2026-09-29). Pinned to
+**VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`). Walk coverage of the CURRENT text
+(round 8): Linux podman and Linux docker end to end on the lab; the docker install block alone on
+Debian 12 and arm64 Ubuntu; on macOS (zsh) only the blocks that changed. macOS podman, macOS
+Colima and Linux arm64 were last walked end to end in round 5; no macOS-only or arm64-only block
+has changed since.
 
-**Resume point:** nothing is pending. Every vks item that the earlier rounds left open was settled
-by measurement in round 6 (below). Lab Harbor's registry volume is at 60% after a GC; run GC again
-if pushes fail with `blob upload invalid` (that message means the volume is full).
+**Resume point:** nothing is pending. The lab is **stopped** (`esxi01` shut off). To walk again:
+`make -C ~/projects/nested-vsphere-lab lab-start` (about 20 minutes; it prints `lab started`),
+then the method below. The harness container needs `python3` (ubuntu:24.04 lacks it) for the step
+that fills the env file. Lab values: `make creds` in that repo prints the endpoints (Harbor
+`harbor.env1.lab.test`, project `apps`, Supervisor `192.168.101.128`, vCenter
+`vcsa.env1.lab.test`, cluster `lab-gc1` in namespace `lab`); the passwords are in its gitignored
+`secrets.env`. Harbor ended with no `golang-web` repository and no robot. Its registry volume was
+at 60% after a GC; run GC again if pushes fail with `blob upload invalid` (the volume is full).
+Stop the lab afterwards: `make -C ~/projects/nested-vsphere-lab lab-stop`.
 
 How to walk it again: extract every `sh` block from `vks/README.md` and run each in a fresh login
 shell, in a clean `ubuntu:24.04` container (`--privileged --network host`, plus
