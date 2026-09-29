@@ -727,7 +727,8 @@ curl -sS --cacert "$HARBOR_CA" -o /dev/null -w 'http=%{http_code}\n' \
 ```
 
 **Expect:** `http=200` — the project is public: skip the next block. `http=401`, or any other
-code except `000` — treat the project as private: run it (it is harmless on a public project).
+code except `000` — treat the project as private: run it (on a public project it only adds an unneeded pull secret;
+with step 5 option B that secret holds the Harbor admin password).
 
 **If not:** `http=000` with a `curl:` error means Harbor could not be reached; fix that first
 (step 3).
@@ -989,7 +990,7 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `vcf plugin list` pauses on `Refreshing plugin inventory cache` | Wait: it stops by itself after about 30 s (it cannot reach VMware's plugin server). The installed plugins do not need that server. |
 | `kubectl_install: command not found` | Re-run step 1's block; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | `kubectl_install: no version` in step 7 | The guest cluster did not answer: check the kubeconfig block's output, and re-run step 7's login. |
-| `kubectl_install: cannot reach dl.k8s.io` | Allow dl.k8s.io, or use the Supervisor's kubectl: amd64 only (no Linux arm64; on Apple silicon it needs Rosetta, see `bad CPU type` above) and the Supervisor's older version, which may be more than one minor version behind your guest cluster (allowing dl.k8s.io is the real fix). Run: `source ~/.vks-golang-web.env; cd "$(mktemp -d)" && curl -fsS --cacert "$SUPERVISOR_CA" -O "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip" && unzip -oq vsphere-plugin.zip bin/kubectl && sudo install -m 0755 bin/kubectl /usr/local/bin/kubectl` (macOS: `darwin-amd64`). |
+| `kubectl_install: cannot reach dl.k8s.io` | Allow dl.k8s.io, or use the Supervisor's kubectl: amd64 only (no Linux arm64; on Apple silicon it needs Rosetta, see `bad CPU type` above) and the Supervisor's older version, which may be more than one minor version behind your guest cluster (allowing dl.k8s.io is the real fix). Run: `source ~/.vks-golang-web.env; ( cd "$(mktemp -d)" && curl -fsS --cacert "$SUPERVISOR_CA" -O "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip" && unzip -oq vsphere-plugin.zip bin/kubectl && sudo install -m 0755 bin/kubectl /usr/local/bin/kubectl )` (macOS: `darwin-amd64`). |
 | `ImagePullBackOff` with `x509` in `kubectl describe pod` | The guest cluster does not trust Harbor's CA. Ask your administrator to add Harbor's CA certificate (your `$HARBOR_CA` file) to the trusted CAs of the guest cluster `$VKS_CLUSTER`. |
 | `ImagePullBackOff` with `pull access denied` or `no basic auth credentials` in `kubectl describe pod` | The project is private: run step 8's pull-secret block, then `kubectl rollout restart deploy/golang-web` (running pods keep their old pull settings). |
 | `403` on the step 6 or 8 lookup | The robot needs `artifact` read and list; create it with step 5. |
