@@ -5,12 +5,100 @@ Resume point for the `vks/README.md` work. Read this before touching `vks/`.
 ## Where it stands
 
 `vks/README.md` builds `golang-web`, pushes to Harbor, deploys to a VKS guest cluster.
-It is **proven end-to-end on Linux and macOS, with podman and with docker** — last re-walked
-2026-09-28 (see below; the 2026-09-24 walk was the one before), every block in its own fresh shell (next section). Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`).
+It is **proven end-to-end on Linux and macOS, with podman and with docker** — all paths last
+walked 2026-09-28. The 2026-09-29 rewrite (round 4) was re-walked on Linux podman only; see there, every block in its own fresh shell (next section). Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`).
 
 macOS is proven too — see the next section. The old probe script `vks/macosx.sh` and its
 `vks/macosx.res` were REMOVED (2026-09-23): running every README block verbatim on a real Mac
 superseded the subset they checked. They are in git history; references to them below are history.
+
+## ✅ ROUND 4 — README rewritten for users new to CI/CD — 2026-09-29
+
+- **What changed.** `vks/README.md` now has an overview and a Terms table, and every block says
+  what it does, why, **Expect:**, and **If not:**. The two fingerprint checks say what to check and
+  what to ask the administrator, instead of "stop". Optional parts are marked.
+- **Reviews.** Two end-user reads. The first led to the rewrite; the second said "not ready — close",
+  and its verified findings were applied.
+  - One suggestion was deliberately NOT applied: always create the pull secret and drop the
+    public/private check. The owner asked for the secret to be optional.
+- **Commands changed in this round, only these four:**
+  - step 8's check uses `curl -sS`, so a connection error is printed;
+  - step 10 removes the clone only from inside it (tested in bash and zsh: inside, outside, and a
+    look-alike directory);
+  - the step 2 Check prints `MISSING: podman or docker` when neither is installed (tested both ways);
+  - the Harbor delete is unchanged, but it is now marked as deleting the whole repository, every
+    tag.
+- **Walked on Linux podman** (clean `ubuntu:24.04`, the lab), every block compared with its Expect:
+  34 blocks, all exit 0, every Expect matched. The check printed `http=200`, so block 35 was skipped, and the pod pulled from the public `apps` project with no secret. The pod's IMAGEID equalled the pushed digest, and the clone guard removed the clone. Not re-walked on macOS, docker or arm64. Their blocks are unchanged, and none of
+  them contains the three changed commands except the shared Check line, which is engine-neutral.
+- **Walk harness.** The step 8 check added a block, so every block after it moved up by one. The
+  port-forward is now block 39 and the pull-secret block 35. `run_linux.sh` skips block 35 when
+  block 34 printed `http=200`, as the README says.
+- **Renovate did not track jq**: its tags are `jq-1.8.2`. Measured: with jq pinned at 1.8.1, the
+  dry run proposed nothing; after the `extractVersion` rule in `renovate.json`, it proposed 1.8.2.
+
+## ✅ ROUND 3 — multi-arch push, Rosetta, the three open items — 2026-09-29
+
+- **`make image-push` pushes ONE tag holding linux/amd64 + linux/arm64** (`PUSH_PLATFORMS`), on
+  Linux and macOS, podman and Docker. The Dockerfile cross-compiles and its final stage runs
+  nothing, so no emulator is involved (measured: podman built both with no qemu installed).
+  podman builds a manifest list under `localhost/golang-web-push:<ver>` — its own name, because a
+  list and image-build's plain image cannot share one, a rebuild onto a list APPENDS (2 → 4
+  entries, measured), and `podman rmi` on a list deletes its native instance and every tag sharing
+  it (measured by the Docker adversary). Docker: `--load` on the context's own builder, then
+  `docker push`; `--provenance=false --sbom=false` keeps both engines' index to two entries.
+  A pod deployed by the index digest reports `imageID` = the index digest (measured on lab-gc1), so
+  step 8's check is unchanged.
+- **Rosetta is not needed** on the main path: podman 6.1.2 defaults `[machine] rosetta=false`
+  (source-read; containers.conf) and Colima defaults it off. The rented Mac's `rosetta = true` is in
+  `~/.config/containers/containers.conf.d/50-vks-rosetta.conf`, written 2026-09-28 by another
+  project that shares the Mac. Only the amd64-only Supervisor kubectl (a troubleshooting fallback)
+  needs Rosetta. So "engine VM start on a Mac that never had Rosetta" is CLOSED: nothing asks for it.
+- **9.1.1 Linux_ARM64 exists** on the portal (`VCF-Consumption-CLI-Linux_ARM64-9.1.1.0.25662425.tar.gz`,
+  32.54 MB, SHA-256 `0e8fe5cc…3c5f`); downloaded, checksum matched, walked. The CLI block now prints
+  the archive's SHA-256 to compare with the portal's SHA2 column (every local copy matched).
+- **Supervisor-served CLI (VCF Operations)**: NOT feasible in this lab. The page proxies the Fleet
+  Depot Service inside VCF Management Services (needs VCF Operations + SDDC Manager 9.1.x, ~3 TB and
+  58–82 GB RAM; this host has 101 GB disk free) — 2–5 days and an effectively irreversible
+  conversion to a VCF fleet, to serve a file the portal already provides. The README keeps the
+  KB-449965-backed note, marked untested. The Supervisor advertises build 25662425, the portal's.
+- **Walked on the branch code, all five paths pass steps 1–10**: Linux podman, Linux docker, Linux
+  arm64 (real 9.1.1 Linux_ARM64 CLI), macOS podman, macOS Colima. Every push was an index with
+  exactly `amd64,arm64`, pulled and run by the amd64 lab node.
+- **Bug found by the arm64 walk, fixed in the Makefile**: podman 4.9.3 / buildah 1.33.7 on an arm64
+  Linux host labels the amd64 image `variant: v8` (the host's), even for `--platform
+  linux/amd64/v1`; an amd64 node then fails "no match for platform in manifest". podman 6.1.2 on
+  macOS, x86 hosts, and Docker 29.5.2 on arm64 (Colima) produce no variant. `image-push` now
+  re-annotates such amd64 entries `v1` (an empty value cannot be set); measured to deploy.
+  Review follow-ups:
+  - `image-push` reads the list with **jq** (pinned in `.mise.toml`), not awk. A second review
+    showed awk broke on a different key order: it either passed silently or annotated the arm64
+    entry. jq handled every reordered fixture.
+  - After the repair it inspects the list again and stops the push if:
+    - an amd64 entry still has a non-amd64 variant, or
+    - the list's os/arch set differs from `PUSH_PLATFORMS`. Duplicates and a trailing comma are
+      ignored.
+  - Remaining gap: only the index entry is fixed. The amd64 image config still says `v8`.
+    Kubernetes selects by the index, so the pod runs. A tool that reads the config (Trivy,
+    Harbor's UI, classic-store `docker run --platform`) may show linux/amd64/v8. Not tested;
+    settling it would need a per-platform `--arch amd64 --variant v1` build on the arm64 box.
+- **The lab's `apps` Harbor project is PUBLIC** (`metadata.public=true`). Every walk therefore ran
+  the pull-secret block without needing it. Measured 2026-09-28 against a temporary private
+  project:
+  - The step 8 no-login check prints `http=200` for a public project and `http=401` for a private
+    one.
+  - Public project with no secret, in a fresh namespace: the event says "Successfully pulled", and
+    the pod runs.
+  - Private project with no secret: `ImagePullBackOff`. The error says `pull access denied …
+    no basic auth credentials`, not `401`/`unauthorized`.
+  - Adding the secret afterwards leaves the pod stuck; `kubectl rollout restart` recovers it.
+- **Lab Harbor's registry volume is 10 GiB and was 100% full**, which made pushes fail with
+  "blob upload invalid" / `no space left on device` (the registry log says so; the client does
+  not). Deleting a repository frees nothing until garbage collection, which had never run. One
+  manual GC (untagged kept) freed ~350 MB; it is still ~98% used, mostly by the `cicd` project's
+  39 repositories. Expect the next heavy session to fill it again: run GC, or grow the volume.
+- Walk harness note: step 4 clones GitHub `main`, so a Makefile change is only walkable after the
+  branch is pushed; the harness cloned the branch (disclosed deviation).
 
 ## ✅ ROUND 2 — kubectl, plugins and Linux arm64 — 2026-09-28
 
@@ -28,8 +116,9 @@ Colima, and **Linux arm64** (clean aarch64 `ubuntu:24.04` in Colima's VM). All p
 - **Functions live in their own file**, rewritten by step 1 every time, because the env file is
   written under `set -C` and an existing user would never receive a new function. The upgrade
   path (old step 1 from `main`, then the new one) was walked: one `source` line, both functions load.
-- **Rosetta stays**: podman's vfkit is started with `--device rosetta,…,install` (seen in a running
-  machine's argv). **`xcode-select --install` is gone**: the Homebrew installer installs CLT itself
+- ~~Rosetta stays~~ — **CORRECTED in round 3 above**: that vfkit `--device rosetta` came from
+  ANOTHER project's `~/.config/containers/containers.conf.d/50-vks-rosetta.conf`, not podman's
+  default. **`xcode-select --install` is gone**: the Homebrew installer installs CLT itself
   (measured on a fresh macOS guest) and falls back to xcode-select itself when interactive.
 - **Fresh macOS proven** two ways: a tart vanilla macOS 26.6.2 guest (no CLT/Homebrew/Rosetta)
   passed the Homebrew block and every `brew install`; engine VMs cannot start there (M1 has no
@@ -44,8 +133,8 @@ Colima, and **Linux arm64** (clean aarch64 `ubuntu:24.04` in Colima's VM). All p
   the same three adversaries after it was built; their fixes (noclobber-proof `>|`, newline-safe
   append, one "cannot reach dl.k8s.io" message, printed Supervisor/guest versions, a runnable
   fallback row) were re-walked.
-- **Open:** whether the portal has a **9.1.1 Linux_ARM64** archive (the arm64 walk used 9.1.0.0400,
-  the one line `CLI_TGZ` changed); an engine VM start on a Mac that has never had Rosetta.
+- **Open (closed in round 3 above):** the 9.1.1 Linux_ARM64 archive; an engine VM start on a Mac
+  that has never had Rosetta.
 
 ## ✅ ALL FOUR PATHS RE-WALKED AGAIN — 2026-09-28 (the flow BEFORE round 2: plugin bundle, Supervisor kubectl)
 
