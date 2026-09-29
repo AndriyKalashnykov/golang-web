@@ -5,12 +5,23 @@ Resume point for the `vks/README.md` work. Read this before touching `vks/`.
 ## Where it stands
 
 `vks/README.md` builds `golang-web`, pushes to Harbor, deploys to a VKS guest cluster.
-It is **proven end-to-end on Linux and macOS, with podman and with docker** — all paths last
-walked 2026-09-28. The 2026-09-29 rewrite (round 4) was re-walked on Linux podman only; see there, every block in its own fresh shell (next section). Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`).
+**All work is merged; nothing is in flight** (PRs #203–#207, last merge 2026-09-29). Every path
+was walked end to end on the final text, every block in its own fresh shell: Linux podman, Linux
+docker, macOS podman, macOS Colima, and Linux arm64 **with docker**. Pinned to **VCF CLI 9.1.1.0**
+(`vcf version` → `v9.1.1.0.25662425`).
 
-macOS is proven too — see the next section. The old probe script `vks/macosx.sh` and its
-`vks/macosx.res` were REMOVED (2026-09-23): running every README block verbatim on a real Mac
-superseded the subset they checked. They are in git history; references to them below are history.
+**Resume point:** nothing is pending. The open items are in `CLAUDE.md` → Upgrade Backlog (the
+"vks" entries). Before the next lab session, run Harbor GC: its 10 GiB registry volume is 98% full,
+and a full volume makes pushes fail with `blob upload invalid`.
+
+How to walk it again: extract every `sh` block from `vks/README.md` and run each in a fresh login
+shell, in a clean `ubuntu:24.04` container (`--privileged --network host`, plus
+`-v /var/lib/docker` for docker). Judge each block by its Expect line. Block numbers in the
+round sections below are for the README at that round; recount before reusing them.
+
+The old probe script `vks/macosx.sh` and its `vks/macosx.res` were REMOVED (2026-09-23): running
+every README block verbatim on a real Mac superseded the subset they checked. They are in git
+history; references to them below are history.
 
 ## ✅ ROUND 5 — plugins restored, Supervisor kubectl dropped, headings — 2026-09-29
 
