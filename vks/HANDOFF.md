@@ -31,6 +31,21 @@ This supersedes round 2's "no plugin bundle" and the Supervisor-kubectl flow des
   kubeconfig".
 - **Walk harness renumbering.** The README has 48 blocks. The public/private check is 33, the
   secret block 34 (skipped when 33 prints `http=200`), and the port-forward 38.
+- **Final walks 2026-09-29, all blocks exit 0 and every Expect matched:**
+
+  | path | environment |
+  |---|---|
+  | Linux podman | clean `ubuntu:24.04` |
+  | Linux docker | clean `ubuntu:24.04` |
+  | macOS podman | M1, podman 6.1.2 |
+  | macOS Colima | M1 |
+  | Linux arm64 with **docker** | aarch64 `ubuntu:24.04` inside Colima |
+
+  - The macOS podman walk found a real bug: step 10's clean-up failed when the docker CLI was
+    installed but Colima was stopped. It is fixed (log out everywhere, remove images only where
+    the engine runs).
+  - Lab Harbor's registry volume filled again mid-walk (`blob upload invalid`). A second manual GC
+    left 254 MB free (98%). Run GC before the next session.
 - **Not yet available here:** a 9.1.1 plugin bundle for Linux_ARM64 or Darwin_AMD64. Only
   9.1.0.0400 for Linux_ARM64 is on hand, so the arm64 walk uses it as a disclosed deviation.
 
