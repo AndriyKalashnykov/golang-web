@@ -37,6 +37,28 @@ superseded the subset they checked. They are in git history; references to them 
   58–82 GB RAM; this host has 101 GB disk free) — 2–5 days and an effectively irreversible
   conversion to a VCF fleet, to serve a file the portal already provides. The README keeps the
   KB-449965-backed note, marked untested. The Supervisor advertises build 25662425, the portal's.
+- **Walked on the branch code, all five paths pass steps 1–10**: Linux podman, Linux docker, Linux
+  arm64 (real 9.1.1 Linux_ARM64 CLI), macOS podman, macOS Colima. Every push was an index with
+  exactly `amd64,arm64`, pulled and run by the amd64 lab node.
+- **Bug found by the arm64 walk, fixed in the Makefile**: podman 4.9.3 / buildah 1.33.7 on an arm64
+  Linux host labels the amd64 image `variant: v8` (the host's), even for `--platform
+  linux/amd64/v1`; an amd64 node then fails "no match for platform in manifest". podman 6.1.2 on
+  macOS, x86 hosts, and Docker 29.5.2 on arm64 (Colima) produce no variant. `image-push` now
+  re-annotates such amd64 entries `v1` (an empty value cannot be set); measured to deploy.
+  Review follow-ups:
+  - `image-push` now inspects the list again after the repair. It stops the push if an amd64
+    entry still carries a non-amd64 variant.
+  - It also stops the push if the inspect output does not show one `"architecture"` line per
+    requested platform (for example one-line JSON, which the awk cannot read).
+  - Remaining gap: only the index entry is fixed. The amd64 image config still says `v8`.
+    Kubernetes selects by the index, so the pod runs, but a tool that reads the config (Trivy,
+    Harbor's UI, classic-store `docker run --platform`) may show linux/amd64/v8. Not tested.
+    Settling it would need a per-platform `--arch amd64 --variant v1` build on the arm64 box.
+- **Lab Harbor's registry volume is 10 GiB and was 100% full**, which made pushes fail with
+  "blob upload invalid" / `no space left on device` (the registry log says so; the client does
+  not). Deleting a repository frees nothing until garbage collection, which had never run. One
+  manual GC (untagged kept) freed ~350 MB; it is still ~98% used, mostly by the `cicd` project's
+  39 repositories. Expect the next heavy session to fill it again: run GC, or grow the volume.
 - Walk harness note: step 4 clones GitHub `main`, so a Makefile change is only walkable after the
   branch is pushed; the harness cloned the branch (disclosed deviation).
 
