@@ -176,12 +176,13 @@ curl http://localhost:8080/healthz
 kill "$PF"
 ```
 
-Linux only (on macOS the IP is not reachable from the host):
+Linux only, on a cluster with a LoadBalancer controller (`make e2e` sets one up on KinD; on
+macOS the IP is not reachable from the host):
 
 ```bash
-kubectl wait -n "$NS" svc/golang-web-service --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' --timeout=120s
-IP=$(kubectl get svc -n "$NS" golang-web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-curl "http://$IP:8080/myhello/"
+kubectl wait -n "$NS" svc/golang-web-service --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' --timeout=120s \
+  && IP=$(kubectl get svc -n "$NS" golang-web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}') \
+  && curl --retry 5 --retry-all-errors "http://$IP:8080/myhello/"
 ```
 
 Remove everything:

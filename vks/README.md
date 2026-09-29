@@ -40,9 +40,9 @@ EOF
 )
 chmod 600 ~/.vks-golang-web.env
 grep -qs vks-golang-web.functions ~/.vks-golang-web.env \
-  || echo '. "$HOME/.vks-golang-web.functions"' >> ~/.vks-golang-web.env
+  || printf '\n. "$HOME/.vks-golang-web.functions"\n' >> ~/.vks-golang-web.env
 
-cat > ~/.vks-golang-web.functions <<'EOF'
+cat >| ~/.vks-golang-web.functions <<'EOF'
 # harbor_cfg [USER PASSWORD]: writes a curl config with a Harbor login to $CFG (default: admin),
 # used as `curl -K "$CFG"` in steps 5, 6, 8 and 10 so no password is on the command line.
 harbor_cfg() {
@@ -64,7 +64,9 @@ kubectl_install() {
   case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; arm64|aarch64) arch=arm64 ;; *) echo "kubectl_install: unsupported CPU $(uname -m)" >&2; return 1 ;; esac
   if ! curl -fsIL --retry 3 -o /dev/null "https://dl.k8s.io/release/${v}/bin/${os}/${arch}/kubectl"; then
     m="${v#v}"; m="${m%.*}"
-    v="$(curl -fsSL --retry 3 "https://dl.k8s.io/release/stable-${m}.txt")" || { echo "kubectl_install: no upstream kubectl for ${1}" >&2; return 1; }
+    v="$(curl -fsSL --retry 3 "https://dl.k8s.io/release/stable-${m}.txt")" \
+      || { echo "kubectl_install: cannot reach dl.k8s.io (blocked or offline?)" >&2; return 1; }
+    echo "note: no upstream kubectl ${1%%+*}; using ${v}, the newest of that minor" >&2
   fi
   u="https://dl.k8s.io/release/${v}/bin/${os}/${arch}/kubectl"
   t="$(mktemp -d)" || return 1
@@ -76,7 +78,7 @@ kubectl_install() {
     [ "$(command -v kubectl)" = /usr/local/bin/kubectl ] \
       || echo "WARNING: 'kubectl' on your PATH is $(command -v kubectl), not /usr/local/bin/kubectl" >&2
   else
-    rm -rf "$t"; echo "kubectl_install: FAILED for ${v} ${os}/${arch} (${u}) — kubectl NOT changed" >&2; return 1
+    rm -rf "$t"; echo "kubectl_install: cannot reach dl.k8s.io, or the checksum did not match (${u}) — kubectl NOT changed" >&2; return 1
   fi
 }
 EOF
@@ -201,7 +203,8 @@ installs the versions matching your Supervisor and then your guest cluster:
 
 ```sh
 source ~/.vks-golang-web.env
-kubectl_install "$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+V="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+if [ -n "$V" ]; then kubectl_install "$V"; else echo "kubectl_install: cannot reach dl.k8s.io (blocked or offline?)"; fi
 ```
 
 **Expect:** `Client Version: v1.…` and no `WARNING` line.
@@ -227,7 +230,7 @@ you open both Terms links), or the download icon does nothing.
 - On VCF with VCF Operations, your Supervisor's home page (`https://<SUPERVISOR_ENDPOINT>/`) also
   offers the CLI without a Broadcom login. Where it shows "VCF Consumption CLI is currently
   unavailable for download", use the portal. If you took it from the Supervisor, set `CLI_TGZ`
-  below to that file.
+  below to that file (not tested here: this guide's lab Supervisor serves no CLI).
 
 The block picks this machine's file from `~/Downloads`; if you saved it elsewhere, change that folder.
 
@@ -420,17 +423,18 @@ If it says `context "supervisor" already exists`, run the vcf-contexts block in 
 this one again.
 
 This guide logs in with the SSO user and a password. A Supervisor that uses only an external
-OIDC identity provider needs `vcf cluster kubeconfig get` and the VCF CLI plugins instead.
+OIDC identity provider is out of scope: the password login fails there.
 
 kubectl at the Supervisor's version:
 
 ```sh
 source ~/.vks-golang-web.env
 V="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')"
+echo "Supervisor: ${V:-unknown}"
 kubectl_install "$V"
 ```
 
-**Expect:** `Client Version:` with the same `v1.<minor>` as the Supervisor (e.g. `v1.34.9`).
+**Expect:** `Supervisor: v1.<minor>…`, then `Client Version:` with the same `v1.<minor>`.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -448,10 +452,11 @@ source ~/.vks-golang-web.env
     get secret "${VKS_CLUSTER}-kubeconfig" -o jsonpath='{.data.value}' \
     | base64 -d > "$GUEST_KUBECONFIG" )
 V="$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')"
+echo "Guest cluster: ${V:-unknown}"
 kubectl_install "$V"
 ```
 
-**Expect:** `Client Version:` with the guest cluster's `v1.<minor>`.
+**Expect:** `Guest cluster: v1.<minor>…`, then `Client Version:` with the same `v1.<minor>`.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -459,7 +464,7 @@ kubectl get nodes
 kubectl version -o json | jq -r '"client \(.clientVersion.gitVersion)  server \(.serverVersion.gitVersion)"'
 ```
 
-**Expect:** every node `Ready`, and the same client and server version (e.g. `v1.36.2` and `v1.36.2+vmware.2`).
+**Expect:** every node `Ready`, and client and server on the same `v1.<minor>` (e.g. `v1.36.2` and `v1.36.2+vmware.2`).
 From here on, kubectl matches the guest cluster; the Supervisor is used only through `vcf`.
 
 ## 8. Deploy
@@ -647,8 +652,8 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `dial unix /var/run/docker.sock` (macOS) | `colima start` |
 | `bad CPU type in executable` (macOS) | `softwareupdate --install-rosetta --agree-to-license` |
 | `kubectl_install: command not found` | Re-run step 1's block; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
-| `kubectl_install: no version` | You are not logged in or the server is unreachable: re-run step 7's login. |
-| `kubectl_install: FAILED` (dl.k8s.io blocked) | The Supervisor serves an amd64-only, older kubectl at `https://<SUPERVISOR_ENDPOINT>/wcp/plugin/<linux\|darwin>-amd64/vsphere-plugin.zip` (`bin/kubectl`). |
+| `kubectl_install: no version` in step 7 | The Supervisor or cluster did not answer: re-run step 7's login. |
+| `kubectl_install: cannot reach dl.k8s.io` | Allow dl.k8s.io, or use the Supervisor's kubectl: amd64 only (no Linux arm64; Rosetta on Apple silicon) and the Supervisor's older version. In a new directory: `curl -fsS --cacert "$SUPERVISOR_CA" -O "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip" && unzip -oq vsphere-plugin.zip bin/kubectl && sudo install -m 0755 bin/kubectl /usr/local/bin/kubectl` (macOS: `darwin-amd64`). |
 | `ImagePullBackOff` with `x509` in `kubectl describe pod` | The guest cluster does not trust Harbor's CA — ask your administrator. |
 | `403` on the step 6 or 8 lookup | The robot needs `artifact` read and list; create it with step 5. |
 | `unauthorized` on push | Re-run step 5's login; a robot stops working when its `duration` (days) ends. |

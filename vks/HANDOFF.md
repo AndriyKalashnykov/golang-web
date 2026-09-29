@@ -38,10 +38,16 @@ Colima, and **Linux arm64** (clean aarch64 `ubuntu:24.04` in Colima's VM). All p
 - **The Supervisor's own VCF CLI download** (`/wcp/vcf-cli/`) answers 503 here: it proxies VCF
   Operations' Fleet Depot Service (KB 449965). Public packages.broadcom.com stops at v9.0.2. So the
   portal stays the source; the README mentions the Supervisor page for VCF-Operations sites.
+- **Evidence** (measured in the 2026-09-28 session; the logs were not committed): the five walk
+  logs; the zero-plugin `vcf context create`; the tart guest runs of the Homebrew and engine
+  blocks; the new-user podman/Colima runs; the vfkit argv. The implementation was attacked by
+  the same three adversaries after it was built; their fixes (noclobber-proof `>|`, newline-safe
+  append, one "cannot reach dl.k8s.io" message, printed Supervisor/guest versions, a runnable
+  fallback row) were re-walked.
 - **Open:** whether the portal has a **9.1.1 Linux_ARM64** archive (the arm64 walk used 9.1.0.0400,
   the one line `CLI_TGZ` changed); an engine VM start on a Mac that has never had Rosetta.
 
-## ✅ ALL FOUR PATHS RE-WALKED AGAIN — 2026-09-28
+## ✅ ALL FOUR PATHS RE-WALKED AGAIN — 2026-09-28 (the flow BEFORE round 2: plugin bundle, Supervisor kubectl)
 
 Same method (each block verbatim in its own fresh login shell, pass/fail from the Expect lines):
 Linux podman and Linux docker in clean `ubuntu:24.04` containers, macOS podman and Colima on the
