@@ -78,22 +78,20 @@ make version        # Print current version tag
 
 ## Upgrade Backlog
 
-- [ ] **vks: podman on arm64 Linux.** podman 4.9.3 (Ubuntu 24.04 arm64) labels the amd64 image
-      `variant: v8`, so `make image-push` refuses it and `vks/README.md` says to use docker
-      there. buildah 1.41 (podman 5.6+) changed variant handling and may fix it; UNVERIFIED. To
-      settle it, on arm64 Linux with podman 5.6+ run
-      `podman build --platform linux/amd64,linux/arm64 --manifest t . && podman manifest inspect t`.
-      If the amd64 entry has no variant, relax the README's "use docker on arm64 Linux" (the
-      Makefile check needs no change: it tests the result, not the version).
-- [ ] **vks: 9.1.1 VCF CLI plugin bundle for Linux_ARM64.** None was available here, so the
-      arm64 walk used 9.1.0.0400. Check Broadcom's download page.
-- [ ] **vks: untested corners.** Each one is recorded in `vks/HANDOFF.md`:
-      - step 10's clean-up with the podman machine stopped on macOS (the Mac's machine belonged
-        to another project);
-      - Gatekeeper prompts in Terminal.app (checked over SSH only);
-      - the Supervisor home-page CLI download (needs VCF Operations; the lab returns 503).
-- [ ] **Lab Harbor is 98% full** (nested-vsphere-lab, 10 GiB registry volume). Run GC or grow the
-      volume before the next vks walk; a full volume fails pushes with `blob upload invalid`.
+- [x] **vks: settled 2026-09-29** (measured; details in `vks/HANDOFF.md` round 6):
+      - podman 5.8.7 on arm64 Linux builds a correct amd64+arm64 image, so the README offers it
+        beside docker. podman 4.9 (Ubuntu 24.04's apt) mislabels; 5.0–5.7 untested.
+      - The 9.1.1 Linux_ARM64 plugin bundle exists (SHA-256 matches the portal); the README's
+        install block, run as written on arm64, installed every plugin.
+      - Step 10's clean-up with the podman engine unreachable prints its message, and the
+        podman login stays, as the message says.
+      - Gatekeeper: the installed `vcf` keeps Safari's quarantine flag but is "Notarized
+        Developer ID" (VMware), so it runs without a block. Checked over SSH; Terminal.app is
+        inferred to behave the same.
+      - The Supervisor's CLI download: its nginx template proxies to the Fleet Depot Service
+        (placed in VCF Operations per KB 449965) when that is set up, and otherwise returns a
+        hard-coded 503. Documented in the README; the working download path is untested.
+      - Lab Harbor: GC with untagged deletion freed 4.0 GB (99% to 60% full).
 
 - [x] **Signing proven on a real tag (2026-09-25).** A prerelease `v0.0.4-rc.1` ran the new
       sign-before-tag job end to end: `cosign verify` passed, the image was multi-arch, and

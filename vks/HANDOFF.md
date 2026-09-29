@@ -10,9 +10,9 @@ was walked end to end on the final text, every block in its own fresh shell: Lin
 docker, macOS podman, macOS Colima, and Linux arm64 **with docker**. Pinned to **VCF CLI 9.1.1.0**
 (`vcf version` → `v9.1.1.0.25662425`).
 
-**Resume point:** nothing is pending. The open items are in `CLAUDE.md` → Upgrade Backlog (the
-"vks" entries). Before the next lab session, run Harbor GC: its 10 GiB registry volume is 98% full,
-and a full volume makes pushes fail with `blob upload invalid`.
+**Resume point:** nothing is pending. Every vks item that the earlier rounds left open was settled
+by measurement in round 6 (below). Lab Harbor's registry volume is at 60% after a GC; run GC again
+if pushes fail with `blob upload invalid` (that message means the volume is full).
 
 How to walk it again: extract every `sh` block from `vks/README.md` and run each in a fresh login
 shell, in a clean `ubuntu:24.04` container (`--privileged --network host`, plus
@@ -22,6 +22,48 @@ round sections below are for the README at that round; recount before reusing th
 The old probe script `vks/macosx.sh` and its `vks/macosx.res` were REMOVED (2026-09-23): running
 every README block verbatim on a real Mac superseded the subset they checked. They are in git
 history; references to them below are history.
+
+## ✅ ROUND 6 — the open items, settled by measurement — 2026-09-29
+
+- **podman on arm64 Linux.** `quay.io/podman/stable` (podman 5.8.7), arm64, running
+  `podman build --platform linux/amd64,linux/arm64 --manifest t` with this repo's Dockerfile gave
+  `[{"architecture":"arm64","os":"linux"},{"architecture":"amd64","os":"linux"}]`: no variants.
+  So podman 4.9.3 (Ubuntu 24.04's apt) mislabels and podman 5.8.7 does not; 5.0–5.7 are
+  untested. The READMEs and the `image-push` message offer docker, or podman 5.8 as measured.
+  Ubuntu 24.04 has no apt route to podman 5.8, so the vks README leads with docker.
+  The real `make image-push` was also run under podman 5.8.7 on arm64, pointed at a registry that
+  refuses connections. It built both platforms, passed the variant and platform checks with no
+  refusal, and failed only at the push; the list held `arm64` and `amd64` with no variants.
+- **9.1.1 Linux_ARM64 plugin bundle.** It exists on the portal:
+  `VCF-Consumption-CLI-PluginBundle-Linux_ARM64-9.1.1.0.25665404.tar.gz`, SHA-256 `d996d1a7…fdd2`,
+  matching the download. The README's install block (step 2), run as written on arm64
+  `ubuntu:24.04` with the 9.1.1 CLI, installed every plugin. No version deviation is needed any
+  more.
+- **Step 10 with the podman engine unreachable (macOS).** podman was pointed at a connection whose
+  socket does not exist (a stopped machine, from the client's side), and docker at a dead socket;
+  the block ran in zsh with throwaway auth files. It printed "podman is not running …" and
+  "docker is not running …", exited 0, and the podman auth file still held the Harbor entry,
+  exactly as the message says. docker's logout still removed its entry.
+- **Gatekeeper.** The two Darwin archives were given Safari's quarantine flag and the README
+  block was run.
+  - `/usr/local/bin/vcf` KEEPS the flag; the 24 plugin executables do not.
+  - `spctl --assess -t open --context context:primary-signature` reports
+    `accepted source=Notarized Developer ID` (VMware, EG7KH642X6), and `vcf` ran.
+  - Terminal.app was not run. It should behave the same, because Gatekeeper assesses the file,
+    not the terminal (inferred; checked over SSH only).
+- **The warning when a tool is not on PATH.** Both PATH warnings (kubectl and vcf) printed an
+  empty name when the tool was not on PATH at all. They now print `'not found'`.
+- **The Supervisor's CLI download.** Earlier rounds said it "needs VCF Operations" on the strength
+  of KB 449965, but that KB is about the vSphere Client's link ("Unable to connect to the Fleet
+  Depot Service"), not the Supervisor page. Measured this time on the control plane
+  (192.168.100.60): `/etc/vmware/wcp/nginx/forwarding_rules_vcf_cli.conf.jinja` proxies
+  `/wcp/vcf-cli` to the FDS file depot "if FDS ManagementService is available", and otherwise
+  renders `return 503 "VCF CLI is currently unavailable for download."`, which is what this lab
+  serves. The build info it advertises (`/resources/cliBuildInfo/buildInfo.json`) is
+  9.1.1.0 / 25662425. The template names only "FDS ManagementService". Placing the Fleet Depot
+  Service in VCF Operations comes from KB 449965's naming, so that part is inferred. Not supported
+  here; the README says so, and the working download path was never exercised.
+- **Lab Harbor.** GC with `delete_untagged=true` freed 4.0 GB: 99% to 60% of 10 GiB.
 
 ## ✅ ROUND 5 — plugins restored, Supervisor kubectl dropped, headings — 2026-09-29
 

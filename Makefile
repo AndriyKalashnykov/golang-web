@@ -597,7 +597,8 @@ image-stop:
 #           built there, not even alone). containerd could be made to accept it by relabelling it
 #           `v1`, but podman rejects that (measured, 4.9 and 6.1); skopeo and CRI-O use the same
 #           library (inferred). So such a list is NOT pushed; the message names the ways out.
-#           podman 6.1 (the macOS VM), Docker, and x86 hosts produce no variant (measured).
+#           podman 5.8.7 (arm64 Linux), podman 6.1 (the macOS VM), Docker, and x86 hosts produce
+#           no variant (measured).
 #           The list's os/arch set must also equal PUSH_PLATFORMS (variants and duplicate
 #           entries are not compared).
 #   docker: loads a multi-platform image (needs the containerd image store) and pushes it.
@@ -628,7 +629,7 @@ image-push: deps-buildx
 		if [ -n "$$v" ]; then \
 			echo "$$($$E --version) on this $$(uname -m) host labelled the amd64 image variant '$$v'."; \
 			echo "  podman (and tools built like it) cannot pull an amd64 image with a variant, so it is not pushed."; \
-			echo "  Push with Docker (CONTAINER_ENGINE=docker) or a newer podman (6.1 measured clean),"; \
+			echo "  Push with Docker (CONTAINER_ENGINE=docker) or podman 5.8 (measured correct),"; \
 			echo "  or, if every node is arm64, only arm64 (PUSH_PLATFORMS=linux/arm64)."; \
 			exit 1; fi; \
 		got=$$(printf '%s\n' "$$j" | jq -r '$(JQ_PLATFORMS)') || exit 1; \

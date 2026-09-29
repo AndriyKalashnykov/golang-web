@@ -116,7 +116,7 @@ kubectl_install() {
      && sudo install -d /usr/local/bin && sudo install -m 0755 "$t/kubectl" /usr/local/bin/kubectl; then
     rm -rf "$t"; /usr/local/bin/kubectl version --client
     [ "$(command -v kubectl)" = /usr/local/bin/kubectl ] \
-      || echo "WARNING: 'kubectl' on your PATH is $(command -v kubectl), not /usr/local/bin/kubectl" >&2
+      || echo "WARNING: 'kubectl' on your PATH is '$(command -v kubectl || echo not found)', not /usr/local/bin/kubectl" >&2
   else
     rm -rf "$t"; echo "kubectl_install: cannot reach dl.k8s.io, or the checksum did not match (${u}) — kubectl NOT changed" >&2; return 1
   fi
@@ -203,8 +203,8 @@ sudo apt-get update && sudo apt-get install -y podman
 
 **Expect:** the install ends without an error; the Check below confirms it. podman must be 4.0 or
 newer (Ubuntu 24.04, Debian 12 or later); on older releases, use docker. On an **arm64** Linux
-machine, use docker: podman 4.9 there (and possibly early 5.x) mislabels the amd64 image, and
-step 6 stops.
+machine, use docker: podman 4.9 (Ubuntu 24.04's) mislabels the amd64 image there, and step 6
+stops. podman 5.8 was measured correct, if you already have it.
 
 Linux (Debian/Ubuntu), docker. On Debian, replace `ubuntu` with `debian` in both URLs:
 
@@ -296,8 +296,9 @@ if [ -n "$V" ]; then kubectl_install "$V"; else echo "kubectl_install: cannot re
 **Expect:** `Client Version: v1.…` (and a `Kustomize Version` line), and no `WARNING` line.
 
 **If not:**
-- `WARNING: 'kubectl' on your PATH is …`: another kubectl is found first. Remove it, or put
-  `/usr/local/bin` first in your `PATH`.
+- `WARNING: 'kubectl' on your PATH is …`: another kubectl is found first, or (`not found`)
+  `/usr/local/bin` is not in your `PATH`. Put `/usr/local/bin` first in your `PATH`, and remove
+  the other kubectl if there is one.
 - `cannot reach dl.k8s.io`: see Troubleshooting.
 
 Upstream kubectl is not a FIPS build; if your policy requires one, use your vendor's kubectl.
@@ -319,8 +320,9 @@ greyed out until you open both Terms links — or the download icon does nothing
 
 - Pick the release first — until you do, the page reads "No data found". The direct link skips this.
 - Take the row for your platform, not the multi-GB platform-less bundles beside it.
-- With VCF Operations, your Supervisor's home page (`https://<SUPERVISOR_ENDPOINT>/`) may also
-  offer the CLI; if you download it there, set `CLI_TGZ` below to that file.
+- Your Supervisor's home page (`https://<SUPERVISOR_ENDPOINT>/`) offers the CLI only when VCF
+  Operations' Fleet Depot Service is set up; otherwise its download answers "VCF CLI is currently
+  unavailable for download". If yours works, set `CLI_TGZ` below to that file.
 
 This block finds this machine's two files in `~/Downloads`, prints their checksums and installs
 them. If you saved them elsewhere, change that folder. Other platforms are not supported.
@@ -349,7 +351,7 @@ if [ -f "$CLI_TGZ" ] && [ -f "$PLUGINS_TGZ" ]; then
   /usr/local/bin/vcf version | head -1
   /usr/local/bin/vcf plugin list
   [ "$(command -v vcf)" = /usr/local/bin/vcf ] \
-    || echo "WARNING: 'vcf' on your PATH is $(command -v vcf), not /usr/local/bin/vcf"
+    || echo "WARNING: 'vcf' on your PATH is '$(command -v vcf || echo not found)', not /usr/local/bin/vcf"
 else
   for f in "$CLI_TGZ" "$PLUGINS_TGZ"; do
     [ -f "$f" ] || echo "Not found: $f — download it (table above) for $(uname -s)/$(uname -m)"
@@ -363,7 +365,8 @@ then `version: v9.1.1.0.25662425` (or the release you downloaded), then the plug
 
 **If not:** a different checksum means a damaged or wrong download: delete the file and download
 it again. If it still differs, do not install it; tell your administrator. A `WARNING` line means
-another `vcf` is found first: remove it, or put `/usr/local/bin` first in your `PATH`.
+another `vcf` is found first, or (`not found`) `/usr/local/bin` is not in your `PATH`: put
+`/usr/local/bin` first in your `PATH`, and remove the other `vcf` if there is one.
 
 ### Check the tools
 
@@ -928,7 +931,7 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `403` on the step 6 or 8 lookup | The robot needs `artifact` read and list; create it with step 5. |
 | `unauthorized` on push | Re-run step 5's login; a robot stops working when its `duration` (days) ends. |
 | Pod crash-loops | `kubectl logs deploy/golang-web --previous`, and send the output to the app's owner. |
-| `labelled the amd64 image variant 'v8'` in step 6 | podman on an arm64 Linux machine: push with docker (`CONTAINER_ENGINE=docker` in the env file). Only if every node is arm64: `PUSH_PLATFORMS=linux/arm64`. |
+| `labelled the amd64 image variant 'v8'` in step 6 | podman 4.x on an arm64 Linux machine: push with docker (`CONTAINER_ENGINE=docker` in the env file), or podman 5.8 (measured correct). Only if every node is arm64: `PUSH_PLATFORMS=linux/arm64`. |
 | `exec format error` in the pod | The image lacks the node's architecture: push again without `PUSH_PLATFORMS`, or include the node's (`linux/amd64`). |
 | Pod rejected at admission | The cluster enforces the `restricted` security policy, and `k8s/golang-web.yaml` complies. If you changed the file, keep it compliant; if not, send the message from `kubectl get events` to your administrator. |
 | `EXTERNAL-IP` stays `<pending>` | Use the port-forward in step 9. |
