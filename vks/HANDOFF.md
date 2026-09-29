@@ -12,6 +12,52 @@ macOS is proven too — see the next section. The old probe script `vks/macosx.s
 `vks/macosx.res` were REMOVED (2026-09-23): running every README block verbatim on a real Mac
 superseded the subset they checked. They are in git history; references to them below are history.
 
+## ✅ ROUND 5 — plugins restored, Supervisor kubectl dropped, headings — 2026-09-29
+
+This supersedes round 2's "no plugin bundle" and the Supervisor-kubectl flow described below.
+
+- **The VCF CLI plugins bundle is back**, at the owner's request.
+  - Its download row is restored, and step 2's block installs it offline
+    (`vcf plugin install all --local-source`).
+  - Measured: 13 plugins installed on Linux amd64, and the install also works with no network.
+  - The block calls `/usr/local/bin/vcf` explicitly and warns if another `vcf` comes first on PATH.
+    An adversary found `~/.local/bin/vcf` shadowing it on this box.
+  - The checksum line prints the file name even when the folder has a space (gawk, mawk and macOS
+    BSD awk).
+- **Step 7 no longer installs a kubectl at the Supervisor's version.** Measured: the v1.37.1
+  kubectl from step 2 ran `version`, `get ns` and `get secret` against the v1.34.9 Supervisor,
+  printing only a skew warning. The guest-cluster kubectl install stays.
+- **Every heading is a verb phrase**, e.g. "Create the namespace" or "Get the guest cluster's
+  kubeconfig".
+- **Walk harness renumbering.** The README has 48 blocks. The public/private check is 33, the
+  secret block 34 (skipped when 33 prints `http=200`), and the port-forward 38.
+- **Final walks 2026-09-29, all blocks exit 0 and every Expect matched:**
+
+  | path | environment |
+  |---|---|
+  | Linux podman | clean `ubuntu:24.04` |
+  | Linux docker | clean `ubuntu:24.04` |
+  | macOS podman | M1, podman 6.1.2 |
+  | macOS Colima | M1 |
+  | Linux arm64 with **docker** | aarch64 `ubuntu:24.04` inside Colima |
+
+  - The macOS podman walk found a real bug: step 10's clean-up failed when the docker CLI was
+    installed but Colima was stopped. It is fixed:
+    - it logs out with every installed engine. docker's logout needs no daemon (measured); a
+      review measured that podman's remote client on macOS DOES need its machine;
+    - it removes images only where the engine answers `info`. There is no time limit: a review
+      measured that `perl -e 'alarm N; exec …'` does NOT stop docker or podman (Go catches
+      SIGALRM), so the README says to press Ctrl-C if it hangs. The Makefile's `engine_ready` had
+      the same dead bound; it now forks and kills the child (separate PR);
+    - it prints "<engine> is not running … start it and run this block again" for a stopped engine
+      (that engine keeps its images and, for podman on macOS, its login).
+    Not walked: a stopped podman machine on macOS, because the Mac's machine belongs to another
+    project.
+  - Lab Harbor's registry volume filled again mid-walk (`blob upload invalid`). A second manual GC
+    left 254 MB free (98%). Run GC before the next session.
+- **Not yet available here:** a 9.1.1 plugin bundle for Linux_ARM64 or Darwin_AMD64. Only
+  9.1.0.0400 for Linux_ARM64 is on hand, so the arm64 walk uses it as a disclosed deviation.
+
 ## ✅ ROUND 4 — README rewritten for users new to CI/CD — 2026-09-29
 
 - **What changed.** `vks/README.md` now has an overview and a Terms table, and every block says
@@ -114,7 +160,8 @@ Colima, and **Linux arm64** (clean aarch64 `ubuntu:24.04` in Colima's VM). All p
   Supervisor-served kubectl was linux/darwin **amd64 only** and v1.32.9 against a v1.34 Supervisor
   (already outside ±1 skew). `vcf context create` needs no kubectl at all.
 - **No VCF CLI plugins needed**: with ZERO plugins, `vcf context create` succeeded in 2 s and
-  installed nothing; context list/delete work. The PluginBundle download is gone.
+  installed nothing; context list/delete work. The PluginBundle download is gone. (Round 5
+  RESTORED the bundle at the owner's request; see there.)
 - **Functions live in their own file**, rewritten by step 1 every time, because the env file is
   written under `set -C` and an existing user would never receive a new function. The upgrade
   path (old step 1 from `main`, then the new one) was walked: one `source` line, both functions load.
