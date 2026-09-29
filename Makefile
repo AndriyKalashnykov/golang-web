@@ -302,15 +302,15 @@ deps-engine:
 	command -v podman >/dev/null 2>&1 || { echo "ERROR: podman install did not put podman on PATH."; exit 1; }; \
 	echo "podman installed: $$(podman --version)"
 
-#deps-buildx: @ Verify the engine can run `buildx build` (image-build depends on it)
+#deps-buildx: @ Verify the engine can run `buildx build` (image-build and image-push depend on it)
 deps-buildx:
-	@# `image-build` runs `<engine> buildx build --load`. podman provides buildx via a
+	@# `image-build` and docker's `image-push` run `<engine> buildx build --load`. podman provides buildx via a
 	@# built-in buildah shim, but for DOCKER on Debian/Ubuntu buildx is a SEPARATE
 	@# package (`docker-buildx-plugin`) -- a plain `apt-get install docker.io` yields a
 	@# docker that cannot build this image. Check it here rather than failing mid-build.
 	@$(call engine_ready,$(CONTAINER_ENGINE))
 	@$(CONTAINER_ENGINE) buildx version >/dev/null 2>&1 && { [ "$(MAKELEVEL)" != 0 ] || echo "$(CONTAINER_ENGINE) buildx is available."; exit 0; }; \
-	echo "ERROR: '$(CONTAINER_ENGINE) buildx' is not available -- 'make image-build' cannot run."; \
+	echo "ERROR: '$(CONTAINER_ENGINE) buildx' is not available -- 'make image-build' and 'make image-push' cannot run."; \
 	if [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
 		case "$(HOST_OS)" in \
 		  Darwin) echo "  Install buildx, then link it where docker looks for plugins:"; \
@@ -499,30 +499,17 @@ coverage-check: deps
 		echo "Coverage $${total}% meets $${threshold}% threshold"; \
 	fi
 
-#image-build: @ Build the container image
-# Kubernetes/VKS nodes are amd64. On an arm64 host a native build pushes fine and then
-# dies at runtime with `exec format error`, so default to amd64 there. Override with
-# `make image-build PLATFORM=linux/arm64`, or PLATFORM= to build natively.
-# (The KinD targets do NOT use this default; they build for the KinD node instead.)
-HOST_ARCH := $(shell uname -m)
-ifneq ($(filter arm64 aarch64,$(HOST_ARCH)),)
-PLATFORM ?= linux/amd64
-endif
+#image-build: @ Build the container image for this machine (to run locally; image-push builds its own)
+# PLATFORM empty = this machine's architecture. `make image-push` builds every PUSH_PLATFORMS
+# itself, so a local image never has to match a cluster. (The KinD targets pass PLATFORM.)
 PLATFORM ?=
-ifneq ($(filter arm64 aarch64,$(HOST_ARCH)),)
-ifeq ($(PLATFORM),linux/amd64)
-_emulation_note := echo "Note: this arm64 machine runs the linux/amd64 image under emulation (it is built for amd64 clusters). Native: add PLATFORM="
-endif
-endif
-ifndef _emulation_note
-_emulation_note := true
-endif
+IMAGE_BUILD_ARGS := --build-arg MY_VERSION=$(VERSION) --build-arg MY_BUILDTIME=$(BUILD_TIME)
 
 # No `build` prerequisite: the Dockerfile compiles main.go in its own builder stage, so the host
 # binary (and the mise toolchain `build: deps` installs) is not needed to build the image.
 image-build: deps-buildx
 	@echo MY_GITREF is $(MY_GITREF)
-	@$(DOCKERCMD) buildx build --load $(if $(PLATFORM),--platform $(PLATFORM)) --build-arg MY_VERSION=$(VERSION) --build-arg MY_BUILDTIME=$(BUILD_TIME) -f Dockerfile -t $(OPV) .
+	@$(DOCKERCMD) buildx build --load $(if $(PLATFORM),--platform $(PLATFORM)) $(IMAGE_BUILD_ARGS) -f Dockerfile -t $(OPV) .
 
 #clean: @ Remove the built image and build artifacts
 clean:
@@ -532,7 +519,10 @@ clean:
 		echo "Removed build artifacts. $(DOCKERCMD) is not running, so image $(OPV) was not checked."; exit 0; fi; \
 	if [ -n "$$($(DOCKERCMD) ps -q --filter ancestor=$(OPV))$$($(DOCKERCMD) ps -q --filter ancestor=$(KIND_IMAGE))" ]; then \
 		echo "Image $(OPV) is used by a running container. Stop it first: make image-stop"; exit 1; fi; \
-	removed=""; for img in $(OPV) $(KIND_IMAGE); do \
+	removed=""; \
+	if [ "$(DOCKERCMD)" = podman ] && podman manifest exists $(PUSH_LIST); then \
+		podman manifest rm $(PUSH_LIST) >/dev/null && removed="$$removed $(PUSH_LIST)"; fi; \
+	for img in $(OPV) $(KIND_IMAGE); do \
 		if $(DOCKERCMD) image inspect $$img >/dev/null 2>&1; then $(DOCKERCMD) image rm $$img >/dev/null && removed="$$removed $$img"; fi; \
 	done; \
 	if [ -n "$$removed" ]; then echo "Removed build artifacts and image(s):$$removed"; else echo "Removed build artifacts; no image to remove."; fi
@@ -546,7 +536,6 @@ update: deps
 #image-test-fg: @ Run container in foreground with test overrides
 image-test-fg: image-build
 	@$(call port_free,$(APP_PORT),image-test-fg)
-	@$(_emulation_note)
 	@echo "Serving on http://localhost:$(APP_PORT)/myhello/ -- Ctrl-C to stop."
 	@$(DOCKERCMD) run -it -p $(WEBPORT) \
 	-e APP_CONTEXT=/myhello/ \
@@ -564,7 +553,6 @@ image-run-bg:
 		echo "$(PROJECT) is already running. Logs: make image-logs   stop: make image-stop"; exit 1; fi
 	@$(call port_free,$(APP_PORT),image-run-bg)
 	@$(MAKE) --no-print-directory image-build
-	@$(_emulation_note)
 	@$(DOCKERCMD) run -d -p $(WEBPORT) $(foreach v,$(APP_ENV_VARS),$(if $($(v)),-e $(v))) --rm --name $(PROJECT) $(OPV) >/dev/null && \
 	echo "$(PROJECT) running: http://localhost:$(APP_PORT)/   logs: make image-logs   stop: make image-stop"
 
@@ -581,11 +569,41 @@ image-stop:
 		$(DOCKERCMD) stop $(PROJECT) >/dev/null && echo "Stopped $(PROJECT)."; \
 	else echo "$(PROJECT) is not running; nothing to stop."; fi
 
-#image-push: @ Push the image to IMAGE_REGISTRY/OWNER (see the footer)
-image-push: image-build
+#image-push: @ Build every PUSH_PLATFORMS and push them as one tag to IMAGE_REGISTRY/OWNER (see the footer)
+# Rebuilds; it does not push the image-build image. The Dockerfile cross-compiles and its final
+# stage runs nothing, so no emulator is needed for either architecture.
+#   podman: builds a manifest list under PUSH_LIST (NOT $(OPV): image-build owns that name, and a
+#           manifest list and a plain image cannot share it) and pushes it as $(OPV).
+#   docker: loads a multi-platform image (needs the containerd image store) and pushes it.
+#           --builder pins the context's own docker-driver builder (named after the context:
+#           default, colima, ...), so a `docker buildx use`d container builder is never picked;
+#           --provenance/--sbom=false keep the index to exactly the requested platforms.
+PUSH_PLATFORMS ?= linux/amd64,linux/arm64
+PUSH_LIST := localhost/$(PROJECT)-push:$(VERSION)
+image-push: deps-buildx
+	@case "$(PUSH_PLATFORMS)" in ''|*' '*) \
+		echo "PUSH_PLATFORMS must be a comma-separated list with no spaces, e.g. linux/amd64,linux/arm64"; exit 1;; esac
+	@echo "Building $(OPV) for $(PUSH_PLATFORMS)"
+	@if [ "$(CONTAINER_ENGINE)" = podman ]; then \
+		if podman manifest exists $(PUSH_LIST); then podman manifest rm $(PUSH_LIST) >/dev/null || exit 1; \
+		elif podman image exists $(PUSH_LIST); then podman rmi $(PUSH_LIST) >/dev/null || exit 1; fi; \
+		podman build --platform $(PUSH_PLATFORMS) --manifest $(PUSH_LIST) $(IMAGE_BUILD_ARGS) -f Dockerfile . || exit 1; \
+	else \
+		$(CONTAINER_ENGINE) buildx build --builder "$$($(CONTAINER_ENGINE) context show)" --platform $(PUSH_PLATFORMS) \
+			--provenance=false --sbom=false --load $(IMAGE_BUILD_ARGS) -f Dockerfile -t $(OPV) . || { \
+			case "$(PUSH_PLATFORMS)" in *,*) \
+				if ! $(CONTAINER_ENGINE) info --format '{{json .DriverStatus}}' 2>/dev/null | grep io.containerd.snapshotter >/dev/null; then \
+					echo ""; \
+					echo "A multi-platform image needs Docker's containerd image store; this Docker may use the classic store."; \
+					echo "  Turn it on:     add \"features\": {\"containerd-snapshotter\": true} to /etc/docker/daemon.json, restart Docker"; \
+					echo "  Or push one:    make image-push PUSH_PLATFORMS=linux/amd64"; \
+				fi;; \
+			esac; exit 1; }; \
+	fi
 	@# A bare `push` against an unauthenticated engine fails with `denied` / `unauthorized`
 	@# and no hint about what to do. Say it here instead.
-	@$(CONTAINER_ENGINE) push $(OPV) || { \
+	@if [ "$(CONTAINER_ENGINE)" = podman ]; then podman manifest push --all $(PUSH_LIST) docker://$(OPV); \
+	else $(CONTAINER_ENGINE) push $(OPV); fi || { \
 		echo ""; \
 		echo "Push to $(OPV) failed."; \
 		echo "  Not your namespace? Push to yours:  make image-push OWNER=<you> [IMAGE_REGISTRY=<registry>]"; \
@@ -744,7 +762,7 @@ endef
 #kind-create: @ Create local KinD cluster with cloud-provider-kind LoadBalancer support
 kind-create: deps-kind
 	@# Build for the KinD NODE's architecture, taken from the engine kind runs on --
-	@# not PLATFORM's arm64-host default (amd64, for real clusters). Own tag: KIND_IMAGE.
+	@# which may differ from this machine's (e.g. docker in a VM). Own tag: KIND_IMAGE.
 	@$(call engine_ready,$(KIND_ENGINE)); \
 	arch=$$($(KIND_ENGINE) info --format '{{.Architecture}}'); \
 	case "$$arch" in aarch64|arm64) plat=linux/arm64;; x86_64|amd64) plat=linux/amd64;; \

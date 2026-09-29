@@ -95,8 +95,11 @@ make image-push OWNER=<your-namespace>
 | `OWNER` | `andriykalashnykov` | Namespace in the registry; the image is `IMAGE_REGISTRY/OWNER/golang-web` |
 | `REGISTRY_USERNAME` | `OWNER` | Login user, where it differs from `OWNER` |
 | `REGISTRY_TOKEN` | — | Registry credential (a GitHub PAT with `write:packages` for ghcr.io) |
+| `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms built and pushed as one multi-arch tag; comma-separated |
 
-The tag is the version in `version.txt`.
+The tag is the version in `version.txt`. `make image-push` builds every platform itself, on Linux
+or macOS, with podman or Docker; it does not push the image `make image-build` made. Docker needs
+its containerd image store for more than one platform (Docker 29 uses it on new installs).
 
 ## Pinned versions
 

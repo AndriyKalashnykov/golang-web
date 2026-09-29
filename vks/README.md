@@ -101,8 +101,7 @@ source ~/.vks-golang-web.env
 
 ### macOS: Homebrew
 
-The Homebrew installer also installs the Xcode Command Line Tools. Rosetta is for podman's VM,
-which asks for it on Apple silicon.
+The Homebrew installer also installs the Xcode Command Line Tools.
 
 ```sh
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -110,7 +109,6 @@ B=/opt/homebrew/bin/brew; [ -x "$B" ] || B=/usr/local/bin/brew
 grep -qs "brew shellenv" ~/.zprofile || echo "eval \"\$($B shellenv)\"" >> ~/.zprofile
 eval "$($B shellenv)"
 brew --version
-[ "$(uname -m)" = arm64 ] && softwareupdate --install-rosetta --agree-to-license
 ```
 
 ### Container engine — pick one
@@ -225,8 +223,6 @@ you open both Terms links), or the download icon does nothing.
 - Take the row for your platform, not the multi-GB platform-less bundles beside it.
 - The **VCF Consumption CLI Plugins** bundle is not needed: every `vcf` command in this guide is
   built in.
-- Linux arm64: if the portal has no `Linux_ARM64` file for 9.1.1, take the newest `Linux_ARM64`
-  release it lists and set `CLI_TGZ` below to that file (this guide works with 9.1.0.0400).
 - On VCF with VCF Operations, your Supervisor's home page (`https://<SUPERVISOR_ENDPOINT>/`) also
   offers the CLI without a Broadcom login. Where it shows "VCF Consumption CLI is currently
   unavailable for download", use the portal. If you took it from the Supervisor, set `CLI_TGZ`
@@ -245,6 +241,7 @@ esac
 CLI_TGZ="$HOME/Downloads/VCF-Consumption-CLI-${P}-9.1.1.0.25662425.tar.gz"
 
 if [ -f "$CLI_TGZ" ]; then
+  (sha256sum "$CLI_TGZ" 2>/dev/null || shasum -a 256 "$CLI_TGZ") | awk '{print "SHA-256: " $1}'
   T="$(mktemp -d)"
   tar -xzf "$CLI_TGZ" -C "$T"
   sudo install -d /usr/local/bin
@@ -256,7 +253,8 @@ else
 fi
 ```
 
-**Expect:** `version: v9.1.1.0.25662425` (or the release you downloaded).
+**Expect:** a `SHA-256:` equal to the **SHA2** the download page shows for your file, then
+`version: v9.1.1.0.25662425` (or the release you downloaded).
 
 ### Check
 
@@ -383,7 +381,8 @@ echo "$IMAGE"
 make image-push IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 ```
 
-**Expect:** the image name, then a finished build and push.
+**Expect:** the image name, then a build for `linux/amd64,linux/arm64` and a push. The image is
+built for both, whatever machine you are on; `PUSH_PLATFORMS=linux/amd64` limits it to one.
 
 Check:
 
@@ -392,11 +391,11 @@ source ~/.vks-golang-web.env
 harbor_cfg "$REGISTRY_USERNAME" "$REGISTRY_TOKEN"
 curl -fsS --cacert "$HARBOR_CA" -K "$CFG" \
   "https://${HARBOR_FQDN}/api/v2.0/projects/${HARBOR_PROJECT}/repositories/golang-web/artifacts" \
-  | jq -r '.[] | "\(.digest[0:19])  \([.tags[]?.name]|join(","))"'
+  | jq -r '.[] | "\(.digest[0:19])  \([.tags[]?.name]|join(","))  \([.references[]?.platform.architecture]|join(","))"'
 rm -f "$CFG"
 ```
 
-**Expect:** a digest and your version tag.
+**Expect:** a digest, your version tag, and `amd64,arm64` (in either order).
 
 ## 7. Get the kubeconfigs
 
@@ -582,6 +581,7 @@ The local image and the registry login:
 source ~/.vks-golang-web.env
 for e in podman docker; do
   command -v "$e" >/dev/null 2>&1 || continue
+  [ "$e" = podman ] && podman manifest rm "localhost/golang-web-push:$(cat version.txt)" >/dev/null 2>&1
   "$e" rmi -f "${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web:$(cat version.txt)" 2>/dev/null
   "$e" logout "$HARBOR_FQDN" 2>/dev/null
   "$e" image prune -f >/dev/null
@@ -650,14 +650,14 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `x509: "harbor" certificate is not standards compliant` (macOS) | Use step 3's podman or Colima block, not the macOS Keychain. |
 | `docker: unknown command: docker buildx` (macOS) | Re-run the `ln -sfn … docker-buildx` line in step 2. |
 | `dial unix /var/run/docker.sock` (macOS) | `colima start` |
-| `bad CPU type in executable` (macOS) | `softwareupdate --install-rosetta --agree-to-license` |
+| `bad CPU type in executable` (macOS) | An amd64-only program (such as the Supervisor's kubectl below) needs Rosetta: `softwareupdate --install-rosetta --agree-to-license` |
 | `kubectl_install: command not found` | Re-run step 1's block; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | `kubectl_install: no version` in step 7 | The Supervisor or cluster did not answer: re-run step 7's login. |
-| `kubectl_install: cannot reach dl.k8s.io` | Allow dl.k8s.io, or use the Supervisor's kubectl: amd64 only (no Linux arm64; Rosetta on Apple silicon) and the Supervisor's older version. In a new directory: `curl -fsS --cacert "$SUPERVISOR_CA" -O "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip" && unzip -oq vsphere-plugin.zip bin/kubectl && sudo install -m 0755 bin/kubectl /usr/local/bin/kubectl` (macOS: `darwin-amd64`). |
+| `kubectl_install: cannot reach dl.k8s.io` | Allow dl.k8s.io, or use the Supervisor's kubectl: amd64 only (no Linux arm64; on Apple silicon it needs Rosetta, see `bad CPU type` above) and the Supervisor's older version. In a new directory: `curl -fsS --cacert "$SUPERVISOR_CA" -O "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip" && unzip -oq vsphere-plugin.zip bin/kubectl && sudo install -m 0755 bin/kubectl /usr/local/bin/kubectl` (macOS: `darwin-amd64`). |
 | `ImagePullBackOff` with `x509` in `kubectl describe pod` | The guest cluster does not trust Harbor's CA — ask your administrator. |
 | `403` on the step 6 or 8 lookup | The robot needs `artifact` read and list; create it with step 5. |
 | `unauthorized` on push | Re-run step 5's login; a robot stops working when its `duration` (days) ends. |
 | Pod crash-loops or serves an old build | Deploy by digest (step 8), then check `IMAGEID`. |
-| `exec format error` in the pod | `make image-build PLATFORM=linux/amd64`, then push again. |
+| `exec format error` in the pod | The image lacks the node's architecture: push again without `PUSH_PLATFORMS`, or include the node's (`linux/amd64`). |
 | Pod rejected at admission | The cluster enforces `restricted`; `k8s/golang-web.yaml` complies — keep your changes compliant. |
 | `EXTERNAL-IP` stays `<pending>` | Use the port-forward in step 9. |
