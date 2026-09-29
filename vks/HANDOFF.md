@@ -12,6 +12,28 @@ macOS is proven too — see the next section. The old probe script `vks/macosx.s
 `vks/macosx.res` were REMOVED (2026-09-23): running every README block verbatim on a real Mac
 superseded the subset they checked. They are in git history; references to them below are history.
 
+## ✅ ROUND 5 — plugins restored, Supervisor kubectl dropped, headings — 2026-09-29
+
+This supersedes round 2's "no plugin bundle" and the Supervisor-kubectl flow described below.
+
+- **The VCF CLI plugins bundle is back**, at the owner's request.
+  - Its download row is restored, and step 2's block installs it offline
+    (`vcf plugin install all --local-source`).
+  - Measured: 13 plugins installed on Linux amd64, and the install also works with no network.
+  - The block calls `/usr/local/bin/vcf` explicitly and warns if another `vcf` comes first on PATH.
+    An adversary found `~/.local/bin/vcf` shadowing it on this box.
+  - The checksum line prints the file name even when the folder has a space (gawk, mawk and macOS
+    BSD awk).
+- **Step 7 no longer installs a kubectl at the Supervisor's version.** Measured: the v1.37.1
+  kubectl from step 2 ran `version`, `get ns` and `get secret` against the v1.34.9 Supervisor,
+  printing only a skew warning. The guest-cluster kubectl install stays.
+- **Every heading is a verb phrase**, e.g. "Create the namespace" or "Get the guest cluster's
+  kubeconfig".
+- **Walk harness renumbering.** The README has 48 blocks. The public/private check is 33, the
+  secret block 34 (skipped when 33 prints `http=200`), and the port-forward 38.
+- **Not yet available here:** a 9.1.1 plugin bundle for Linux_ARM64 or Darwin_AMD64. Only
+  9.1.0.0400 for Linux_ARM64 is on hand, so the arm64 walk uses it as a disclosed deviation.
+
 ## ✅ ROUND 4 — README rewritten for users new to CI/CD — 2026-09-29
 
 - **What changed.** `vks/README.md` now has an overview and a Terms table, and every block says
@@ -114,7 +136,8 @@ Colima, and **Linux arm64** (clean aarch64 `ubuntu:24.04` in Colima's VM). All p
   Supervisor-served kubectl was linux/darwin **amd64 only** and v1.32.9 against a v1.34 Supervisor
   (already outside ±1 skew). `vcf context create` needs no kubectl at all.
 - **No VCF CLI plugins needed**: with ZERO plugins, `vcf context create` succeeded in 2 s and
-  installed nothing; context list/delete work. The PluginBundle download is gone.
+  installed nothing; context list/delete work. The PluginBundle download is gone. (Round 5
+  RESTORED the bundle at the owner's request; see there.)
 - **Functions live in their own file**, rewritten by step 1 every time, because the env file is
   written under `set -C` and an existing user would never receive a new function. The upgrade
   path (old step 1 from `main`, then the new one) was walked: one `source` line, both functions load.

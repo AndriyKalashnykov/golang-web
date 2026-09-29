@@ -338,16 +338,18 @@ PLUGINS_TGZ="$HOME/Downloads/VCF-Consumption-CLI-PluginBundle-${P}-9.1.1.0.25665
 
 if [ -f "$CLI_TGZ" ] && [ -f "$PLUGINS_TGZ" ]; then
   (sha256sum "$CLI_TGZ" "$PLUGINS_TGZ" 2>/dev/null || shasum -a 256 "$CLI_TGZ" "$PLUGINS_TGZ") \
-    | awk '{n = split($2, f, "/"); print "SHA-256: " $1 "  " f[n]}'
+    | awk '{h = $1; sub(/.*\//, ""); print "SHA-256: " h "  " $0}'
   T="$(mktemp -d)"
   tar -xzf "$CLI_TGZ" -C "$T"
   sudo install -d /usr/local/bin
   sudo install "$T"/vcf-cli-* /usr/local/bin/vcf
   mkdir "$T/plugins" && tar -xzf "$PLUGINS_TGZ" -C "$T/plugins"
-  vcf plugin install all --local-source "$T/plugins"
+  /usr/local/bin/vcf plugin install all --local-source "$T/plugins"
   rm -rf "$T"
-  vcf version | head -1
-  vcf plugin list
+  /usr/local/bin/vcf version | head -1
+  /usr/local/bin/vcf plugin list
+  [ "$(command -v vcf)" = /usr/local/bin/vcf ] \
+    || echo "WARNING: 'vcf' on your PATH is $(command -v vcf), not /usr/local/bin/vcf"
 else
   for f in "$CLI_TGZ" "$PLUGINS_TGZ"; do
     [ -f "$f" ] || echo "Not found: $f — download it (table above) for $(uname -s)/$(uname -m)"
@@ -357,10 +359,11 @@ fi
 
 **Expect:** two `SHA-256:` lines, each equal to the **SHA2** the download page shows for that file,
 then `version: v9.1.1.0.25662425` (or the release you downloaded), then the plugins, each
-`installed`.
+`installed`, and no `WARNING` line.
 
 **If not:** a different checksum means a damaged or wrong download: delete the file and download
-it again. If it still differs, do not install it; tell your administrator.
+it again. If it still differs, do not install it; tell your administrator. A `WARNING` line means
+another `vcf` is found first: remove it, or put `/usr/local/bin` first in your `PATH`.
 
 ### Check the tools
 
@@ -566,9 +569,10 @@ output. `401` — check the `REGISTRY_*` values.
 
 ## 7. Get the kubeconfigs
 
-This logs you in to the Supervisor and fetches the kubeconfig for your guest cluster. Then it
-installs the kubectl version that matches the guest cluster, because kubectl should be within one
-minor version of the cluster it talks to.
+This logs you in to the Supervisor and fetches the kubeconfig for your guest cluster, using the
+kubectl from step 2 for the few Supervisor commands (measured working with v1.37 against a v1.34
+Supervisor). Then it installs the kubectl version that matches the guest cluster, which you use
+from then on: kubectl should be within one minor version of the cluster it manages.
 
 ### Log in to the Supervisor
 
@@ -611,7 +615,8 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE"
 **Expect:** your vSphere Namespace, `Active`.
 
 **If not:** `NotFound` — check `VKS_NAMESPACE`. `Forbidden` — ask your administrator for the
-**Edit** role on it.
+**Edit** role on it. `Unauthorized` or a login prompt — the login above did not work; run it
+again.
 
 ### Get the guest cluster's kubeconfig
 
