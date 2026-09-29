@@ -78,6 +78,23 @@ make version        # Print current version tag
 
 ## Upgrade Backlog
 
+- [ ] **vks: podman on arm64 Linux.** podman 4.9.3 (Ubuntu 24.04 arm64) labels the amd64 image
+      `variant: v8`, so `make image-push` refuses it and `vks/README.md` says to use docker
+      there. buildah 1.41 (podman 5.6+) changed variant handling and may fix it; UNVERIFIED. To
+      settle it, on arm64 Linux with podman 5.6+ run
+      `podman build --platform linux/amd64,linux/arm64 --manifest t . && podman manifest inspect t`.
+      If the amd64 entry has no variant, relax the README's "use docker on arm64 Linux" (the
+      Makefile check needs no change: it tests the result, not the version).
+- [ ] **vks: 9.1.1 VCF CLI plugin bundle for Linux_ARM64.** None was available here, so the
+      arm64 walk used 9.1.0.0400. Check Broadcom's download page.
+- [ ] **vks: untested corners.** Each one is recorded in `vks/HANDOFF.md`:
+      - step 10's clean-up with the podman machine stopped on macOS (the Mac's machine belonged
+        to another project);
+      - Gatekeeper prompts in Terminal.app (checked over SSH only);
+      - the Supervisor home-page CLI download (needs VCF Operations; the lab returns 503).
+- [ ] **Lab Harbor is 98% full** (nested-vsphere-lab, 10 GiB registry volume). Run GC or grow the
+      volume before the next vks walk; a full volume fails pushes with `blob upload invalid`.
+
 - [x] **Signing proven on a real tag (2026-09-25).** A prerelease `v0.0.4-rc.1` ran the new
       sign-before-tag job end to end: `cosign verify` passed, the image was multi-arch, and
       `latest` did not move. The prerelease image (7 GHCR versions) and its git tag were deleted
@@ -169,7 +186,7 @@ make version        # Print current version tag
 
 `vks/README.md` is an end-user runbook: build locally, push to Harbor, deploy to a named VKS
 guest cluster. Proven end to end by running every block verbatim: Linux with podman and docker,
-and macOS (arm64) with podman and docker/Colima.
+Linux arm64 with docker, and macOS (arm64) with podman and docker/Colima.
 
 **Read `vks/HANDOFF.md` before changing anything under `vks/`** — it holds the resume point,
 what is already measured, and the traps that have already been paid for.
