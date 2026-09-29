@@ -129,7 +129,7 @@ grep -qs CONTAINER_ENGINE ~/.vks-golang-web.env || echo 'export CONTAINER_ENGINE
 
 ### Other tools
 
-macOS:
+macOS (macOS 26 already ships `/usr/bin/jq`; this is then a no-op):
 
 ```sh
 brew install jq
@@ -263,7 +263,6 @@ macOS, docker (Colima):
 source ~/.vks-golang-web.env
 colima ssh -- sudo mkdir -p "/etc/docker/certs.d/${HARBOR_FQDN}"
 colima ssh -- sudo tee "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt" < "$HARBOR_CA" >/dev/null
-colima restart
 ```
 
 Check:
@@ -359,7 +358,8 @@ rm -f "$CFG"
 
 ## 7. Get the kubeconfigs
 
-Log in to the Supervisor. **Three failed logins lock the SSO account.**
+Log in to the Supervisor. **Five failed logins within 3 minutes lock the SSO account for
+5 minutes** (vCenter's default policy; yours may be stricter).
 
 ```sh
 source ~/.vks-golang-web.env
@@ -544,7 +544,7 @@ for c in $(vcf context list 2>/dev/null | awk '$1 ~ /^supervisor:/{print $1}'); 
 done
 vcf context delete supervisor -y --skip-delete-kubeconfig-context
 vcf context list
-rm -rf ~/.config/vcf/logs ~/.kube/cache
+rm -rf ~/.config/vcf/logs
 ```
 
 The Harbor CA — podman, Linux and macOS:
@@ -568,7 +568,8 @@ source ~/.vks-golang-web.env
 colima ssh -- sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
 ```
 
-The files this guide wrote, and the clone (installed tools, base images and build cache stay):
+The files this guide wrote, and the clone (installed tools, base images, build cache and
+kubectl's `~/.kube/cache` stay):
 
 ```sh
 source ~/.vks-golang-web.env

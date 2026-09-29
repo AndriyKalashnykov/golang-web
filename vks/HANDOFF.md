@@ -6,11 +6,33 @@ Resume point for the `vks/README.md` work. Read this before touching `vks/`.
 
 `vks/README.md` builds `golang-web`, pushes to Harbor, deploys to a VKS guest cluster.
 It is **proven end-to-end on Linux and macOS, with podman and with docker** — last re-walked
-2026-09-24, every block in its own fresh shell (next section). Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`).
+2026-09-28 (see below; the 2026-09-24 walk was the one before), every block in its own fresh shell (next section). Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`).
 
 macOS is proven too — see the next section. The old probe script `vks/macosx.sh` and its
 `vks/macosx.res` were REMOVED (2026-09-23): running every README block verbatim on a real Mac
 superseded the subset they checked. They are in git history; references to them below are history.
+
+## ✅ ALL FOUR PATHS RE-WALKED AGAIN — 2026-09-28
+
+Same method (each block verbatim in its own fresh login shell, pass/fail from the Expect lines):
+Linux podman and Linux docker in clean `ubuntu:24.04` containers, macOS podman and Colima on the
+rented Mac — all four pass steps 1–10. The Mac ran on the same tunnel/alias/socat scaffolding as
+before, all removed afterwards; the lab had been down since a host reboot and was started with
+`make lab-start`. Fixed in the README from this walk, each MEASURED:
+
+- Step 7 said three failed logins lock the SSO account. The SSO policy is 5 failures per 180 s
+  with a 300 s auto-unlock (nested-vsphere-lab DOCTRINE.md B223); three is the VCSA root policy.
+- Step 3's `colima restart` was not needed: login failed `x509: unknown authority` without the
+  CA, succeeded with it and no restart, and failed again once it was removed.
+- Step 10 removed all of `~/.kube/cache`, including other clusters' cache; it now leaves it.
+- macOS 26 ships `/usr/bin/jq`, so `brew install jq` is a no-op there (noted, kept for older macOS).
+- The Darwin VCF CLI archives were tagged with Safari's quarantine flag to match a browser
+  download: `vcf` (Developer ID: VMware) and its plugins installed and ran. The walk ran over
+  SSH, and a negative control proves SSH ENFORCES Gatekeeper: a quarantined ad-hoc-signed binary
+  was killed (`rc=137`), the same binary unquarantined ran. A GUI Terminal applies the same
+  policy (a dialog instead of a kill). The one step no harness can run is the Broadcom portal
+  download itself (it needs a Broadcom login); on Linux there is no quarantine, so staging the
+  archive in `~/Downloads` is already equivalent to downloading it.
 
 ## ✅ ALL FOUR PATHS RE-WALKED, EACH BLOCK IN A NEW TERMINAL — 2026-09-24
 

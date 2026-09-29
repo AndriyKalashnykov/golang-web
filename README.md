@@ -45,6 +45,7 @@ make run       # start the application on port 8080 (make run APP_PORT=9090 to c
 |------|------------|
 | [GNU Make](https://www.gnu.org/software/make/) | Every target |
 | [Git](https://git-scm.com/) | Cloning, `make release` |
+| [curl](https://curl.se/) | `make deps` (downloads mise). Not preinstalled on Ubuntu. |
 | [Podman](https://podman.io/) or [Docker](https://www.docker.com/) | Image targets. `make deps` installs podman if neither is present. |
 | [Docker](https://docs.docker.com/get-docker/) | KinD targets and `make ci-run` (KinD and act run on Docker) |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | KinD and `k8s-*` targets |
@@ -117,7 +118,7 @@ A statically linked Go binary in a distroless image, behind a LoadBalancer Servi
 | Path | Method | Purpose |
 |------|--------|---------|
 | `$APP_CONTEXT` (default `/`) | GET | Greeting page; echoes request headers and the Downward-API pod identity |
-| `/healthz` | GET | Liveness/readiness probe — returns `{"health":"ok", "Version":…, "BuildTime":…}` |
+| `/healthz` | GET | Liveness/readiness probe — returns `{"health":"ok", "Version":…, "BuildTime":…}` (both empty under `make run`; set by `make build` and the image) |
 | `/metrics` | GET | Prometheus exposition; counter key `request_count_promtotal` |
 | `/shutdown` | any | Exits the process (`os.Exit(0)`). Unauthenticated: do not expose it outside a test cluster. |
 
@@ -175,9 +176,10 @@ curl http://localhost:8080/healthz
 kill "$PF"
 ```
 
-Linux only, once `EXTERNAL-IP` is assigned (on macOS the IP is not reachable from the host):
+Linux only (on macOS the IP is not reachable from the host):
 
 ```bash
+kubectl wait -n "$NS" svc/golang-web-service --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' --timeout=120s
 IP=$(kubectl get svc -n "$NS" golang-web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 curl "http://$IP:8080/myhello/"
 ```
