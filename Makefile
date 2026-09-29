@@ -317,7 +317,15 @@ deps-engine:
 	  *) echo "ERROR: unsupported OS '$(HOST_OS)'. Install podman or docker manually."; exit 1;; \
 	esac; \
 	command -v podman >/dev/null 2>&1 || { echo "ERROR: podman install did not put podman on PATH."; exit 1; }; \
-	echo "podman installed: $$(podman --version)"
+	echo "podman installed: $$(podman --version)"; \
+	case "$(HOST_OS) $$(uname -m)" in "Linux aarch64"|"Linux arm64") \
+		pv=$$(podman --version | sed -n 's/.*version \([0-9][0-9]*\)\..*/\1/p' | head -1); \
+		if [ -n "$$pv" ] && [ "$$pv" -lt 5 ]; then \
+			echo "NOTE: podman $$pv.x on arm64 cannot push the amd64+arm64 image (make image-push refuses it)."; \
+			echo "  To push both, install Docker: https://docs.docker.com/engine/install/"; \
+			echo "  then use CONTAINER_ENGINE=docker. Or push arm64 only: PUSH_PLATFORMS=linux/arm64."; \
+		fi;; \
+	esac
 
 #deps-buildx: @ Verify the engine can run `buildx build` (image-build and image-push depend on it)
 deps-buildx:
@@ -619,6 +627,16 @@ image-push: deps-buildx
 	@# podman is recognised by what it reports, not by its name: a `docker` that is really podman
 	@# (the podman-docker shim) must take this branch, since podman has no `context show`/--builder.
 	@E=$(CONTAINER_ENGINE); if $$E --version 2>/dev/null | grep -i podman >/dev/null; then \
+		case "$(HOST_OS) $$(uname -m),$(PUSH_PLATFORMS)" in "Linux aarch64,"*amd64*|"Linux arm64,"*amd64*) \
+			pv=$$($$E --version | sed -n 's/.*version \([0-9][0-9]*\)\..*/\1/p' | head -1); \
+			if [ -n "$$pv" ] && [ "$$pv" -lt 5 ]; then \
+				echo "$$($$E --version) on arm64 Linux: podman 4.9.3 was measured labelling the amd64 image with a variant,"; \
+				echo "  so podman older than 5 is refused here before it builds anything."; \
+				echo "  podman (and tools built like it) cannot pull an amd64 image with a variant."; \
+				echo "  Push with Docker (CONTAINER_ENGINE=docker) or podman 5.8 (measured correct),"; \
+				echo "  or, if every node is arm64, only arm64 (PUSH_PLATFORMS=linux/arm64)."; \
+				exit 1; fi;; \
+		esac; \
 		if $$E manifest exists $(PUSH_LIST); then $$E manifest rm $(PUSH_LIST) >/dev/null || exit 1; \
 			$$E image prune -f >/dev/null; \
 		elif $$E image exists $(PUSH_LIST); then $$E rmi $(PUSH_LIST) >/dev/null || exit 1; fi; \
