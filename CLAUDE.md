@@ -104,9 +104,9 @@ make version        # Print current version tag
         --certificate-identity https://github.com/AndriyKalashnykov/golang-web/.github/workflows/ci.yml@refs/tags/<vX.Y.Z> \
         --certificate-oidc-issuer https://token.actions.githubusercontent.com
       ```
-- [ ] **Cleanup workflow re-enabled 2026-09-25** (it had been `disabled_inactivity`). Its first
-      real run is the next Sunday: check the "Delete orphaned untagged container images" log.
-      Dry run on 2026-09-25: the only orphan is `155cab…`, and KEEP_MINIMUM=5 keeps it.
+- [x] **Cleanup workflow re-enabled 2026-09-25** (it had been `disabled_inactivity`). Its first
+      real run, 2026-09-27 (run 36282095087), logged "7 versions; 1 orphaned images, keeping the
+      newest 1": nothing deleted, as the dry run predicted.
 - [ ] **Liveness restarts (fixed in #192): one part of the cause is unexplained.** The old pod's
       container was charged ~4.7 MB of the binary's code pages at start; a fresh pod ~2.7 MB.
       The 32Mi limit covers the worst case (~18 MB measured-plus-arithmetic). Kill path observed:
