@@ -586,9 +586,9 @@ image-stop:
 #           host's `v8` variant, in the index AND the image config, because the Dockerfile's
 #           builder stage runs on $BUILDPLATFORM (measured; a variant-free amd64 image cannot be
 #           built there, not even alone). containerd could be made to accept it by relabelling it
-#           `v1`, but podman, skopeo and CRI-O (containers/image, measured with podman 4.9 and 6.1)
-#           reject any variant on amd64. So such a list is NOT pushed; the message names the ways
-#           out. podman 6 on macOS, Docker, and x86 hosts produce no variant (measured).
+#           `v1`, but podman rejects that (measured, 4.9 and 6.1); skopeo and CRI-O use the same
+#           library (inferred). So such a list is NOT pushed; the message names the ways out.
+#           podman 6.1 (the macOS VM), Docker, and x86 hosts produce no variant (measured).
 #           The list's os/arch set must also equal PUSH_PLATFORMS (variants and duplicate
 #           entries are not compared).
 #   docker: loads a multi-platform image (needs the containerd image store) and pushes it.
@@ -618,9 +618,9 @@ image-push: deps-buildx
 		v=$$(printf '%s\n' "$$j" | jq -r '$(JQ_AMD64_VARIANT)') || exit 1; v=$$(printf '%s\n' "$$v" | head -1); \
 		if [ -n "$$v" ]; then \
 			echo "$$($$E --version) on this $$(uname -m) host labelled the amd64 image variant '$$v'."; \
-			echo "  podman, skopeo and CRI-O cannot pull an amd64 image with a variant, so it is not pushed."; \
-			echo "  Push with Docker (CONTAINER_ENGINE=docker), with podman 6 (as on macOS),"; \
-			echo "  or only this machine's architecture (PUSH_PLATFORMS=linux/arm64)."; \
+			echo "  podman (and tools built like it) cannot pull an amd64 image with a variant, so it is not pushed."; \
+			echo "  Push with Docker (CONTAINER_ENGINE=docker) or a newer podman (6.1 measured clean),"; \
+			echo "  or, if every node is arm64, only arm64 (PUSH_PLATFORMS=linux/arm64)."; \
 			exit 1; fi; \
 		got=$$(printf '%s\n' "$$j" | jq -r '$(JQ_PLATFORMS)') || exit 1; \
 		want=$$(printf '%s\n' "$(PUSH_PLATFORMS)" | tr ',' '\n' | grep . | cut -d/ -f1-2 | LC_ALL=C sort -u | paste -sd, -); \

@@ -203,7 +203,8 @@ sudo apt-get update && sudo apt-get install -y podman
 
 **Expect:** the install ends without an error; the Check below confirms it. podman must be 4.0 or
 newer (Ubuntu 24.04, Debian 12 or later); on older releases, use docker. On an **arm64** Linux
-machine, use docker: podman 4.x there mislabels the amd64 image, and step 6 stops.
+machine, use docker: podman 4.9 there (and possibly early 5.x) mislabels the amd64 image, and
+step 6 stops.
 
 Linux (Debian/Ubuntu), docker. On Debian, replace `ubuntu` with `debian` in both URLs:
 
@@ -920,7 +921,7 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `403` on the step 6 or 8 lookup | The robot needs `artifact` read and list; create it with step 5. |
 | `unauthorized` on push | Re-run step 5's login; a robot stops working when its `duration` (days) ends. |
 | Pod crash-loops | `kubectl logs deploy/golang-web --previous`, and send the output to the app's owner. |
-| `labelled the amd64 image variant 'v8'` in step 6 | podman 4.x on an arm64 Linux machine: push with docker (`CONTAINER_ENGINE=docker` in the env file), or only arm64 (`PUSH_PLATFORMS=linux/arm64`). |
+| `labelled the amd64 image variant 'v8'` in step 6 | podman on an arm64 Linux machine: push with docker (`CONTAINER_ENGINE=docker` in the env file). Only if every node is arm64: `PUSH_PLATFORMS=linux/arm64`. |
 | `exec format error` in the pod | The image lacks the node's architecture: push again without `PUSH_PLATFORMS`, or include the node's (`linux/amd64`). |
 | Pod rejected at admission | The cluster enforces the `restricted` security policy, and `k8s/golang-web.yaml` complies. If you changed the file, keep it compliant; if not, send the message from `kubectl get events` to your administrator. |
 | `EXTERNAL-IP` stays `<pending>` | Use the port-forward in step 9. |
