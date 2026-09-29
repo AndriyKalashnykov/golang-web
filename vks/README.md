@@ -227,27 +227,31 @@ Linux (Debian/Ubuntu), docker. The first line reads which of the two you have:
 
 ```sh
 D="$(. /etc/os-release && echo "$ID")"
-sudo apt-get update && sudo apt-get install -y ca-certificates curl
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL "https://download.docker.com/linux/${D}/gpg" -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+case "$D" in
+  ubuntu|debian)
+    sudo apt-get update && sudo apt-get install -y ca-certificates curl
+    sudo install -m 0755 -d /etc/apt/keyrings
+    sudo curl -fsSL "https://download.docker.com/linux/${D}/gpg" -o /etc/apt/keyrings/docker.asc
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
 https://download.docker.com/linux/${D} $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
-  | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
-
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin
-
-sudo usermod -aG docker "$USER"     # then LOG OUT AND BACK IN, or `docker` needs sudo
+      | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+    sudo apt-get update
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+    sudo usermod -aG docker "$USER"   # then LOG OUT AND BACK IN, or `docker` needs sudo
+    ;;
+  *) echo "Not Debian or Ubuntu ($D): nothing installed. See https://docs.docker.com/engine/install/" ;;
+esac
 ```
 
 **Expect:** after you log out and back in, `docker info` works without `sudo`.
 
-**If not:** `permission denied … docker.sock` — you are still in the old session: log out fully
-(or restart the machine) and try again. `Unable to locate package docker-ce` — this is not
-Debian or Ubuntu (the first line printed nothing usable): use your distribution's Docker
-instructions at https://docs.docker.com/engine/install/.
+**If not:**
+- `permission denied … docker.sock` — you are still in the old session: log out fully (or restart
+  the machine) and try again.
+- `Not Debian or Ubuntu (…): nothing installed` (Linux Mint, Pop!_OS and other derivatives):
+  this block changed nothing. Follow https://docs.docker.com/engine/install/ for your
+  distribution, or use podman.
 
 If both podman and docker are installed, the build uses podman. To use docker instead, run this
 once (it adds `CONTAINER_ENGINE=docker` to the env file):
@@ -433,6 +437,7 @@ you compare its fingerprint with your administrator's.
 ```sh
 source ~/.vks-golang-web.env
 mkdir -p "$(dirname "$HARBOR_CA")"
+rm -f "$HARBOR_CA"
 curl -fsSk "https://${HARBOR_FQDN}/api/v2.0/systeminfo/getcert" -o "$HARBOR_CA"
 openssl x509 -in "$HARBOR_CA" -noout -fingerprint -sha256
 ```
@@ -445,11 +450,11 @@ your administrator's, ignoring colons and upper/lower case.
   the fingerprint you got to your administrator and ask them to confirm it or to send you the CA
   file (save it with `cp <file> "$HARBOR_CA"`). A company proxy that replaces HTTPS certificates also causes
   this.
-- **`curl: (22) … error: 404`, then `Could not read certificate`:** Harbor is reachable but does not
+- **`curl: (22) … error: 404`, then an `openssl` error (`Could not open file` or
+  `unable to load certificate`):** Harbor is reachable but does not
   publish a CA (its certificate was not made by Harbor). Ask your administrator for the CA file,
   save it with `cp <file> "$HARBOR_CA"`, and run only the `openssl` line above to check it.
-- **Any other `curl:` error, then `Could not read certificate`** (or `unable to load
-  certificate`): the download failed. Check `HARBOR_FQDN` and that you can reach Harbor.
+- **Any other `curl:` error, then an `openssl` error:** the download failed. Check `HARBOR_FQDN` and that you can reach Harbor.
 
 ### Install the CA for your engine
 
@@ -910,7 +915,7 @@ the admin account or a robot your administrator made). `http=404` means it was a
 ### Delete the local image and the Harbor login
 
 This logs your container engine out of Harbor and deletes the image step 6 built from this
-machine.
+machine. Run it from inside the clone (step 4).
 
 ```sh
 source ~/.vks-golang-web.env
