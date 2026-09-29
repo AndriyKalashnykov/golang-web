@@ -5,7 +5,7 @@ Resume point for the `vks/README.md` work. Read this before touching `vks/`.
 ## Where it stands
 
 `vks/README.md` builds `golang-web`, pushes to Harbor, deploys to a VKS guest cluster.
-**All work is merged; nothing is in flight** (PRs #203–#207, last merge 2026-09-29). Every path
+**All work is merged; nothing is in flight** (PRs #203–#210, last merge 2026-09-29). Every path
 was walked end to end on the final text, every block in its own fresh shell: Linux podman, Linux
 docker, macOS podman, macOS Colima, and Linux arm64 **with docker**. Pinned to **VCF CLI 9.1.1.0**
 (`vcf version` → `v9.1.1.0.25662425`).
@@ -22,6 +22,27 @@ round sections below are for the README at that round; recount before reusing th
 The old probe script `vks/macosx.sh` and its `vks/macosx.res` were REMOVED (2026-09-23): running
 every README block verbatim on a real Mac superseded the subset they checked. They are in git
 history; references to them below are history.
+
+## ✅ ROUND 7 — end-user review applied, podman 4.x refused early — 2026-09-29
+
+- **README:** a reviewer read it as a CI/CD newcomer (36 findings). Applied:
+  - a warning that step 5's CONFLICT fix via step 10 also deletes the repository;
+  - Broadcom account, sudo and the full host list added to Before you start;
+  - the step 7 intro no longer contradicts the one-minor rule, and the OIDC path installs the
+    matching kubectl;
+  - the arm64 rule sits inside "pick one";
+  - literal Expect lines (docker `WARNING!` first, `buildx is available.`, an empty architecture
+    column for one platform, macOS `SHA256 Fingerprint=` — measured on the Mac, LibreSSL 3.3.6);
+  - `###` headings in steps 3, 6 and 10, more Terms rows, Expect lines for the last two clean-up
+    blocks.
+  Not walked on the lab (it is stopped): the only command change is the step 10 `-w` labels. All
+  48 blocks pass `bash -n` and `zsh -n`. Unverified: `jq` built into macOS before 26, and whether
+  a 9.1.1 `Darwin_AMD64` plugin bundle exists (the README says untested).
+- **Makefile:** `image-push` refuses podman older than 5 on arm64 Linux BEFORE building (the
+  after-build check stays for every other case), and `make deps` prints a note when it installs
+  such a podman there. Tested with stubbed `uname`/`podman` (aarch64 and arm64 with 4.9.3 and 3.4.4
+  refused; 5.8.7, arm64-only, x86_64 and Darwin let through). Not run on a real arm64 podman 4.9
+  host this round; the version line the stub prints is the real one's.
 
 ## ✅ ROUND 6 — the open items, settled by measurement — 2026-09-29
 
