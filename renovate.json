@@ -125,6 +125,12 @@
       "allowedVersions": "/^24\\./"
     },
     {
+      "description": "jq tags releases `jq-1.8.2`, not `v1.8.2`, so without this Renovate reads no version from them and never proposes a jq update (measured: pinned at 1.8.1, the dry-run proposed nothing).",
+      "matchManagers": ["mise"],
+      "matchDepNames": ["aqua:jqlang/jq"],
+      "extractVersion": "^jq-(?<version>.+)$"
+    },
+    {
       "description": "Group Go toolchain bumps into a single PR: the go.mod directive, the Dockerfile golang base image, and the .mise.toml `go` pin MUST land together or `make check-toolchain-alignment` fails. Must stay LAST so this groupName overrides the per-manager groups above.",
       "matchManagers": [
         "gomod",

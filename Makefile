@@ -580,7 +580,8 @@ image-stop:
 #           Only the index entry is fixed; the image config still says v8. Kubernetes selects by
 #           the index, but a tool that compares the config may report linux/amd64/v8.
 #           The list is then inspected again with jq: a repair that did not apply, or a list
-#           without exactly the requested platforms, stops the push here.
+#           whose os/arch set differs from PUSH_PLATFORMS, stops the push here (variants and
+#           duplicate entries are not compared).
 #   docker: loads a multi-platform image (needs the containerd image store) and pushes it.
 #           --builder pins the context's own docker-driver builder (named after the context:
 #           default, colima, ...), so a `docker buildx use`d container builder is never picked;
