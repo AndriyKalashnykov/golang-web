@@ -12,6 +12,35 @@ macOS is proven too — see the next section. The old probe script `vks/macosx.s
 `vks/macosx.res` were REMOVED (2026-09-23): running every README block verbatim on a real Mac
 superseded the subset they checked. They are in git history; references to them below are history.
 
+## ✅ ROUND 2 — kubectl, plugins and Linux arm64 — 2026-09-28
+
+Researched by agents, the design attacked by three adversaries (VKS, Kubernetes, shell) before it
+was built, then walked verbatim on FIVE paths: Linux podman, Linux docker, macOS podman, macOS
+Colima, and **Linux arm64** (clean aarch64 `ubuntu:24.04` in Colima's VM). All pass steps 1–10.
+
+- **kubectl is upstream (dl.k8s.io), native on every platform**, via `kubectl_install` in
+  `~/.vks-golang-web.functions`: bootstrap `stable.txt`, then pinned to the Supervisor's version in
+  step 7, then to the guest's. Measured: v1.37.1 → v1.34.9 → v1.36.2 on all five paths. The
+  Supervisor-served kubectl was linux/darwin **amd64 only** and v1.32.9 against a v1.34 Supervisor
+  (already outside ±1 skew). `vcf context create` needs no kubectl at all.
+- **No VCF CLI plugins needed**: with ZERO plugins, `vcf context create` succeeded in 2 s and
+  installed nothing; context list/delete work. The PluginBundle download is gone.
+- **Functions live in their own file**, rewritten by step 1 every time, because the env file is
+  written under `set -C` and an existing user would never receive a new function. The upgrade
+  path (old step 1 from `main`, then the new one) was walked: one `source` line, both functions load.
+- **Rosetta stays**: podman's vfkit is started with `--device rosetta,…,install` (seen in a running
+  machine's argv). **`xcode-select --install` is gone**: the Homebrew installer installs CLT itself
+  (measured on a fresh macOS guest) and falls back to xcode-select itself when interactive.
+- **Fresh macOS proven** two ways: a tart vanilla macOS 26.6.2 guest (no CLT/Homebrew/Rosetta)
+  passed the Homebrew block and every `brew install`; engine VMs cannot start there (M1 has no
+  nested virtualization), so a brand-new host user started podman and Colima from zero state.
+  tart needs a user keychain: over SSH, create and unlock one, or it fails `Failed to create new HostKey`.
+- **The Supervisor's own VCF CLI download** (`/wcp/vcf-cli/`) answers 503 here: it proxies VCF
+  Operations' Fleet Depot Service (KB 449965). Public packages.broadcom.com stops at v9.0.2. So the
+  portal stays the source; the README mentions the Supervisor page for VCF-Operations sites.
+- **Open:** whether the portal has a **9.1.1 Linux_ARM64** archive (the arm64 walk used 9.1.0.0400,
+  the one line `CLI_TGZ` changed); an engine VM start on a Mac that has never had Rosetta.
+
 ## ✅ ALL FOUR PATHS RE-WALKED AGAIN — 2026-09-28
 
 Same method (each block verbatim in its own fresh login shell, pass/fail from the Expect lines):

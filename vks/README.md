@@ -35,6 +35,14 @@ export GUEST_KUBECONFIG="$HOME/.kube/${VKS_CLUSTER}.kubeconfig"
 
 export KUBECONFIG="$GUEST_KUBECONFIG"
 
+. "$HOME/.vks-golang-web.functions"
+EOF
+)
+chmod 600 ~/.vks-golang-web.env
+grep -qs vks-golang-web.functions ~/.vks-golang-web.env \
+  || echo '. "$HOME/.vks-golang-web.functions"' >> ~/.vks-golang-web.env
+
+cat > ~/.vks-golang-web.functions <<'EOF'
 # harbor_cfg [USER PASSWORD]: writes a curl config with a Harbor login to $CFG (default: admin),
 # used as `curl -K "$CFG"` in steps 5, 6, 8 and 10 so no password is on the command line.
 harbor_cfg() {
@@ -44,13 +52,38 @@ harbor_cfg() {
   u="${u//\\/\\\\}"; u="${u//\"/\\\"}"; p="${p//\\/\\\\}"; p="${p//\"/\\\"}"
   CFG="$(mktemp)"; ( umask 077; printf 'user = "%s:%s"\n' "$u" "$p" > "$CFG" )
 }
+
+# kubectl_install VERSION: installs upstream kubectl VERSION from dl.k8s.io into /usr/local/bin
+# (a "+vmware.N" suffix is dropped; if that exact patch has no upstream build, the newest patch of
+# the same minor is used). The checksum guards against a corrupt download. On any failure the
+# existing kubectl is left as it was.
+kubectl_install() {
+  local v="${1%%+*}" m os arch u t h
+  case "$v" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "kubectl_install: no version ('$1') — not logged in, or the server unreachable?" >&2; return 1 ;; esac
+  case "$(uname -s)" in Linux) os=linux ;; Darwin) os=darwin ;; *) echo "kubectl_install: unsupported OS $(uname -s)" >&2; return 1 ;; esac
+  case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; arm64|aarch64) arch=arm64 ;; *) echo "kubectl_install: unsupported CPU $(uname -m)" >&2; return 1 ;; esac
+  if ! curl -fsIL --retry 3 -o /dev/null "https://dl.k8s.io/release/${v}/bin/${os}/${arch}/kubectl"; then
+    m="${v#v}"; m="${m%.*}"
+    v="$(curl -fsSL --retry 3 "https://dl.k8s.io/release/stable-${m}.txt")" || { echo "kubectl_install: no upstream kubectl for ${1}" >&2; return 1; }
+  fi
+  u="https://dl.k8s.io/release/${v}/bin/${os}/${arch}/kubectl"
+  t="$(mktemp -d)" || return 1
+  if curl -fsSL --retry 3 -o "$t/kubectl" "$u" \
+     && h="$(curl -fsSL --retry 3 "${u}.sha256")" && [ -n "$h" ] \
+     && [ "$( (sha256sum "$t/kubectl" 2>/dev/null || shasum -a 256 "$t/kubectl") | awk '{print $1}')" = "$h" ] \
+     && sudo install -d /usr/local/bin && sudo install -m 0755 "$t/kubectl" /usr/local/bin/kubectl; then
+    rm -rf "$t"; /usr/local/bin/kubectl version --client
+    [ "$(command -v kubectl)" = /usr/local/bin/kubectl ] \
+      || echo "WARNING: 'kubectl' on your PATH is $(command -v kubectl), not /usr/local/bin/kubectl" >&2
+  else
+    rm -rf "$t"; echo "kubectl_install: FAILED for ${v} ${os}/${arch} (${u}) — kubectl NOT changed" >&2; return 1
+  fi
+}
 EOF
-)
-chmod 600 ~/.vks-golang-web.env
 ```
 
-Open it and fill in your values; credentials go in **single quotes** (a `'` inside one is written
-`'\''`). If the block above said the file already exists, it keeps your earlier values:
+Open the env file and fill in your values; credentials go in **single quotes** (a `'` inside one is
+written `'\''`). If the block above said the file already exists, it keeps your earlier values:
 
 ```sh
 "${EDITOR:-vi}" ~/.vks-golang-web.env
@@ -66,8 +99,10 @@ source ~/.vks-golang-web.env
 
 ### macOS: Homebrew
 
+The Homebrew installer also installs the Xcode Command Line Tools. Rosetta is for podman's VM,
+which asks for it on Apple silicon.
+
 ```sh
-xcode-select --install
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 B=/opt/homebrew/bin/brew; [ -x "$B" ] || B=/usr/local/bin/brew
 grep -qs "brew shellenv" ~/.zprofile || echo "eval \"\$($B shellenv)\"" >> ~/.zprofile
@@ -141,9 +176,9 @@ Linux (Debian/Ubuntu):
 sudo apt-get install -y jq git make unzip curl openssl
 ```
 
-### kubectl
+### vCenter CA
 
-vCenter's CA first:
+`vcf` and `curl` verify the Supervisor with vCenter's CA:
 
 ```sh
 source ~/.vks-golang-web.env
@@ -159,62 +194,66 @@ openssl x509 -in "$SUPERVISOR_CA" -noout -subject -fingerprint -sha256
 **Expect:** a `subject=` line naming `CA` and `vsphere`, and a fingerprint equal to your
 administrator's — if not, stop.
 
-Then the Supervisor's kubectl, downloaded with that CA; step 7 replaces it with your guest cluster's
-version:
+### kubectl
+
+Upstream kubectl for this machine, from dl.k8s.io. This is the current stable release; step 7
+installs the versions matching your Supervisor and then your guest cluster:
 
 ```sh
 source ~/.vks-golang-web.env
-case "$(uname -s)" in Darwin) P=darwin-amd64 ;; *) P=linux-amd64 ;; esac   # the Supervisor publishes amd64 only
-T="$(mktemp -d)"
-curl -fsS --cacert "$SUPERVISOR_CA" -o "$T/plugin.zip" "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${P}/vsphere-plugin.zip"
-unzip -oq "$T/plugin.zip" -d "$T"
-sudo install -d /usr/local/bin
-sudo install -m 0755 "$T/bin/kubectl" /usr/local/bin/kubectl
-rm -rf "$T"
-/usr/local/bin/kubectl version --client
+kubectl_install "$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
 ```
 
-**Expect:** `Client Version: v1.…+vmware…`.
+**Expect:** `Client Version: v1.…` and no `WARNING` line.
+
+Upstream kubectl is not a FIPS build; if your policy requires one, use your vendor's kubectl.
 
 ### VCF CLI
 
-Download both files for your platform (`Linux_AMD64`, `Darwin_ARM64` or `Darwin_AMD64`) from
-Broadcom. Tick **"I agree to the Terms and Conditions"** on each page (it stays inert until you open
-both Terms links), or the download icons do nothing.
+Download the file for your platform (`Linux_AMD64`, `Linux_ARM64`, `Darwin_ARM64` or
+`Darwin_AMD64`) from Broadcom. Tick **"I agree to the Terms and Conditions"** (it stays inert until
+you open both Terms links), or the download icon does nothing.
 
 | file | where to click | direct link |
 |---|---|---|
 | `VCF-Consumption-CLI-<platform>-9.1.1.0.25662425.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI** | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545612&viewGroup=true) |
-| `VCF-Consumption-CLI-PluginBundle-<platform>-9.1.1.0.25665404.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI Plugins** | [VCF CLI plugins](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545621&viewGroup=true) |
 
-- Pick the release first — until you do, the page reads "No data found". The direct links skip this.
+- Pick the release first — until you do, the page reads "No data found". The direct link skips this.
 - Take the row for your platform, not the multi-GB platform-less bundles beside it.
+- The **VCF Consumption CLI Plugins** bundle is not needed: every `vcf` command in this guide is
+  built in.
+- Linux arm64: if the portal has no `Linux_ARM64` file for 9.1.1, take the newest `Linux_ARM64`
+  release it lists and set `CLI_TGZ` below to that file (this guide works with 9.1.0.0400).
+- On VCF with VCF Operations, your Supervisor's home page (`https://<SUPERVISOR_ENDPOINT>/`) also
+  offers the CLI without a Broadcom login. Where it shows "VCF Consumption CLI is currently
+  unavailable for download", use the portal. If you took it from the Supervisor, set `CLI_TGZ`
+  below to that file.
 
-The block picks this machine's files from `~/Downloads`; if you saved them elsewhere, change that folder.
+The block picks this machine's file from `~/Downloads`; if you saved it elsewhere, change that folder.
 
 ```sh
 case "$(uname -s)/$(uname -m)" in
   Linux/x86_64)  P=Linux_AMD64 ;;
+  Linux/aarch64) P=Linux_ARM64 ;;
   Darwin/arm64)  P=Darwin_ARM64 ;;
   Darwin/x86_64) P=Darwin_AMD64 ;;
-  *) P=unsupported; echo "no VCF CLI build for $(uname -s)/$(uname -m)" ;;
+  *)             P=unsupported ;;
 esac
 CLI_TGZ="$HOME/Downloads/VCF-Consumption-CLI-${P}-9.1.1.0.25662425.tar.gz"
-PLUGINS_TGZ="$HOME/Downloads/VCF-Consumption-CLI-PluginBundle-${P}-9.1.1.0.25665404.tar.gz"
 
-T="$(mktemp -d)"
-tar -xzf "$CLI_TGZ" -C "$T"
-sudo install -d /usr/local/bin
-sudo install "$T"/vcf-cli-* /usr/local/bin/vcf
-mkdir "$T/plugins" && tar -xzf "$PLUGINS_TGZ" -C "$T/plugins"
-vcf plugin install all --local-source "$T/plugins"
-rm -rf "$T"
-vcf version | head -1
-vcf plugin list
+if [ -f "$CLI_TGZ" ]; then
+  T="$(mktemp -d)"
+  tar -xzf "$CLI_TGZ" -C "$T"
+  sudo install -d /usr/local/bin
+  sudo install "$T"/vcf-cli-* /usr/local/bin/vcf
+  rm -rf "$T"
+  vcf version | head -1
+else
+  echo "Not found: $CLI_TGZ — download it (table above) for $(uname -s)/$(uname -m)"
+fi
 ```
 
-**Expect:** `version: v9.1.1.0.25662425` (or the release you downloaded), then the plugins, each
-`installed` (for 9.1.1: 13 on Linux, 12 on macOS).
+**Expect:** `version: v9.1.1.0.25662425` (or the release you downloaded).
 
 ### Check
 
@@ -380,6 +419,19 @@ fi
 If it says `context "supervisor" already exists`, run the vcf-contexts block in step 10, then
 this one again.
 
+This guide logs in with the SSO user and a password. A Supervisor that uses only an external
+OIDC identity provider needs `vcf cluster kubeconfig get` and the VCF CLI plugins instead.
+
+kubectl at the Supervisor's version:
+
+```sh
+source ~/.vks-golang-web.env
+V="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')"
+kubectl_install "$V"
+```
+
+**Expect:** `Client Version:` with the same `v1.<minor>` as the Supervisor (e.g. `v1.34.9`).
+
 ```sh
 source ~/.vks-golang-web.env
 kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE"
@@ -387,7 +439,7 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE"
 
 **Expect:** your namespace, `Active`.
 
-Guest cluster:
+Guest cluster, then kubectl at its version:
 
 ```sh
 source ~/.vks-golang-web.env
@@ -395,25 +447,20 @@ source ~/.vks-golang-web.env
   kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" \
     get secret "${VKS_CLUSTER}-kubeconfig" -o jsonpath='{.data.value}' \
     | base64 -d > "$GUEST_KUBECONFIG" )
+V="$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')"
+kubectl_install "$V"
+```
 
-V="$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')"; V="${V%%+*}"
-case "$(uname -s)/$(uname -m)" in
-  Darwin/arm64)  K=darwin/arm64 ;;
-  Darwin/*)      K=darwin/amd64 ;;
-  Linux/aarch64) K=linux/arm64  ;;
-  *)             K=linux/amd64  ;;
-esac
-T="$(mktemp -d)"
-[ -n "$V" ] && curl -fsSL -o "$T/kubectl" "https://dl.k8s.io/release/${V}/bin/${K}/kubectl" \
-  && sudo install -m 0755 "$T/kubectl" /usr/local/bin/kubectl \
-  || echo "kubectl NOT replaced: still the Supervisor's, which may be too old for this cluster"
-rm -rf "$T"
+**Expect:** `Client Version:` with the guest cluster's `v1.<minor>`.
 
+```sh
+source ~/.vks-golang-web.env
 kubectl get nodes
 kubectl version -o json | jq -r '"client \(.clientVersion.gitVersion)  server \(.serverVersion.gitVersion)"'
 ```
 
 **Expect:** every node `Ready`, and the same client and server version (e.g. `v1.36.2` and `v1.36.2+vmware.2`).
+From here on, kubectl matches the guest cluster; the Supervisor is used only through `vcf`.
 
 ## 8. Deploy
 
@@ -582,12 +629,12 @@ cd .. && rm -rf golang-web
 The variables:
 
 ```sh
-rm -f ~/.vks-golang-web.env
+rm -f ~/.vks-golang-web.env ~/.vks-golang-web.functions
 unset HARBOR_FQDN HARBOR_PROJECT SUPERVISOR_ENDPOINT VCENTER_FQDN VKS_CLUSTER VKS_NAMESPACE \
       SSO_USERNAME VCF_CLI_VSPHERE_PASSWORD HARBOR_ADMIN_PASSWORD REGISTRY_USERNAME \
       REGISTRY_TOKEN HARBOR_CA SUPERVISOR_CA SUPERVISOR_KUBECONFIG GUEST_KUBECONFIG \
       IMAGE KUBECONFIG APP_IP CONTAINER_ENGINE
-unset -f harbor_cfg 2>/dev/null || true
+unset -f harbor_cfg kubectl_install 2>/dev/null || true
 ```
 
 ## Troubleshooting
@@ -599,8 +646,10 @@ unset -f harbor_cfg 2>/dev/null || true
 | `docker: unknown command: docker buildx` (macOS) | Re-run the `ln -sfn … docker-buildx` line in step 2. |
 | `dial unix /var/run/docker.sock` (macOS) | `colima start` |
 | `bad CPU type in executable` (macOS) | `softwareupdate --install-rosetta --agree-to-license` |
+| `kubectl_install: command not found` | Re-run step 1's block; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
+| `kubectl_install: no version` | You are not logged in or the server is unreachable: re-run step 7's login. |
+| `kubectl_install: FAILED` (dl.k8s.io blocked) | The Supervisor serves an amd64-only, older kubectl at `https://<SUPERVISOR_ENDPOINT>/wcp/plugin/<linux\|darwin>-amd64/vsphere-plugin.zip` (`bin/kubectl`). |
 | `ImagePullBackOff` with `x509` in `kubectl describe pod` | The guest cluster does not trust Harbor's CA — ask your administrator. |
-| `vcf plugin list` hangs on `Refreshing plugin inventory cache` | `Ctrl-C`; the installed plugins need no registry. |
 | `403` on the step 6 or 8 lookup | The robot needs `artifact` read and list; create it with step 5. |
 | `unauthorized` on push | Re-run step 5's login; a robot stops working when its `duration` (days) ends. |
 | Pod crash-loops or serves an old build | Deploy by digest (step 8), then check `IMAGEID`. |
