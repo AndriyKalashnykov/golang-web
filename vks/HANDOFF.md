@@ -46,14 +46,27 @@ superseded the subset they checked. They are in git history; references to them 
   macOS, x86 hosts, and Docker 29.5.2 on arm64 (Colima) produce no variant. `image-push` now
   re-annotates such amd64 entries `v1` (an empty value cannot be set); measured to deploy.
   Review follow-ups:
-  - `image-push` now inspects the list again after the repair. It stops the push if an amd64
-    entry still carries a non-amd64 variant.
-  - It also stops the push if the inspect output does not show one `"architecture"` line per
-    requested platform (for example one-line JSON, which the awk cannot read).
+  - `image-push` reads the list with **jq** (pinned in `.mise.toml`), not awk. A second review
+    showed awk broke on a different key order: it either passed silently or annotated the arm64
+    entry. jq handled every reordered fixture.
+  - After the repair it inspects the list again and stops the push if:
+    - an amd64 entry still has a non-amd64 variant, or
+    - the list's os/arch set differs from `PUSH_PLATFORMS`. Duplicates and a trailing comma are
+      ignored.
   - Remaining gap: only the index entry is fixed. The amd64 image config still says `v8`.
-    Kubernetes selects by the index, so the pod runs, but a tool that reads the config (Trivy,
-    Harbor's UI, classic-store `docker run --platform`) may show linux/amd64/v8. Not tested.
-    Settling it would need a per-platform `--arch amd64 --variant v1` build on the arm64 box.
+    Kubernetes selects by the index, so the pod runs. A tool that reads the config (Trivy,
+    Harbor's UI, classic-store `docker run --platform`) may show linux/amd64/v8. Not tested;
+    settling it would need a per-platform `--arch amd64 --variant v1` build on the arm64 box.
+- **The lab's `apps` Harbor project is PUBLIC** (`metadata.public=true`). Every walk therefore ran
+  the pull-secret block without needing it. Measured 2026-09-28 against a temporary private
+  project:
+  - The step 8 no-login check prints `http=200` for a public project and `http=401` for a private
+    one.
+  - Public project with no secret, in a fresh namespace: the event says "Successfully pulled", and
+    the pod runs.
+  - Private project with no secret: `ImagePullBackOff`. The error says `pull access denied …
+    no basic auth credentials`, not `401`/`unauthorized`.
+  - Adding the secret afterwards leaves the pod stuck; `kubectl rollout restart` recovers it.
 - **Lab Harbor's registry volume is 10 GiB and was 100% full**, which made pushes fail with
   "blob upload invalid" / `no space left on device` (the registry log says so; the client does
   not). Deleting a repository frees nothing until garbage collection, which had never run. One

@@ -31,3 +31,7 @@ node = "24"
 # === Local Kubernetes / CI ===
 "aqua:kubernetes-sigs/kind"   = "0.33.0"
 "aqua:nektos/act"             = "0.2.89"
+
+# === Utilities ===
+# jq reads podman's manifest list in `make image-push`.
+"aqua:jqlang/jq"              = "1.8.2"

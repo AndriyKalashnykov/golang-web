@@ -474,7 +474,16 @@ kubectl create namespace golang-web --dry-run=client -o yaml | kubectl apply -f 
 kubectl config set-context --current --namespace=golang-web
 ```
 
-Registry pull secret:
+Registry pull secret, **needed only for a private Harbor project** (Harbor's default). Check without
+logging in:
+
+```sh
+source ~/.vks-golang-web.env
+curl -s --cacert "$HARBOR_CA" -o /dev/null -w 'http=%{http_code}\n' \
+  "https://${HARBOR_FQDN}/api/v2.0/projects/${HARBOR_PROJECT}"
+```
+
+**Expect:** `http=200`: the project is public; skip the next block. Anything else: run it.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -491,7 +500,7 @@ rm -rf "$D"
 kubectl patch serviceaccount default -p '{"imagePullSecrets":[{"name":"harbor-creds"}]}'
 ```
 
-Deploy the pushed digest:
+Deploy by digest (a tag can later point to another image; a digest cannot):
 
 ```sh
 source ~/.vks-golang-web.env
@@ -655,6 +664,7 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `kubectl_install: no version` in step 7 | The Supervisor or cluster did not answer: re-run step 7's login. |
 | `kubectl_install: cannot reach dl.k8s.io` | Allow dl.k8s.io, or use the Supervisor's kubectl: amd64 only (no Linux arm64; on Apple silicon it needs Rosetta, see `bad CPU type` above) and the Supervisor's older version. In a new directory: `curl -fsS --cacert "$SUPERVISOR_CA" -O "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip" && unzip -oq vsphere-plugin.zip bin/kubectl && sudo install -m 0755 bin/kubectl /usr/local/bin/kubectl` (macOS: `darwin-amd64`). |
 | `ImagePullBackOff` with `x509` in `kubectl describe pod` | The guest cluster does not trust Harbor's CA — ask your administrator. |
+| `ImagePullBackOff` with `pull access denied` or `no basic auth credentials` in `kubectl describe pod` | The project is private: run step 8's pull-secret block, then `kubectl rollout restart deploy/golang-web` (running pods keep their old pull settings). |
 | `403` on the step 6 or 8 lookup | The robot needs `artifact` read and list; create it with step 5. |
 | `unauthorized` on push | Re-run step 5's login; a robot stops working when its `duration` (days) ends. |
 | Pod crash-loops or serves an old build | Deploy by digest (step 8), then check `IMAGEID`. |

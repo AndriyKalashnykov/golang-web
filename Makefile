@@ -579,8 +579,8 @@ image-stop:
 #           are re-annotated `v1` (the amd64 baseline), which amd64 nodes match (measured).
 #           Only the index entry is fixed; the image config still says v8. Kubernetes selects by
 #           the index, but a tool that compares the config may report linux/amd64/v8.
-#           The index is inspected again afterwards: a repair that did not apply, or JSON the awk
-#           cannot read (it expects one key per line), stops the push here.
+#           The list is then inspected again with jq: a repair that did not apply, or a list
+#           without exactly the requested platforms, stops the push here.
 #   docker: loads a multi-platform image (needs the containerd image store) and pushes it.
 #           --builder pins the context's own docker-driver builder (named after the context:
 #           default, colima, ...), so a `docker buildx use`d container builder is never picked;
@@ -588,10 +588,10 @@ image-stop:
 PUSH_PLATFORMS ?= linux/amd64,linux/arm64
 # PUSH_LIST is also named in vks/README.md step 10 (the local image cleanup).
 PUSH_LIST := localhost/$(PROJECT)-push:$(VERSION)
-# awk over `podman manifest inspect` (indented JSON): the digest of each amd64 entry whose variant
-# is not v1..v4. Keys are read per entry, so the per-entry reset keeps an earlier arch from leaking.
-AMD64_BAD_VARIANT := /"digest"/ {gsub(/[",]/, "", $$2); d = $$2; a = ""} \
-	/"architecture"/ {a = $$2} /"variant"/ {gsub(/[",]/, "", $$2); if (a ~ /amd64/ && $$2 !~ /^v[1-4]$$/) print d}
+# jq over `podman manifest inspect`: the digest of each amd64 entry whose variant is not v1..v4
+# (none at all is fine), and the entry list as sorted, de-duplicated os/arch.
+JQ_AMD64_BAD := .manifests[] | select(.platform.architecture == "amd64" and ((.platform.variant // "v1") | test("^v[1-4]$$") | not)) | .digest
+JQ_PLATFORMS := [.manifests[].platform | .os + "/" + .architecture] | unique | join(",")
 image-push: deps-buildx
 	@case "$(PUSH_PLATFORMS)" in ''|*' '*) \
 		echo "PUSH_PLATFORMS must be a comma-separated list with no spaces, e.g. linux/amd64,linux/arm64"; exit 1;; esac
@@ -603,16 +603,16 @@ image-push: deps-buildx
 			$$E image prune -f >/dev/null; \
 		elif $$E image exists $(PUSH_LIST); then $$E rmi $(PUSH_LIST) >/dev/null || exit 1; fi; \
 		$$E build --platform $(PUSH_PLATFORMS) --manifest $(PUSH_LIST) $(IMAGE_BUILD_ARGS) -f Dockerfile . || exit 1; \
+		command -v jq >/dev/null 2>&1 || { echo "jq is not installed. Run: make deps"; exit 1; }; \
 		j=$$($$E manifest inspect $(PUSH_LIST)) || exit 1; \
-		for d in $$(printf '%s\n' "$$j" | awk '$(AMD64_BAD_VARIANT)'); do \
-			$$E manifest annotate --variant v1 $(PUSH_LIST) $$d >/dev/null || exit 1; \
-		done; \
+		fix=$$(printf '%s\n' "$$j" | jq -r '$(JQ_AMD64_BAD)') || exit 1; \
+		for d in $$fix; do $$E manifest annotate --variant v1 $(PUSH_LIST) $$d >/dev/null || exit 1; done; \
 		j=$$($$E manifest inspect $(PUSH_LIST)) || exit 1; \
-		bad=$$(printf '%s\n' "$$j" | awk '$(AMD64_BAD_VARIANT)'); \
-		if [ -n "$$bad" ]; then echo "amd64 entry still carries a non-amd64 variant: $$bad"; exit 1; fi; \
-		n=$$(printf '%s\n' "$$j" | grep -c '"architecture"' || true); \
-		want=$$(printf '%s\n' "$(PUSH_PLATFORMS)" | tr ',' '\n' | grep -c . || true); \
-		[ "$$n" = "$$want" ] || { echo "$$E manifest inspect $(PUSH_LIST): expected $$want platform entries, one per line; read $$n (output format changed?)"; exit 1; }; \
+		bad=$$(printf '%s\n' "$$j" | jq -r '$(JQ_AMD64_BAD)') || exit 1; \
+		[ -z "$$bad" ] || { echo "amd64 entry still carries a non-amd64 variant: $$bad"; exit 1; }; \
+		got=$$(printf '%s\n' "$$j" | jq -r '$(JQ_PLATFORMS)') || exit 1; \
+		want=$$(printf '%s\n' "$(PUSH_PLATFORMS)" | tr ',' '\n' | grep . | cut -d/ -f1-2 | LC_ALL=C sort -u | paste -sd, -); \
+		[ "$$got" = "$$want" ] || { echo "$(PUSH_LIST) holds $$got, but PUSH_PLATFORMS asks for $$want"; exit 1; }; \
 	else \
 		$(CONTAINER_ENGINE) buildx build --builder "$$($(CONTAINER_ENGINE) context show)" --platform $(PUSH_PLATFORMS) \
 			--provenance=false --sbom=false --load $(IMAGE_BUILD_ARGS) -f Dockerfile -t $(OPV) . || { \
