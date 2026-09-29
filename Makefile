@@ -114,9 +114,9 @@ COVERAGE_THRESHOLD ?= 75
 
 KIND_CLUSTER_NAME   := golang-web
 # The KinD path builds its OWN tag, for the KinD node's architecture (see kind-create).
-# It must never reuse OPV: on an arm64 host OPV is built linux/amd64 for real clusters,
-# and an amd64 image in an arm64 KinD node never passed its startup probe (measured on
-# macOS/Colima: node arm64, image amd64, "connection refused" until killed; native OK).
+# It must never reuse OPV: OPV is built for THIS machine (or PLATFORM), which can differ from
+# the node's (Docker in a VM), and an amd64 image in an arm64 KinD node never passed its startup
+# probe (measured on macOS/Colima: node arm64, image amd64, "connection refused"; native OK).
 KIND_IMAGE          := $(OPV)-kind
 # act's "Medium" runner image, the one act itself offers on first run. It is a moving
 # tag upstream; passing it explicitly stops act from prompting (no prompt = no EOF crash
@@ -521,7 +521,7 @@ clean:
 		echo "Image $(OPV) is used by a running container. Stop it first: make image-stop"; exit 1; fi; \
 	removed=""; \
 	if [ "$(DOCKERCMD)" = podman ] && podman manifest exists $(PUSH_LIST); then \
-		podman manifest rm $(PUSH_LIST) >/dev/null && removed="$$removed $(PUSH_LIST)"; fi; \
+		podman manifest rm $(PUSH_LIST) >/dev/null && removed="$$removed $(PUSH_LIST)" && podman image prune -f >/dev/null; fi; \
 	for img in $(OPV) $(KIND_IMAGE); do \
 		if $(DOCKERCMD) image inspect $$img >/dev/null 2>&1; then $(DOCKERCMD) image rm $$img >/dev/null && removed="$$removed $$img"; fi; \
 	done; \
@@ -579,6 +579,7 @@ image-stop:
 #           default, colima, ...), so a `docker buildx use`d container builder is never picked;
 #           --provenance/--sbom=false keep the index to exactly the requested platforms.
 PUSH_PLATFORMS ?= linux/amd64,linux/arm64
+# PUSH_LIST is also named in vks/README.md step 10 (the local image cleanup).
 PUSH_LIST := localhost/$(PROJECT)-push:$(VERSION)
 image-push: deps-buildx
 	@case "$(PUSH_PLATFORMS)" in ''|*' '*) \
@@ -595,7 +596,8 @@ image-push: deps-buildx
 				if ! $(CONTAINER_ENGINE) info --format '{{json .DriverStatus}}' 2>/dev/null | grep io.containerd.snapshotter >/dev/null; then \
 					echo ""; \
 					echo "A multi-platform image needs Docker's containerd image store; this Docker may use the classic store."; \
-					echo "  Turn it on:     add \"features\": {\"containerd-snapshotter\": true} to /etc/docker/daemon.json, restart Docker"; \
+					echo "  Turn it on:     Linux: add \"features\": {\"containerd-snapshotter\": true} to /etc/docker/daemon.json, restart Docker"; \
+					echo "                  Colima: colima start --edit (docker: features:); Docker Desktop: Settings > General"; \
 					echo "  Or push one:    make image-push PUSH_PLATFORMS=linux/amd64"; \
 				fi;; \
 			esac; exit 1; }; \

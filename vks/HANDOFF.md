@@ -12,6 +12,34 @@ macOS is proven too — see the next section. The old probe script `vks/macosx.s
 `vks/macosx.res` were REMOVED (2026-09-23): running every README block verbatim on a real Mac
 superseded the subset they checked. They are in git history; references to them below are history.
 
+## ✅ ROUND 3 — multi-arch push, Rosetta, the three open items — 2026-09-29
+
+- **`make image-push` pushes ONE tag holding linux/amd64 + linux/arm64** (`PUSH_PLATFORMS`), on
+  Linux and macOS, podman and Docker. The Dockerfile cross-compiles and its final stage runs
+  nothing, so no emulator is involved (measured: podman built both with no qemu installed).
+  podman builds a manifest list under `localhost/golang-web-push:<ver>` — its own name, because a
+  list and image-build's plain image cannot share one, a rebuild onto a list APPENDS (2 → 4
+  entries, measured), and `podman rmi` on a list deletes its native instance and every tag sharing
+  it (measured by the Docker adversary). Docker: `--load` on the context's own builder, then
+  `docker push`; `--provenance=false --sbom=false` keeps both engines' index to two entries.
+  A pod deployed by the index digest reports `imageID` = the index digest (measured on lab-gc1), so
+  step 8's check is unchanged.
+- **Rosetta is not needed** on the main path: podman 6.1.2 defaults `[machine] rosetta=false`
+  (source-read; containers.conf) and Colima defaults it off. The rented Mac's `rosetta = true` is in
+  `~/.config/containers/containers.conf.d/50-vks-rosetta.conf`, written 2026-09-28 by another
+  project that shares the Mac. Only the amd64-only Supervisor kubectl (a troubleshooting fallback)
+  needs Rosetta. So "engine VM start on a Mac that never had Rosetta" is CLOSED: nothing asks for it.
+- **9.1.1 Linux_ARM64 exists** on the portal (`VCF-Consumption-CLI-Linux_ARM64-9.1.1.0.25662425.tar.gz`,
+  32.54 MB, SHA-256 `0e8fe5cc…3c5f`); downloaded, checksum matched, walked. The CLI block now prints
+  the archive's SHA-256 to compare with the portal's SHA2 column (every local copy matched).
+- **Supervisor-served CLI (VCF Operations)**: NOT feasible in this lab. The page proxies the Fleet
+  Depot Service inside VCF Management Services (needs VCF Operations + SDDC Manager 9.1.x, ~3 TB and
+  58–82 GB RAM; this host has 101 GB disk free) — 2–5 days and an effectively irreversible
+  conversion to a VCF fleet, to serve a file the portal already provides. The README keeps the
+  KB-449965-backed note, marked untested. The Supervisor advertises build 25662425, the portal's.
+- Walk harness note: step 4 clones GitHub `main`, so a Makefile change is only walkable after the
+  branch is pushed; the harness cloned the branch (disclosed deviation).
+
 ## ✅ ROUND 2 — kubectl, plugins and Linux arm64 — 2026-09-28
 
 Researched by agents, the design attacked by three adversaries (VKS, Kubernetes, shell) before it
@@ -28,8 +56,9 @@ Colima, and **Linux arm64** (clean aarch64 `ubuntu:24.04` in Colima's VM). All p
 - **Functions live in their own file**, rewritten by step 1 every time, because the env file is
   written under `set -C` and an existing user would never receive a new function. The upgrade
   path (old step 1 from `main`, then the new one) was walked: one `source` line, both functions load.
-- **Rosetta stays**: podman's vfkit is started with `--device rosetta,…,install` (seen in a running
-  machine's argv). **`xcode-select --install` is gone**: the Homebrew installer installs CLT itself
+- ~~Rosetta stays~~ — **CORRECTED in round 3 above**: that vfkit `--device rosetta` came from
+  ANOTHER project's `~/.config/containers/containers.conf.d/50-vks-rosetta.conf`, not podman's
+  default. **`xcode-select --install` is gone**: the Homebrew installer installs CLT itself
   (measured on a fresh macOS guest) and falls back to xcode-select itself when interactive.
 - **Fresh macOS proven** two ways: a tart vanilla macOS 26.6.2 guest (no CLT/Homebrew/Rosetta)
   passed the Homebrew block and every `brew install`; engine VMs cannot start there (M1 has no
@@ -44,8 +73,8 @@ Colima, and **Linux arm64** (clean aarch64 `ubuntu:24.04` in Colima's VM). All p
   the same three adversaries after it was built; their fixes (noclobber-proof `>|`, newline-safe
   append, one "cannot reach dl.k8s.io" message, printed Supervisor/guest versions, a runnable
   fallback row) were re-walked.
-- **Open:** whether the portal has a **9.1.1 Linux_ARM64** archive (the arm64 walk used 9.1.0.0400,
-  the one line `CLI_TGZ` changed); an engine VM start on a Mac that has never had Rosetta.
+- **Open (closed in round 3 above):** the 9.1.1 Linux_ARM64 archive; an engine VM start on a Mac
+  that has never had Rosetta.
 
 ## ✅ ALL FOUR PATHS RE-WALKED AGAIN — 2026-09-28 (the flow BEFORE round 2: plugin bundle, Supervisor kubectl)
 
