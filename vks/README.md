@@ -1,6 +1,6 @@
 # Build `golang-web`, push it to Harbor, deploy it to a VKS guest cluster
 
-This guide builds the `golang-web` container image on your machine, uploads it to your company's
+This guide builds the `golang-web` container image on your machine, pushes it to your company's
 Harbor registry, and runs it on a Kubernetes cluster managed by VMware vSphere (a *VKS guest
 cluster*). It has 10 steps. Steps 1–4 are one-time setup; step 10 is optional clean-up.
 
@@ -12,18 +12,22 @@ to do. A block that starts with `source ~/.vks-golang-web.env` is safe to run ag
 
 | term | meaning |
 |---|---|
+| image | the packaged app, ready to run in a container |
+| tag | an image's name, such as `v0.0.3`; it can later be moved to another image |
+| push | upload an image to a registry |
 | Harbor | your company's private registry for container images |
 | Harbor project | a folder in Harbor that holds images and has its own permissions; *private* (Harbor's default) or *public* |
 | robot account | a Harbor login for scripts, limited to one project, that expires |
-| CA certificate | the file your tools use to confirm they talk to the real server; company servers use a private CA your machine does not trust yet |
+| CA (certificate authority) certificate | the file your tools use to confirm they talk to the real server; company servers use a private CA your machine does not trust yet |
 | fingerprint | a short hash of a certificate, used to compare it with your administrator's copy |
 | vCenter CA | the certificate authority built into vCenter; it issued the Supervisor's certificate |
 | Supervisor | the vSphere control plane you log in to, to reach your cluster |
-| vSphere Namespace | your team's area on the Supervisor (not the Kubernetes namespace in step 8) |
+| vSphere Namespace | your team's area on the Supervisor |
+| namespace | a folder inside a Kubernetes cluster; the one in step 8 is not your vSphere Namespace |
 | guest cluster | the Kubernetes cluster your app runs on |
 | kubeconfig | the file `kubectl` reads to find a cluster and log in |
 | context | a saved login inside a kubeconfig or the `vcf` tool |
-| digest | an image's unique `sha256:…` ID; unlike a tag, it can never point to another image |
+| digest | an image's unique `sha256:…` ID; unlike a tag, it always names the same image |
 | pull secret | your Harbor login, stored in the cluster, so it can download images from a private project |
 
 ## Before you start
@@ -142,7 +146,7 @@ source ~/.vks-golang-web.env
 
 ## 2. Install the tools
 
-You need a container engine to build and upload the image (podman or docker), `kubectl` to talk
+You need a container engine to build and push the image (podman or docker), `kubectl` to talk
 to Kubernetes, VMware's `vcf` tool to log in to the Supervisor, and a few small helpers. Skip
 anything you already have; the Check at the end of this step shows what is missing.
 
@@ -164,8 +168,8 @@ brew --version
 
 ### Container engine — pick one
 
-The container engine builds the image and uploads it. Choose **one** and run only its block.
-podman needs no background service; docker is the more common choice. Both work.
+The container engine builds the image and pushes it. Choose **one** and run only its block. Both
+work; if unsure, pick podman.
 
 macOS, podman:
 
@@ -197,7 +201,8 @@ Linux (Debian/Ubuntu), podman:
 sudo apt-get update && sudo apt-get install -y podman
 ```
 
-**Expect:** the install ends without an error; the Check below confirms it.
+**Expect:** the install ends without an error; the Check below confirms it. podman must be 4.0 or
+newer (Ubuntu 24.04, Debian 12 or later); on older releases, use docker.
 
 Linux (Debian/Ubuntu), docker. On Debian, replace `ubuntu` with `debian` in both URLs:
 
@@ -231,7 +236,7 @@ grep -qs CONTAINER_ENGINE ~/.vks-golang-web.env || echo 'export CONTAINER_ENGINE
 `jq` reads JSON; Linux also needs `git`, `make`, `unzip`, `curl` and `openssl`, which macOS
 already has.
 
-macOS (macOS 26 already ships `/usr/bin/jq`; this is then a no-op):
+macOS (skip this on macOS 26 and later, which already have `jq`):
 
 ```sh
 brew install jq
@@ -269,7 +274,8 @@ one your administrator gave you.
 **If not:**
 - **A different fingerprint:** do not continue. Check `VCENTER_FQDN` in the env file. Then send
   the fingerprint you got to your administrator and ask them to confirm it or to send you the CA
-  file. A company proxy that replaces HTTPS certificates also causes this.
+  file (if vCenter has several CAs, the block shows only the first). A company proxy that
+  replaces HTTPS certificates also causes this.
 - **A `curl:` error** (for example `Could not resolve host`), then `unzip` or `openssl` errors: the
   download failed. Check `VCENTER_FQDN` and that you can reach vCenter.
 
@@ -285,7 +291,7 @@ V="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
 if [ -n "$V" ]; then kubectl_install "$V"; else echo "kubectl_install: cannot reach dl.k8s.io (blocked or offline?)"; fi
 ```
 
-**Expect:** `Client Version: v1.…` and no `WARNING` line.
+**Expect:** `Client Version: v1.…` (and a `Kustomize Version` line), and no `WARNING` line.
 
 **If not:**
 - `WARNING: 'kubectl' on your PATH is …`: another kubectl is found first. Remove it, or put
@@ -310,10 +316,8 @@ greyed out until you open both Terms links — or the download icon does nothing
 - Take the row for your platform, not the multi-GB platform-less bundles beside it.
 - The **VCF Consumption CLI Plugins** bundle is not needed: every `vcf` command in this guide is
   built in.
-- On VCF with VCF Operations, your Supervisor's home page (`https://<SUPERVISOR_ENDPOINT>/`) also
-  offers the CLI without a Broadcom login. Where it shows "VCF Consumption CLI is currently
-  unavailable for download", use the portal. If you took it from the Supervisor, set `CLI_TGZ`
-  below to that file (not tested here: this guide's lab Supervisor serves no CLI).
+- With VCF Operations, your Supervisor's home page (`https://<SUPERVISOR_ENDPOINT>/`) may also
+  offer the CLI; if you download it there, set `CLI_TGZ` below to that file.
 
 This block finds this machine's file in `~/Downloads`, prints its checksum and installs it. If you
 saved the file elsewhere, change that folder. Other platforms are not supported.
@@ -355,6 +359,7 @@ This lists any tool that is still missing and prints the versions of the rest.
 for t in curl unzip openssl jq git make kubectl vcf; do
   command -v "$t" >/dev/null 2>&1 || echo "MISSING: $t"
 done
+command -v podman >/dev/null 2>&1 || command -v docker >/dev/null 2>&1 || echo "MISSING: podman or docker"
 
 command -v podman >/dev/null 2>&1 && podman --version
 command -v docker >/dev/null 2>&1 && docker --version
@@ -370,7 +375,7 @@ kubectl's `Client Version:`, and `version: v9.…`.
 ## 3. Trust the Harbor CA
 
 Harbor's certificate comes from a CA your machine does not trust yet, so your container engine
-refuses to upload to Harbor. This step downloads Harbor's CA certificate to `$HARBOR_CA` and
+refuses to push to Harbor. This step downloads Harbor's CA certificate to `$HARBOR_CA` and
 installs it where your engine looks for it. As in step 2, the download cannot be verified yet, so
 you compare its fingerprint with your administrator's.
 
@@ -442,18 +447,17 @@ cd golang-web
 
 **Expect:** `Cloning into 'golang-web'...`. Run everything below from this directory.
 
-## 5. Harbor credentials
+## 5. Harbor login
 
-Your container engine needs a Harbor login to upload the image, and step 8 uses it to find the
-image. Use a **robot account** (option A) or the **admin account** (option B). The make commands
+Your container engine needs a Harbor login to push the image, and steps 6 and 8 use it to look the
+image up. Use a **robot account** (option A) or the **admin account** (option B). The make commands
 below take the Harbor project as `OWNER`.
 
 ### Option A — a robot account
 
-Skip the first block if your administrator gave you a robot name and secret.
-
 This creates a robot account that can push to and read from your project only, and expires after
-90 days. It needs `HARBOR_ADMIN_PASSWORD` in the env file.
+90 days. It needs `HARBOR_ADMIN_PASSWORD` in the env file. Skip it if your administrator already
+gave you a robot name and secret.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -501,23 +505,24 @@ export REGISTRY_TOKEN='<Harbor admin password>'
 
 ### Log in
 
-This saves your Harbor login in the container engine, so step 6 can upload.
+This saves your Harbor login in the container engine, so step 6 can push.
 
 ```sh
 source ~/.vks-golang-web.env
 make registry-login IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 ```
 
-**Expect:** `Login Succeeded` (podman adds `!`; docker adds a warning about unencrypted credentials).
+**Expect:** `Login Succeeded` (a warning line may follow).
 
 **If not:** `x509` — run step 3's block for your engine. `unauthorized` — check the two
 `REGISTRY_*` values in the env file.
 
 ## 6. Build and push the image
 
-This builds the app into a container image and uploads (*pushes*) it to Harbor. The image holds a
-build for each common CPU type, `amd64` and `arm64`, under one name, so it runs on any node
-whatever machine you build on. The first build takes a few minutes.
+This builds the app into an image and pushes it to Harbor. The image holds a version for each
+common CPU architecture, `amd64` and `arm64`, under one tag, so it runs on any node whatever
+machine you build on. The first build takes a few minutes. If every node is amd64, add
+`PUSH_PLATFORMS=linux/amd64` to the `make` command (faster).
 
 ```sh
 source ~/.vks-golang-web.env
@@ -526,14 +531,13 @@ echo "$IMAGE"
 make image-push IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 ```
 
-**Expect:** the image name, then `Building … for linux/amd64,linux/arm64`, the build and the upload,
-and no `make: ***` line at the end. To build only one type (faster, if all your nodes are amd64),
-add `PUSH_PLATFORMS=linux/amd64`.
+**Expect:** the image name, then `Building … for linux/amd64,linux/arm64`, the build and the push,
+and no `make: ***` line at the end.
 
 **If not:** `x509` — step 3. `unauthorized` — step 5's login. A message that the engine is not
 installed or not running tells you the fix.
 
-Check that Harbor received both builds:
+Check that Harbor received both architectures:
 
 ```sh
 source ~/.vks-golang-web.env
@@ -558,7 +562,7 @@ version of the cluster it talks to.
 ### Log in to the Supervisor
 
 Check the password in the env file first: **five failed logins within 3 minutes lock the SSO
-account for 5 minutes** (vCenter's default policy; yours may be stricter).
+user for 5 minutes** (vCenter's default policy; yours may be stricter).
 
 ```sh
 source ~/.vks-golang-web.env
@@ -610,7 +614,7 @@ source ~/.vks-golang-web.env
 kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE"
 ```
 
-**Expect:** your namespace, `Active`.
+**Expect:** your vSphere Namespace, `Active`.
 
 **If not:** `NotFound` — check `VKS_NAMESPACE`. `Forbidden` — ask your administrator for the
 **Edit** role on it.
@@ -676,14 +680,14 @@ curl -sS --cacert "$HARBOR_CA" -o /dev/null -w 'http=%{http_code}\n' \
   "https://${HARBOR_FQDN}/api/v2.0/projects/${HARBOR_PROJECT}"
 ```
 
-**Expect:** `http=200` — the project is public: skip the next block. `http=401` — the project is
-private: run it.
+**Expect:** `http=200` — the project is public: skip the next block. `http=401` (or any other
+code) — the project is private: run it.
 
 **If not:** `http=000` with a `curl:` error means Harbor could not be reached; fix that first
 (step 3).
 
-This stores your Harbor login in the cluster as the secret `harbor-creds`, and tells the namespace's
-default service account to use it, so every pod in `golang-web` can download from Harbor.
+This stores your Harbor login in the cluster as the secret `harbor-creds`, and makes every pod in
+the `golang-web` namespace use it to download from Harbor.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -700,7 +704,8 @@ rm -rf "$D"
 kubectl patch serviceaccount default -p '{"imagePullSecrets":[{"name":"harbor-creds"}]}'
 ```
 
-**Expect:** `secret/harbor-creds created`, then `serviceaccount/default patched`.
+**Expect:** `secret/harbor-creds created`, then `serviceaccount/default patched` (`configured` and
+`patched (no change)` when run again).
 
 ### Deploy the app
 
@@ -738,7 +743,8 @@ source ~/.vks-golang-web.env
 kubectl get pods -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,IMAGEID:.status.containerStatuses[0].imageID'
 ```
 
-**Expect:** `Running`, and `IMAGEID` ending with the digest printed above.
+**Expect:** `Running`, and `IMAGEID` ending with the digest printed above. **If not:** an old pod
+may still be listed; wait a few seconds and run it again.
 
 ## 9. Reach the app
 
@@ -754,7 +760,7 @@ curl -sS --max-time 10 "http://${APP_IP}:8080/myhello/"
 ```
 
 **Expect:** `service/golang-web-service condition met`, the URL, then `Hello, World` and the pod's
-details. `/myhello/` and `/healthz` return 200; `/` returns 404 by design.
+details. (`/` alone returns 404; that is expected.)
 
 **If not:** a timeout on the wait (no external IP) or on `curl` (the address is not reachable from
 your machine): use the port-forward below instead.
@@ -816,10 +822,11 @@ RID="$(curl -s --cacert "$HARBOR_CA" -K "$CFG" --get \
 rm -f "$CFG"
 ```
 
-**Expect:** `repository deleted: http=200` and `robot deleted: http=200`. `http=404` means it was
-already gone; `http=401` means the admin password is wrong.
+**Expect:** `repository deleted: http=200` and `robot deleted: http=200` (no robot line if you used
+the admin account or a robot your administrator made). `http=404` means it was already gone;
+`http=401` means the admin password is wrong.
 
-The local image and the registry login:
+The local image and the Harbor login:
 
 ```sh
 source ~/.vks-golang-web.env
@@ -832,10 +839,10 @@ for e in podman docker; do
 done
 ```
 
-**Expect:** `Untagged:`/`Deleted:` lines and `Removed login credentials`, or nothing if they were
-already gone.
+**Expect:** a `… login credentials for <your Harbor>` line (docker may also print `Untagged:`
+lines), or nothing if they were already gone.
 
-The Supervisor login `vcf` saved in step 7:
+The Supervisor login `vcf` saved in step 7, and `vcf`'s log files:
 
 ```sh
 for c in $(vcf context list 2>/dev/null | awk '$1 ~ /^supervisor:/{print $1}'); do
@@ -849,7 +856,7 @@ rm -rf ~/.config/vcf/logs
 **Expect:** the final list no longer shows `supervisor`. An error for a context that is already
 gone is harmless.
 
-The Harbor CA — run only the block for your engine. podman, Linux and macOS:
+The Harbor CA — run only the block for your engine; each prints nothing. podman, Linux and macOS:
 
 ```sh
 source ~/.vks-golang-web.env
@@ -870,9 +877,9 @@ source ~/.vks-golang-web.env
 colima ssh -- sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
 ```
 
-The files this guide wrote, and the clone. Run it from inside the clone (step 4). Empty
-directories are removed; anything else in them is kept, as are the installed tools, base images,
-build cache and kubectl's `~/.kube/cache`.
+The files this guide wrote, and the clone. Run it from inside the clone (step 4); afterwards your
+terminal is in the directory above it. Empty directories are removed; anything else in them is
+kept, as are the installed tools, base images, build cache and kubectl's `~/.kube/cache`.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -911,7 +918,7 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `ImagePullBackOff` with `pull access denied` or `no basic auth credentials` in `kubectl describe pod` | The project is private: run step 8's pull-secret block, then `kubectl rollout restart deploy/golang-web` (running pods keep their old pull settings). |
 | `403` on the step 6 or 8 lookup | The robot needs `artifact` read and list; create it with step 5. |
 | `unauthorized` on push | Re-run step 5's login; a robot stops working when its `duration` (days) ends. |
-| Pod crash-loops or serves an old build | Deploy by digest (step 8), then check `IMAGEID`. |
+| Pod crash-loops | `kubectl logs deploy/golang-web --previous`, and send the output to the app's owner. |
 | `exec format error` in the pod | The image lacks the node's architecture: push again without `PUSH_PLATFORMS`, or include the node's (`linux/amd64`). |
 | Pod rejected at admission | The cluster enforces the `restricted` security policy, and `k8s/golang-web.yaml` complies. If you changed the file, keep it compliant; if not, send the message from `kubectl get events` to your administrator. |
 | `EXTERNAL-IP` stays `<pending>` | Use the port-forward in step 9. |

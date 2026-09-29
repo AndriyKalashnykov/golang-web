@@ -5,12 +5,37 @@ Resume point for the `vks/README.md` work. Read this before touching `vks/`.
 ## Where it stands
 
 `vks/README.md` builds `golang-web`, pushes to Harbor, deploys to a VKS guest cluster.
-It is **proven end-to-end on Linux and macOS, with podman and with docker** — last re-walked
-2026-09-28 (see below; the 2026-09-24 walk was the one before), every block in its own fresh shell (next section). Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`).
+It is **proven end-to-end on Linux and macOS, with podman and with docker** — all paths last
+walked 2026-09-28. The 2026-09-29 rewrite (round 4) was re-walked on Linux podman only; see there, every block in its own fresh shell (next section). Pinned to **VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`).
 
 macOS is proven too — see the next section. The old probe script `vks/macosx.sh` and its
 `vks/macosx.res` were REMOVED (2026-09-23): running every README block verbatim on a real Mac
 superseded the subset they checked. They are in git history; references to them below are history.
+
+## ✅ ROUND 4 — README rewritten for users new to CI/CD — 2026-09-29
+
+- **What changed.** `vks/README.md` now has an overview and a Terms table, and every block says
+  what it does, why, **Expect:**, and **If not:**. The two fingerprint checks say what to check and
+  what to ask the administrator, instead of "stop". Optional parts are marked.
+- **Reviews.** Two end-user reads. The first led to the rewrite; the second said "not ready — close",
+  and its verified findings were applied.
+  - One suggestion was deliberately NOT applied: always create the pull secret and drop the
+    public/private check. The owner asked for the secret to be optional.
+- **Commands changed in this round, only these four:**
+  - step 8's check uses `curl -sS`, so a connection error is printed;
+  - step 10 removes the clone only from inside it (tested in bash and zsh: inside, outside, and a
+    look-alike directory);
+  - the step 2 Check prints `MISSING: podman or docker` when neither is installed (tested both ways);
+  - the Harbor delete is unchanged, but it is now marked as deleting the whole repository, every
+    tag.
+- **Walked on Linux podman** (clean `ubuntu:24.04`, the lab), every block compared with its Expect:
+  34 blocks, all exit 0, every Expect matched. The check printed `http=200`, so block 35 was skipped, and the pod pulled from the public `apps` project with no secret. The pod's IMAGEID equalled the pushed digest, and the clone guard removed the clone. Not re-walked on macOS, docker or arm64. Their blocks are unchanged, and none of
+  them contains the three changed commands except the shared Check line, which is engine-neutral.
+- **Walk harness.** The step 8 check added a block, so every block after it moved up by one. The
+  port-forward is now block 39 and the pull-secret block 35. `run_linux.sh` skips block 35 when
+  block 34 printed `http=200`, as the README says.
+- **Renovate did not track jq**: its tags are `jq-1.8.2`. Measured: with jq pinned at 1.8.1, the
+  dry run proposed nothing; after the `extractVersion` rule in `renovate.json`, it proposed 1.8.2.
 
 ## ✅ ROUND 3 — multi-arch push, Rosetta, the three open items — 2026-09-29
 
