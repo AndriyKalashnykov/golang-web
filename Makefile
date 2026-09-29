@@ -165,7 +165,9 @@ colima_install_hint = echo "  On macOS, install Colima (a small VM that runs the
 # A plain `perl -e 'alarm 15; exec @ARGV'` does NOT work here: docker and podman are Go programs,
 # and Go catches SIGALRM (measured: docker kept running past the alarm). So perl forks, and the
 # parent kills the child when the alarm fires. A command that is not found exits 127; a child
-# killed by any other signal exits 128+signal.
+# killed by any other signal exits 128+signal. Only the direct child is killed: a wrapper that
+# leaves its own child holding stderr can keep a `$$( … 2>&1 )` capture waiting past 15 s (the
+# docker and podman CLIs are single processes, so they do not).
 within_15s = perl -e '$$p = fork; defined $$p or exit 127; if (!$$p) { exec @ARGV or exit 127 } $$SIG{ALRM} = sub { kill "KILL", $$p; exit 142 }; alarm 15; waitpid $$p, 0; exit($$? & 127 ? 128 + ($$? & 127) : $$? >> 8)'
 
 # $(call engine_ready,<engine>): stop with a next step unless <engine> can run containers.
