@@ -176,7 +176,7 @@ macOS, podman:
 ```sh
 brew install podman
 podman machine inspect >/dev/null 2>&1 || podman machine init
-perl -e 'alarm 15; exec @ARGV' podman info >/dev/null 2>&1 || podman machine start
+podman info >/dev/null 2>&1 || podman machine start
 ```
 
 **Expect:** the last lines say the machine `started successfully`, or nothing if it was already
@@ -835,7 +835,7 @@ source ~/.vks-golang-web.env
 for e in podman docker; do
   command -v "$e" >/dev/null 2>&1 || continue
   "$e" logout "$HARBOR_FQDN" 2>/dev/null
-  if ! perl -e 'alarm 15; exec @ARGV' "$e" info >/dev/null 2>&1; then
+  if ! "$e" info >/dev/null 2>&1; then
     echo "$e is not running: its images (and, for podman on macOS, its Harbor login) stay. Start it and run this block again."
     continue
   fi
@@ -847,7 +847,8 @@ done
 
 **Expect:** a `… login credentials for <your Harbor>` line (docker may also print `Untagged:`
 lines), or nothing if they were already gone. `… is not running` names an engine you have installed
-but not started: start it and run the block again, or ignore it if you never used that engine.
+but not started: start it and run the block again, or ignore it if you never used that engine. If
+the block hangs, an engine is half-started: press Ctrl-C, start it fully, and run the block again.
 
 The Supervisor login `vcf` saved in step 7, and `vcf`'s log files:
 

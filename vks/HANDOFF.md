@@ -45,8 +45,10 @@ This supersedes round 2's "no plugin bundle" and the Supervisor-kubectl flow des
     installed but Colima was stopped. It is fixed:
     - it logs out with every installed engine. docker's logout needs no daemon (measured); a
       review measured that podman's remote client on macOS DOES need its machine;
-    - it removes images only where the engine answers `info`, bounded to 15 s with
-      `perl -e 'alarm 15'`, like the Makefile's `engine_ready`;
+    - it removes images only where the engine answers `info`. There is no time limit: a review
+      measured that `perl -e 'alarm N; exec …'` does NOT stop docker or podman (Go catches
+      SIGALRM), so the README says to press Ctrl-C if it hangs. The Makefile's `engine_ready` had
+      the same dead bound; it now forks and kills the child (separate PR);
     - it prints "<engine> is not running … start it and run this block again" for a stopped engine
       (that engine keeps its images and, for podman on macOS, its login).
     Not walked: a stopped podman machine on macOS, because the Mac's machine belongs to another
