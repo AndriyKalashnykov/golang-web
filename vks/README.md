@@ -304,25 +304,26 @@ Upstream kubectl is not a FIPS build; if your policy requires one, use your vend
 
 ### VCF CLI
 
-`vcf` is VMware's command-line tool. This guide uses it only to log in to the Supervisor (step 7).
+`vcf` is VMware's command-line tool; this guide uses it to log in to the Supervisor (step 7). The
+plugins bundle adds `vcf`'s extra commands (for example `vcf cluster` and `vcf package`) and
+installs them from the downloaded file, without internet access.
 
-Download the file for your platform (`Linux_AMD64`, `Linux_ARM64`, `Darwin_ARM64` or
+Download the files for your platform (`Linux_AMD64`, `Linux_ARM64`, `Darwin_ARM64` or
 `Darwin_AMD64`) from Broadcom. Tick **"I agree to the Terms and Conditions"** — the checkbox stays
 greyed out until you open both Terms links — or the download icon does nothing.
 
 | file | where to click | direct link |
 |---|---|---|
 | `VCF-Consumption-CLI-<platform>-9.1.1.0.25662425.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI** | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545612&viewGroup=true) |
+| `VCF-Consumption-CLI-PluginBundle-<platform>-9.1.1.0.25665404.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI Plugins** | [VCF CLI plugins](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545621&viewGroup=true) |
 
 - Pick the release first — until you do, the page reads "No data found". The direct link skips this.
 - Take the row for your platform, not the multi-GB platform-less bundles beside it.
-- The **VCF Consumption CLI Plugins** bundle is not needed: every `vcf` command in this guide is
-  built in.
 - With VCF Operations, your Supervisor's home page (`https://<SUPERVISOR_ENDPOINT>/`) may also
   offer the CLI; if you download it there, set `CLI_TGZ` below to that file.
 
-This block finds this machine's file in `~/Downloads`, prints its checksum and installs it. If you
-saved the file elsewhere, change that folder. Other platforms are not supported.
+This block finds this machine's two files in `~/Downloads`, prints their checksums and installs
+them. If you saved them elsewhere, change that folder. Other platforms are not supported.
 
 ```sh
 case "$(uname -s)/$(uname -m)" in
@@ -333,22 +334,30 @@ case "$(uname -s)/$(uname -m)" in
   *)             P=unsupported ;;
 esac
 CLI_TGZ="$HOME/Downloads/VCF-Consumption-CLI-${P}-9.1.1.0.25662425.tar.gz"
+PLUGINS_TGZ="$HOME/Downloads/VCF-Consumption-CLI-PluginBundle-${P}-9.1.1.0.25665404.tar.gz"
 
-if [ -f "$CLI_TGZ" ]; then
-  (sha256sum "$CLI_TGZ" 2>/dev/null || shasum -a 256 "$CLI_TGZ") | awk '{print "SHA-256: " $1}'
+if [ -f "$CLI_TGZ" ] && [ -f "$PLUGINS_TGZ" ]; then
+  (sha256sum "$CLI_TGZ" "$PLUGINS_TGZ" 2>/dev/null || shasum -a 256 "$CLI_TGZ" "$PLUGINS_TGZ") \
+    | awk '{n = split($2, f, "/"); print "SHA-256: " $1 "  " f[n]}'
   T="$(mktemp -d)"
   tar -xzf "$CLI_TGZ" -C "$T"
   sudo install -d /usr/local/bin
   sudo install "$T"/vcf-cli-* /usr/local/bin/vcf
+  mkdir "$T/plugins" && tar -xzf "$PLUGINS_TGZ" -C "$T/plugins"
+  vcf plugin install all --local-source "$T/plugins"
   rm -rf "$T"
   vcf version | head -1
+  vcf plugin list
 else
-  echo "Not found: $CLI_TGZ — download it (table above) for $(uname -s)/$(uname -m)"
+  for f in "$CLI_TGZ" "$PLUGINS_TGZ"; do
+    [ -f "$f" ] || echo "Not found: $f — download it (table above) for $(uname -s)/$(uname -m)"
+  done
 fi
 ```
 
-**Expect:** a `SHA-256:` equal to the **SHA2** the download page shows for your file, then
-`version: v9.1.1.0.25662425` (or the release you downloaded).
+**Expect:** two `SHA-256:` lines, each equal to the **SHA2** the download page shows for that file,
+then `version: v9.1.1.0.25662425` (or the release you downloaded), then the plugins, each
+`installed`.
 
 **If not:** a different checksum means a damaged or wrong download: delete the file and download
 it again. If it still differs, do not install it; tell your administrator.
@@ -913,6 +922,7 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `docker: unknown command: docker buildx` (macOS) | Re-run the `ln -sfn … docker-buildx` line in step 2. |
 | `dial unix /var/run/docker.sock` (macOS) | `colima start` |
 | `bad CPU type in executable` (macOS) | An amd64-only program (such as the Supervisor's kubectl below) needs Rosetta: `softwareupdate --install-rosetta --agree-to-license` |
+| `vcf plugin list` hangs on `Refreshing plugin inventory cache` | `Ctrl-C`; the installed plugins need no registry. |
 | `kubectl_install: command not found` | Re-run step 1's block; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | `kubectl_install: no version` in step 7 | The Supervisor or cluster did not answer: re-run step 7's login. |
 | `kubectl_install: cannot reach dl.k8s.io` | Allow dl.k8s.io, or use the Supervisor's kubectl: amd64 only (no Linux arm64; on Apple silicon it needs Rosetta, see `bad CPU type` above) and the Supervisor's older version. In a new directory: `curl -fsS --cacert "$SUPERVISOR_CA" -O "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip" && unzip -oq vsphere-plugin.zip bin/kubectl && sudo install -m 0755 bin/kubectl /usr/local/bin/kubectl` (macOS: `darwin-amd64`). |
