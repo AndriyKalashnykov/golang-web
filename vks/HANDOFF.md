@@ -62,26 +62,28 @@ superseded the subset they checked. They are in git history; references to them 
   58–82 GB RAM; this host has 101 GB disk free) — 2–5 days and an effectively irreversible
   conversion to a VCF fleet, to serve a file the portal already provides. The README keeps the
   KB-449965-backed note, marked untested. The Supervisor advertises build 25662425, the portal's.
-- **Walked on the branch code, all five paths pass steps 1–10**: Linux podman, Linux docker, Linux
-  arm64 (real 9.1.1 Linux_ARM64 CLI), macOS podman, macOS Colima. Every push was an index with
-  exactly `amd64,arm64`, pulled and run by the amd64 lab node.
-- **Bug found by the arm64 walk, fixed in the Makefile**: podman 4.9.3 / buildah 1.33.7 on an arm64
-  Linux host labels the amd64 image `variant: v8` (the host's), even for `--platform
-  linux/amd64/v1`; an amd64 node then fails "no match for platform in manifest". podman 6.1.2 on
-  macOS, x86 hosts, and Docker 29.5.2 on arm64 (Colima) produce no variant. `image-push` now
-  re-annotates such amd64 entries `v1` (an empty value cannot be set); measured to deploy.
-  Review follow-ups:
-  - `image-push` reads the list with **jq** (pinned in `.mise.toml`), not awk. A second review
-    showed awk broke on a different key order: it either passed silently or annotated the arm64
-    entry. jq handled every reordered fixture.
-  - After the repair it inspects the list again and stops the push if:
-    - an amd64 entry still has a non-amd64 variant, or
-    - the list's os/arch set differs from `PUSH_PLATFORMS`. Duplicates and a trailing comma are
-      ignored.
-  - Remaining gap: only the index entry is fixed. The amd64 image config still says `v8`.
-    Kubernetes selects by the index, so the pod runs. A tool that reads the config (Trivy,
-    Harbor's UI, classic-store `docker run --platform`) may show linux/amd64/v8. Not tested;
-    settling it would need a per-platform `--arch amd64 --variant v1` build on the arm64 box.
+- **Walked on the branch code, all five paths passed steps 1–10**: Linux podman, Linux docker, Linux
+  arm64 (real 9.1.1 Linux_ARM64 CLI), macOS podman, macOS Colima. This held while `image-push`
+  relabelled the amd64 entry `v1` (below). That relabel is now removed, so Linux arm64 passes with
+  **docker** (walked 2026-09-29), not podman 4.x.
+- **podman 4.x on an arm64 Linux host cannot build a correct amd64 image (measured 2026-09-29,
+  Ubuntu 24.04 arm64, podman 4.9.3 / buildah 1.33.7).**
+  - It labels the amd64 entry `variant: v8` in the index and the image config. The cause is the
+    Dockerfile's `FROM --platform=$BUILDPLATFORM` builder stage: a busybox-only build gets no
+    variant.
+  - No build shape avoids it: `$BUILDOS/$BUILDARCH`, `--platform=$TARGETPLATFORM` on the final
+    stage, and `manifest add` without `--variant` all still gave `v8`. An amd64-only build produced
+    an **arm64** image.
+  - The earlier fix relabelled the entry `v1`. containerd (VKS) accepted that. But `podman pull
+    --platform linux/amd64` rejects it on podman 4.9.3 and 6.1.2: `no image found … variant ""`.
+    skopeo and CRI-O use the same library, which is inferred, not measured.
+  - So `image-push` now **refuses** before pushing when an amd64 entry has any variant, and names
+    Docker, a newer podman, or an arm64-only push for arm64-only clusters.
+  - buildah 1.41 (podman 5.6+) changed variant handling and may fix this; UNVERIFIED. Settle it on
+    arm64 Linux with podman 5.6+: `podman build --platform linux/amd64,linux/arm64 --manifest t .`,
+    then `podman manifest inspect t`.
+  - `image-push` still reads the list with **jq** (pinned in `.mise.toml`), and stops if its os/arch
+    set differs from `PUSH_PLATFORMS`. Duplicates and a trailing comma are ignored.
 - **The lab's `apps` Harbor project is PUBLIC** (`metadata.public=true`). Every walk therefore ran
   the pull-secret block without needing it. Measured 2026-09-28 against a temporary private
   project:

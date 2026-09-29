@@ -582,14 +582,15 @@ image-stop:
 # stage runs nothing, so no emulator is needed for either architecture.
 #   podman: builds a manifest list under PUSH_LIST (NOT $(OPV): image-build owns that name, and a
 #           manifest list and a plain image cannot share it) and pushes it as $(OPV).
-#           podman 4.x (buildah 1.33) on an arm64 host stamps the host's `v8` variant on the amd64
-#           image too, and an amd64 node then finds "no match for platform". Such amd64 entries
-#           are re-annotated `v1` (the amd64 baseline), which amd64 nodes match (measured).
-#           Only the index entry is fixed; the image config still says v8. Kubernetes selects by
-#           the index, but a tool that compares the config may report linux/amd64/v8.
-#           The list is then inspected again with jq: a repair that did not apply, or a list
-#           whose os/arch set differs from PUSH_PLATFORMS, stops the push here (variants and
-#           duplicate entries are not compared).
+#           podman 4.x (buildah 1.33) on an arm64 Linux host labels the amd64 image with the
+#           host's `v8` variant, in the index AND the image config, because the Dockerfile's
+#           builder stage runs on $BUILDPLATFORM (measured; a variant-free amd64 image cannot be
+#           built there, not even alone). containerd could be made to accept it by relabelling it
+#           `v1`, but podman rejects that (measured, 4.9 and 6.1); skopeo and CRI-O use the same
+#           library (inferred). So such a list is NOT pushed; the message names the ways out.
+#           podman 6.1 (the macOS VM), Docker, and x86 hosts produce no variant (measured).
+#           The list's os/arch set must also equal PUSH_PLATFORMS (variants and duplicate
+#           entries are not compared).
 #   docker: loads a multi-platform image (needs the containerd image store) and pushes it.
 #           --builder pins the context's own docker-driver builder (named after the context:
 #           default, colima, ...), so a `docker buildx use`d container builder is never picked;
@@ -597,9 +598,9 @@ image-stop:
 PUSH_PLATFORMS ?= linux/amd64,linux/arm64
 # PUSH_LIST is also named in vks/README.md step 10 (the local image cleanup).
 PUSH_LIST := localhost/$(PROJECT)-push:$(VERSION)
-# jq over `podman manifest inspect`: the digest of each amd64 entry whose variant is not v1..v4
-# (none at all is fine), and the entry list as sorted, de-duplicated os/arch.
-JQ_AMD64_BAD := .manifests[] | select(.platform.architecture == "amd64" and ((.platform.variant // "v1") | test("^v[1-4]$$") | not)) | .digest
+# jq over `podman manifest inspect`: the variant of each amd64 entry that has one (a correct amd64
+# entry has none), and the entry list as sorted, de-duplicated os/arch.
+JQ_AMD64_VARIANT := .manifests[] | select(.platform.architecture == "amd64" and (.platform.variant // "") != "") | .platform.variant
 JQ_PLATFORMS := [.manifests[].platform | .os + "/" + .architecture] | unique | join(",")
 image-push: deps-buildx
 	@case "$(PUSH_PLATFORMS)" in ''|*' '*) \
@@ -614,11 +615,13 @@ image-push: deps-buildx
 		$$E build --platform $(PUSH_PLATFORMS) --manifest $(PUSH_LIST) $(IMAGE_BUILD_ARGS) -f Dockerfile . || exit 1; \
 		command -v jq >/dev/null 2>&1 || { echo "jq is not installed. Run: make deps"; exit 1; }; \
 		j=$$($$E manifest inspect $(PUSH_LIST)) || exit 1; \
-		fix=$$(printf '%s\n' "$$j" | jq -r '$(JQ_AMD64_BAD)') || exit 1; \
-		for d in $$fix; do $$E manifest annotate --variant v1 $(PUSH_LIST) $$d >/dev/null || exit 1; done; \
-		j=$$($$E manifest inspect $(PUSH_LIST)) || exit 1; \
-		bad=$$(printf '%s\n' "$$j" | jq -r '$(JQ_AMD64_BAD)') || exit 1; \
-		[ -z "$$bad" ] || { echo "amd64 entry still carries a non-amd64 variant: $$bad"; exit 1; }; \
+		v=$$(printf '%s\n' "$$j" | jq -r '$(JQ_AMD64_VARIANT)') || exit 1; v=$$(printf '%s\n' "$$v" | head -1); \
+		if [ -n "$$v" ]; then \
+			echo "$$($$E --version) on this $$(uname -m) host labelled the amd64 image variant '$$v'."; \
+			echo "  podman (and tools built like it) cannot pull an amd64 image with a variant, so it is not pushed."; \
+			echo "  Push with Docker (CONTAINER_ENGINE=docker) or a newer podman (6.1 measured clean),"; \
+			echo "  or, if every node is arm64, only arm64 (PUSH_PLATFORMS=linux/arm64)."; \
+			exit 1; fi; \
 		got=$$(printf '%s\n' "$$j" | jq -r '$(JQ_PLATFORMS)') || exit 1; \
 		want=$$(printf '%s\n' "$(PUSH_PLATFORMS)" | tr ',' '\n' | grep . | cut -d/ -f1-2 | LC_ALL=C sort -u | paste -sd, -); \
 		[ "$$got" = "$$want" ] || { echo "$(PUSH_LIST) holds $$got, but PUSH_PLATFORMS asks for $$want"; exit 1; }; \
