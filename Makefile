@@ -574,6 +574,9 @@ image-stop:
 # stage runs nothing, so no emulator is needed for either architecture.
 #   podman: builds a manifest list under PUSH_LIST (NOT $(OPV): image-build owns that name, and a
 #           manifest list and a plain image cannot share it) and pushes it as $(OPV).
+#           podman 4.x (buildah 1.33) on an arm64 host stamps the host's `v8` variant on the amd64
+#           image too, and an amd64 node then finds "no match for platform". Such amd64 entries
+#           are re-annotated `v1` (the amd64 baseline), which amd64 nodes match (measured).
 #   docker: loads a multi-platform image (needs the containerd image store) and pushes it.
 #           --builder pins the context's own docker-driver builder (named after the context:
 #           default, colima, ...), so a `docker buildx use`d container builder is never picked;
@@ -592,6 +595,10 @@ image-push: deps-buildx
 			$$E image prune -f >/dev/null; \
 		elif $$E image exists $(PUSH_LIST); then $$E rmi $(PUSH_LIST) >/dev/null || exit 1; fi; \
 		$$E build --platform $(PUSH_PLATFORMS) --manifest $(PUSH_LIST) $(IMAGE_BUILD_ARGS) -f Dockerfile . || exit 1; \
+		for d in $$($$E manifest inspect $(PUSH_LIST) | awk '/"digest"/ {gsub(/[",]/, "", $$2); d = $$2} \
+			/"architecture"/ {a = $$2} /"variant"/ {gsub(/[",]/, "", $$2); if (a ~ /amd64/ && $$2 !~ /^v[1-4]$$/) print d}'); do \
+			$$E manifest annotate --variant v1 $(PUSH_LIST) $$d >/dev/null || exit 1; \
+		done; \
 	else \
 		$(CONTAINER_ENGINE) buildx build --builder "$$($(CONTAINER_ENGINE) context show)" --platform $(PUSH_PLATFORMS) \
 			--provenance=false --sbom=false --load $(IMAGE_BUILD_ARGS) -f Dockerfile -t $(OPV) . || { \
