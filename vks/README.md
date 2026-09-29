@@ -176,7 +176,7 @@ macOS, podman:
 ```sh
 brew install podman
 podman machine inspect >/dev/null 2>&1 || podman machine init
-podman info >/dev/null 2>&1 || podman machine start
+perl -e 'alarm 15; exec @ARGV' podman info >/dev/null 2>&1 || podman machine start
 ```
 
 **Expect:** the last lines say the machine `started successfully`, or nothing if it was already
@@ -549,7 +549,8 @@ make image-push IMAGE_REGISTRY="$HARBOR_FQDN" OWNER="$HARBOR_PROJECT"
 and no `make: ***` line at the end.
 
 **If not:** `x509` — step 3. `unauthorized` — step 5's login. A message that the engine is not
-installed or not running tells you the fix.
+installed or not running tells you the fix. `labelled the amd64 image variant` — see
+Troubleshooting (podman on an arm64 Linux machine).
 
 Check that Harbor received both architectures:
 
@@ -834,7 +835,10 @@ source ~/.vks-golang-web.env
 for e in podman docker; do
   command -v "$e" >/dev/null 2>&1 || continue
   "$e" logout "$HARBOR_FQDN" 2>/dev/null
-  "$e" info >/dev/null 2>&1 || continue     # installed but not running: no images to remove
+  if ! perl -e 'alarm 15; exec @ARGV' "$e" info >/dev/null 2>&1; then
+    echo "$e is not running: its images (and, for podman on macOS, its Harbor login) stay. Start it and run this block again."
+    continue
+  fi
   [ "$e" = podman ] && podman manifest rm "localhost/golang-web-push:$(cat version.txt)" >/dev/null 2>&1
   "$e" rmi -f "${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web:$(cat version.txt)" 2>/dev/null
   "$e" image prune -f >/dev/null
@@ -842,7 +846,8 @@ done
 ```
 
 **Expect:** a `… login credentials for <your Harbor>` line (docker may also print `Untagged:`
-lines), or nothing if they were already gone.
+lines), or nothing if they were already gone. `… is not running` names an engine you have installed
+but not started: start it and run the block again, or ignore it if you never used that engine.
 
 The Supervisor login `vcf` saved in step 7, and `vcf`'s log files:
 

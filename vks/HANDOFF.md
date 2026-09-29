@@ -42,8 +42,15 @@ This supersedes round 2's "no plugin bundle" and the Supervisor-kubectl flow des
   | Linux arm64 with **docker** | aarch64 `ubuntu:24.04` inside Colima |
 
   - The macOS podman walk found a real bug: step 10's clean-up failed when the docker CLI was
-    installed but Colima was stopped. It is fixed (log out everywhere, remove images only where
-    the engine runs).
+    installed but Colima was stopped. It is fixed:
+    - it logs out with every installed engine. docker's logout needs no daemon (measured); a
+      review measured that podman's remote client on macOS DOES need its machine;
+    - it removes images only where the engine answers `info`, bounded to 15 s with
+      `perl -e 'alarm 15'`, like the Makefile's `engine_ready`;
+    - it prints "<engine> is not running … start it and run this block again" for a stopped engine
+      (that engine keeps its images and, for podman on macOS, its login).
+    Not walked: a stopped podman machine on macOS, because the Mac's machine belongs to another
+    project.
   - Lab Harbor's registry volume filled again mid-walk (`blob upload invalid`). A second manual GC
     left 254 MB free (98%). Run GC before the next session.
 - **Not yet available here:** a 9.1.1 plugin bundle for Linux_ARM64 or Darwin_AMD64. Only
