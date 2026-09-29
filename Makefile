@@ -520,8 +520,8 @@ clean:
 	if [ -n "$$($(DOCKERCMD) ps -q --filter ancestor=$(OPV))$$($(DOCKERCMD) ps -q --filter ancestor=$(KIND_IMAGE))" ]; then \
 		echo "Image $(OPV) is used by a running container. Stop it first: make image-stop"; exit 1; fi; \
 	removed=""; \
-	if [ "$(DOCKERCMD)" = podman ] && podman manifest exists $(PUSH_LIST); then \
-		podman manifest rm $(PUSH_LIST) >/dev/null && removed="$$removed $(PUSH_LIST)" && podman image prune -f >/dev/null; fi; \
+	if $(DOCKERCMD) --version 2>/dev/null | grep -i podman >/dev/null && $(DOCKERCMD) manifest exists $(PUSH_LIST); then \
+		$(DOCKERCMD) manifest rm $(PUSH_LIST) >/dev/null && removed="$$removed $(PUSH_LIST)" && $(DOCKERCMD) image prune -f >/dev/null; fi; \
 	for img in $(OPV) $(KIND_IMAGE); do \
 		if $(DOCKERCMD) image inspect $$img >/dev/null 2>&1; then $(DOCKERCMD) image rm $$img >/dev/null && removed="$$removed $$img"; fi; \
 	done; \
@@ -585,27 +585,34 @@ image-push: deps-buildx
 	@case "$(PUSH_PLATFORMS)" in ''|*' '*) \
 		echo "PUSH_PLATFORMS must be a comma-separated list with no spaces, e.g. linux/amd64,linux/arm64"; exit 1;; esac
 	@echo "Building $(OPV) for $(PUSH_PLATFORMS)"
-	@if [ "$(CONTAINER_ENGINE)" = podman ]; then \
-		if podman manifest exists $(PUSH_LIST); then podman manifest rm $(PUSH_LIST) >/dev/null || exit 1; \
-		elif podman image exists $(PUSH_LIST); then podman rmi $(PUSH_LIST) >/dev/null || exit 1; fi; \
-		podman build --platform $(PUSH_PLATFORMS) --manifest $(PUSH_LIST) $(IMAGE_BUILD_ARGS) -f Dockerfile . || exit 1; \
+	@# podman is recognised by what it reports, not by its name: a `docker` that is really podman
+	@# (the podman-docker shim) must take this branch, since podman has no `context show`/--builder.
+	@E=$(CONTAINER_ENGINE); if $$E --version 2>/dev/null | grep -i podman >/dev/null; then \
+		if $$E manifest exists $(PUSH_LIST); then $$E manifest rm $(PUSH_LIST) >/dev/null || exit 1; \
+			$$E image prune -f >/dev/null; \
+		elif $$E image exists $(PUSH_LIST); then $$E rmi $(PUSH_LIST) >/dev/null || exit 1; fi; \
+		$$E build --platform $(PUSH_PLATFORMS) --manifest $(PUSH_LIST) $(IMAGE_BUILD_ARGS) -f Dockerfile . || exit 1; \
 	else \
 		$(CONTAINER_ENGINE) buildx build --builder "$$($(CONTAINER_ENGINE) context show)" --platform $(PUSH_PLATFORMS) \
 			--provenance=false --sbom=false --load $(IMAGE_BUILD_ARGS) -f Dockerfile -t $(OPV) . || { \
 			case "$(PUSH_PLATFORMS)" in *,*) \
-				if ! $(CONTAINER_ENGINE) info --format '{{json .DriverStatus}}' 2>/dev/null | grep io.containerd.snapshotter >/dev/null; then \
+				ds=$$($(CONTAINER_ENGINE) info --format '{{json .DriverStatus}}' 2>/dev/null); \
+				if [ -n "$$ds" ] && ! printf '%s' "$$ds" | grep io.containerd.snapshotter >/dev/null; then \
 					echo ""; \
-					echo "A multi-platform image needs Docker's containerd image store; this Docker may use the classic store."; \
-					echo "  Turn it on:     Linux: add \"features\": {\"containerd-snapshotter\": true} to /etc/docker/daemon.json, restart Docker"; \
-					echo "                  Colima: colima start --edit (docker: features:); Docker Desktop: Settings > General"; \
-					echo "  Or push one:    make image-push PUSH_PLATFORMS=linux/amd64"; \
+					echo "This Docker uses the classic image store; a multi-platform image needs the containerd one."; \
+					echo "  Turn it on:  daemon.json (/etc/docker/, or ~/.config/docker/ when rootless):"; \
+					echo "                 \"features\": {\"containerd-snapshotter\": true}, then restart Docker"; \
+					echo "               Colima: colima start --edit (docker: features:)"; \
+					echo "               Docker Desktop: Settings > General > Use containerd for pulling and storing images"; \
+					echo "  Or push one: make image-push PUSH_PLATFORMS=linux/amd64"; \
 				fi;; \
 			esac; exit 1; }; \
 	fi
 	@# A bare `push` against an unauthenticated engine fails with `denied` / `unauthorized`
 	@# and no hint about what to do. Say it here instead.
-	@if [ "$(CONTAINER_ENGINE)" = podman ]; then podman manifest push --all $(PUSH_LIST) docker://$(OPV); \
-	else $(CONTAINER_ENGINE) push $(OPV); fi || { \
+	@E=$(CONTAINER_ENGINE); if $$E --version 2>/dev/null | grep -i podman >/dev/null; then \
+		$$E manifest push --all $(PUSH_LIST) docker://$(OPV); \
+	else $$E push $(OPV); fi || { \
 		echo ""; \
 		echo "Push to $(OPV) failed."; \
 		echo "  Not your namespace? Push to yours:  make image-push OWNER=<you> [IMAGE_REGISTRY=<registry>]"; \
