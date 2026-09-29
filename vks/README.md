@@ -833,9 +833,10 @@ The local image and the Harbor login:
 source ~/.vks-golang-web.env
 for e in podman docker; do
   command -v "$e" >/dev/null 2>&1 || continue
+  "$e" logout "$HARBOR_FQDN" 2>/dev/null
+  "$e" info >/dev/null 2>&1 || continue     # installed but not running: no images to remove
   [ "$e" = podman ] && podman manifest rm "localhost/golang-web-push:$(cat version.txt)" >/dev/null 2>&1
   "$e" rmi -f "${HARBOR_FQDN}/${HARBOR_PROJECT}/golang-web:$(cat version.txt)" 2>/dev/null
-  "$e" logout "$HARBOR_FQDN" 2>/dev/null
   "$e" image prune -f >/dev/null
 done
 ```
