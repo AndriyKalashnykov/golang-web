@@ -5,7 +5,7 @@ Resume point for the `vks/README.md` work. Read this before touching `vks/`.
 ## Where it stands
 
 `vks/README.md` builds `golang-web`, pushes to Harbor, deploys to a VKS guest cluster.
-**All work is merged; nothing is in flight** (PRs #203–#210, last merge 2026-09-29). Every path
+**All work is merged; nothing is in flight** (PRs #203–#211, last merge 2026-09-29). Every path
 was walked end to end on the final text, every block in its own fresh shell: Linux podman, Linux
 docker, macOS podman, macOS Colima, and Linux arm64 **with docker**. Pinned to **VCF CLI 9.1.1.0**
 (`vcf version` → `v9.1.1.0.25662425`).
@@ -22,6 +22,27 @@ round sections below are for the README at that round; recount before reusing th
 The old probe script `vks/macosx.sh` and its `vks/macosx.res` were REMOVED (2026-09-23): running
 every README block verbatim on a real Mac superseded the subset they checked. They are in git
 history; references to them below are history.
+
+## ✅ ROUND 8 — second end-user review, walked on the lab — 2026-09-29
+
+- **README:** a second newcomer review (18 findings) and an adversary round, all applied:
+  - the clone deletion is its own step-10 block, with a bold warning for a clone you already had;
+  - step 10 says to run blocks in order (the last ones delete the clone and the env file);
+  - every new terminal must `cd` back into the clone, and step 6's If-not names the error;
+  - the editor defaults to `nano` (present on macOS 26 as pico), with a TextEdit warning;
+  - the vCenter CA download is marked required for everyone;
+  - Harbor's `getcert` 404 has its own If-not (Harbor source: `GetCA` returns NotFound when
+    Harbor holds no CA file), and the block deletes a stale `$HARBOR_CA` first;
+  - the docker block reads `ID` from `/etc/os-release` and installs only on `ubuntu`/`debian`;
+    anything else prints "nothing installed" and changes nothing. Mint etc. are out of scope.
+  - verb headings, missing "what this is for" sentences and If-not lines, two Terms rows.
+- **Walked** (49 blocks, each in its own fresh login shell, ubuntu:24.04 container, lab):
+  Linux podman end to end: pass. Linux docker: see below. The docker block alone: Debian 12
+  amd64 and Ubuntu 24.04 arm64 (Colima on the Mac): pass. On the Mac, zsh: blocks 1 and the
+  three split clean-up blocks: pass. Not re-walked on the Mac end to end: no macOS-only block
+  changed.
+- **Harness note:** the harness container needs `python3` (for the env-file fill step), which
+  ubuntu:24.04 lacks; the first run failed on that, not on the README.
 
 ## ✅ ROUND 7 — end-user review applied, podman 4.x refused early — 2026-09-29
 
