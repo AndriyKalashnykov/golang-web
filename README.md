@@ -101,7 +101,7 @@ The tag is the version in `version.txt`. `make image-push` builds every platform
 or macOS, with podman or Docker; it does not push the image `make image-build` made. Docker needs
 its containerd image store for more than one platform (Docker 29 uses it on new installs). On an
 arm64 Linux machine, podman 4.9 (Ubuntu 24.04's) mislabels the amd64 image, so `make image-push`
-stops and names the fix: use Docker there, or podman 5.8 or newer (measured correct).
+stops and names the fix: use Docker there, or podman 5.8 (measured correct; 5.0–5.7 untested).
 
 ## Pinned versions
 

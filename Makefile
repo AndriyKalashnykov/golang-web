@@ -629,7 +629,7 @@ image-push: deps-buildx
 		if [ -n "$$v" ]; then \
 			echo "$$($$E --version) on this $$(uname -m) host labelled the amd64 image variant '$$v'."; \
 			echo "  podman (and tools built like it) cannot pull an amd64 image with a variant, so it is not pushed."; \
-			echo "  Push with Docker (CONTAINER_ENGINE=docker) or podman 5.8 or newer (measured correct),"; \
+			echo "  Push with Docker (CONTAINER_ENGINE=docker) or podman 5.8 (measured correct),"; \
 			echo "  or, if every node is arm64, only arm64 (PUSH_PLATFORMS=linux/arm64)."; \
 			exit 1; fi; \
 		got=$$(printf '%s\n' "$$j" | jq -r '$(JQ_PLATFORMS)') || exit 1; \
