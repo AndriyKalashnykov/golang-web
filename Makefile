@@ -157,6 +157,10 @@ KIND_ENGINE ?= docker
 # uname picks the podman install command in `deps` and the start hint below.
 HOST_OS := $(shell uname -s)
 
+# macOS runs no Docker engine itself. The docker CLI needs a VM running the engine; this repo uses
+# Colima (the same steps as vks/README.md step 2). Printed wherever docker is missing on macOS.
+colima_install_hint = echo "  On macOS, install Colima (a small VM that runs the Docker engine) and the docker CLI:"; echo "    brew install colima docker docker-buildx"; echo '    mkdir -p ~/.docker/cli-plugins && ln -sfn "$$(brew --prefix)/opt/docker-buildx/bin/docker-buildx" ~/.docker/cli-plugins/docker-buildx'; echo "    colima start"
+
 # $(call engine_ready,<engine>): stop with a next step unless <engine> can run containers.
 # A CLI can be installed while its engine is not running (podman machine stopped, Colima
 # stopped, dockerd down); `info` fails fast then (measured on macOS: 0.05 s). perl's alarm
@@ -164,7 +168,7 @@ HOST_OS := $(shell uname -s)
 define engine_ready
 if [ "$(1)" = none ]; then echo "No container engine found (podman or docker). Run: make deps"; exit 1; fi; \
 command -v $(1) >/dev/null 2>&1 || { echo "$(1) is not installed (or not on PATH)."; \
-	case "$(1)" in podman) echo "  Install it: make deps";; *) echo "  Install it: https://docs.docker.com/get-docker/";; esac; exit 1; }; \
+	case "$(HOST_OS)/$(1)" in */podman) echo "  Install it: make deps";; Darwin/*) $(colima_install_hint);; *) echo "  Install it: https://docs.docker.com/get-docker/";; esac; exit 1; }; \
 rc=0; err=$$( (perl -e 'alarm 15; exec @ARGV or exit 127' $(1) info >/dev/null) 2>&1 ) || rc=$$?; \
 if [ $$rc -ne 0 ]; then \
 	case "$$err" in \
@@ -178,7 +182,11 @@ if [ $$rc -ne 0 ]; then \
 	          echo "  Its VM is running but does not answer. Restart it:  podman machine stop && podman machine start"; \
 	        else echo "  Start its VM:  podman machine start"; fi; \
 	        (docker info >/dev/null 2>&1) && echo "  Or use Docker, which is running: add CONTAINER_ENGINE=docker to the make command";; \
-	      Darwin/docker) echo "  Start it:  colima start   (or open Docker Desktop / OrbStack)";; \
+	      Darwin/docker) if command -v colima >/dev/null 2>&1; then echo "  Start it:  colima start   (already running? docker context use colima)"; \
+	        elif [ -d /Applications/Docker.app ] || [ -d "$$HOME/Applications/Docker.app" ]; then echo "  Start it:  open -a Docker"; \
+	        elif [ -d /Applications/OrbStack.app ] || [ -d "$$HOME/Applications/OrbStack.app" ]; then echo "  Start it:  open -a OrbStack"; \
+	        else echo "  Nothing on this Mac runs the Docker engine: the docker CLI is installed, Colima is not."; \
+	          $(colima_install_hint); fi;; \
 	      */docker)      echo "  Start it:  sudo systemctl start docker";; \
 	      *)             echo "  Check it:  $(1) info";; \
 	    esac; fi;; \
@@ -281,9 +289,9 @@ deps-engine:
 		exit 0; \
 	fi; \
 	echo "No container engine found (looked for podman, then docker)."; \
-	echo "Installing podman. To use Docker instead, install it from"; \
-	echo "https://docs.docker.com/get-docker/ and re-run 'make deps' --"; \
-	echo "or force it per-invocation with 'make <target> CONTAINER_ENGINE=docker'."; \
+	echo "Installing podman. To use Docker instead, install it, re-run 'make deps', or force it"; \
+	echo "per-invocation with 'make <target> CONTAINER_ENGINE=docker'. Installing Docker:"; \
+	case "$(HOST_OS)" in Darwin) $(colima_install_hint);; *) echo "  https://docs.docker.com/get-docker/";; esac; \
 	case "$(HOST_OS)" in \
 	  Darwin) \
 	    command -v brew >/dev/null 2>&1 || { echo "ERROR: Homebrew required to install podman on macOS. See https://brew.sh"; exit 1; }; \
@@ -674,7 +682,8 @@ deps-kind: deps
 		echo "Error: the KinD targets require Docker."; \
 		echo "  Image targets (image-build, image-run-bg, ...) work on podman OR docker;"; \
 		echo "  the KinD path does not, because cloud-provider-kind mounts the Docker socket."; \
-		echo "  Install Docker: https://docs.docker.com/get-docker/"; \
+		case "$(HOST_OS)" in Darwin) $(colima_install_hint);; \
+		  *) echo "  Install Docker: https://docs.docker.com/get-docker/";; esac; \
 		exit 1; }
 	@$(call engine_ready,$(KIND_ENGINE))
 
@@ -965,7 +974,8 @@ ci-run: deps
 	@# No `docker container prune -f` any more: MEASURED, it deleted an unrelated stopped
 	@# container belonging to someone else. act removes its own stale job containers, and
 	@# --rm removes them after a failure too (a failed job's container was left running).
-	@command -v docker >/dev/null 2>&1 || { echo "ci-run needs Docker: act runs each job in a Docker container. Install it: https://docs.docker.com/get-docker/"; exit 1; }
+	@command -v docker >/dev/null 2>&1 || { echo "ci-run needs Docker: act runs each job in a Docker container."; \
+		case "$(HOST_OS)" in Darwin) $(colima_install_hint);; *) echo "  Install it: https://docs.docker.com/get-docker/";; esac; exit 1; }
 	@$(call engine_ready,docker)
 	@# --container-daemon-socket: act bind-mounts the Docker socket into each job container.
 	@# By default it uses the CLIENT's socket path; with Colima that is ~/.colima/docker.sock,
