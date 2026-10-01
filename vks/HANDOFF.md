@@ -14,6 +14,8 @@ has changed since. Round 10 added one optional block (the Supervisor's kubectl) 
 steps 7–10, on Linux and macOS. Its only other command change is `--connect-timeout 10` on the
 dl.k8s.io downloads (blocks 1 and 13), re-run on Linux and on the Mac. Round 11 (2026-10-01)
 changed three Colima blocks (steps 2, 3 and 10) and ran those three on the Mac, not the whole path.
+**Round 12 (2026-10-01) then walked the macOS Colima path end to end at `8dcb88a`: every Expect
+matched.** macOS podman was last walked in round 9; none of its blocks has changed since.
 
 **Resume point:** nothing is pending. The lab was **running** when round 9 began and was left
 running after round 10: this session did not start it, so it did not stop it. If
@@ -63,6 +65,45 @@ round sections below are for the README at that round; recount before reusing th
 The old probe script `vks/macosx.sh` and its `vks/macosx.res` were REMOVED (2026-09-23): running
 every README block verbatim on a real Mac superseded the subset they checked. They are in git
 history; references to them below are history.
+
+## ✅ ROUND 12 — macOS Colima walked end to end after round 11 — 2026-10-01
+
+The README at `8dcb88a` (step 4 cloned `main`), every macOS Colima block verbatim, each in its own
+fresh login zsh with stdin from `/dev/null`, judged by its Expect line. Machine: the M2, macOS
+26.6.1, Colima 0.10.3, docker 29.8.2 client / 29.5.2 server, buildx 0.37.2.
+
+- **Result:** 35 blocks run, steps 1–10, every Expect matched.
+- **Starting state:** not from zero. Homebrew, Colima, docker, `vcf` and kubectl were already
+  installed (round 9), the Colima VM existed and was stopped, and the build's layers were cached
+  (the build and push took 27 s). There was no env file, clone, CA file or Harbor login.
+- **Not run, as the README says:** the Homebrew block (`brew --version` works), `brew install jq`
+  (macOS 26 has jq), the Supervisor-kubectl alternative (dl.k8s.io was reachable) and the
+  pull-secret block (the check printed `http=200`). The editor block and the `REGISTRY_*` snippet
+  were replaced by the harness editing the env file. Step 5 used option A (the robot account).
+- **Checks that passed:**
+  - both CA fingerprints equalled the lab's copies; both archive SHA-256 lines equalled the lab
+    host's copies; 12 plugins `installed`;
+  - step 2 printed `Current context is now "colima"` and `colima: Ubuntu 24.04.4 LTS/aarch64
+    server=29.5.2`; step 3's Colima block printed nothing (Colima was running);
+  - `Login Succeeded`; the push listed `amd64,arm64`; step 2's kubectl was v1.37.1 and step 7
+    replaced it with v1.36.2 (guest `v1.36.2+vmware.2`);
+  - the pod's `IMAGEID` equalled the pushed digest; `Hello, World` came back over the LoadBalancer
+    address (`192.168.101.141`) and over the port-forward;
+  - step 10 left no repository, no robot, no app address, no Harbor login, no image, no `vcf`
+    context and an empty `certs.d` in the VM (Harbor and the address checked from the lab host).
+- **Two things a reader will see that are fine:** step 10's local-image block prints
+  `podman is not running: …` because podman is installed and stopped (the Expect covers it); the
+  "Delete the files" block prints nothing but exits 1, because `~/.kube` still holds kubectl's
+  `cache`, which the README says is kept.
+- **The lab was restarted during the walk** by the nested-vsphere-lab session (`run.sh --restart`,
+  13:32–14:04 local). The walk waited between step 2's engine blocks and the vCenter CA download;
+  the addresses were unchanged afterwards.
+- **Scaffolding (not under test):** as round 9 — `ssh -N -R` tunnels from the lab host, `lo0`
+  aliases of the lab IPs, a root `/usr/bin/python3` relay, two `/etc/hosts` lines; the Darwin
+  archives copied into `~/Downloads`. All removed afterwards; Colima and the podman machine are
+  stopped. Installed tools stay.
+- **Not covered:** an install from zero, Terminal.app (SSH only), Docker Desktop or OrbStack
+  beside Colima.
 
 ## ✅ ROUND 11 — Colima: stopped VM, wrong docker context, stdin — 2026-10-01
 
