@@ -4,7 +4,7 @@ Resume point for work on this repo. Durable facts and the backlog are in [CLAUDE
 the VKS runbook has its own [vks/HANDOFF.md](vks/HANDOFF.md). Keep this file short: replace its
 content when the state changes, do not append history (git has it).
 
-## State — 2026-09-30
+## State — 2026-10-01
 
 `main` is green and the working tree is clean. No open PRs, worktrees or local branches. The two
 Renovate PRs from 2026-10-01 (#213 Docker dependencies, #214 renovate) were merged by hand that
@@ -24,6 +24,13 @@ arm64 Linux before it builds. On 2026-09-30:
 Its state and resume point are in [vks/HANDOFF.md](vks/HANDOFF.md) (rounds 9 to 12). Round 11
 (#222, 2026-10-01) made the Colima blocks start Colima and select its docker context; round 12
 walked the macOS Colima path end to end on the merged text.
+
+Also on 2026-10-01:
+
+| PR | What |
+|---|---|
+| #228 | CI's `static-check` failed 2 of 8 runs with `podman did not answer within 15 s`. Cause: the first `podman info` on a fresh runner is slow (package lookups on a cold disk), not hung. The engine check now runs `ps -q` with a 60 s limit. Measurements are in the Makefile comment and the CLAUDE.md backlog entry |
+| #223, #225, #227 | Renovate merged these itself: renovate v44.117.0, and `jdx/mise-action` v4 to v5 (a major bump) with a digest update. CI on `main` passed after each; nobody reviewed the v5 change by hand |
 
 Earlier, 2026-09-25:
 
@@ -59,8 +66,9 @@ The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
   relay. It is kept for vks-airgap-cicd. See vks/HANDOFF.md before deleting it.
 - **KinD:** no cluster on this host (the `golang-web` cluster was deleted 2026-09-29). `make e2e`
   creates one when needed.
-- **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`) is **running**. It
-  was already up when this session began and this session did not start or stop it. Harbor's
+- **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`) is **running**. The
+  nested-vsphere-lab session restarted it on 2026-10-01 (13:32-14:04 local); the work here did
+  not start or stop it. Harbor's
   `apps` project has no `golang-web` repository and no robot; the guest cluster has no
   `golang-web` namespace. Stop it with `make -C ~/projects/nested-vsphere-lab lab-stop` when
   nothing else needs it.
