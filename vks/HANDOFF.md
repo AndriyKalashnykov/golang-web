@@ -5,22 +5,27 @@ Resume point for the `vks/README.md` work. Read this before touching `vks/`.
 ## Where it stands
 
 `vks/README.md` builds `golang-web`, pushes to Harbor, deploys to a VKS guest cluster.
-**All work is merged; nothing is in flight** (PRs #203–#212, last merge 2026-09-29). Pinned to
-**VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`). Walk coverage of the CURRENT text
-(round 8): Linux podman and Linux docker end to end on the lab; the docker install block alone on
-Debian 12 and arm64 Ubuntu; on macOS (zsh) only the blocks that changed. macOS podman, macOS
-Colima and Linux arm64 were last walked end to end in round 5; no macOS-only or arm64-only block
+**All work is merged; nothing is in flight.** Pinned to
+**VCF CLI 9.1.1.0** (`vcf version` → `v9.1.1.0.25662425`). Walk coverage of the CURRENT text:
+Linux podman and Linux docker end to end on the lab, and the docker install block alone on
+Debian 12 and arm64 Ubuntu (round 8); **macOS podman and macOS Colima end to end on the new Mac
+(round 9, 2026-09-30)**. Linux arm64 was last walked end to end in round 5; no arm64-only block
 has changed since.
 
-**Resume point:** nothing is pending. The lab is **stopped** (`esxi01` shut off). To walk again:
+**Resume point:** nothing is pending. The lab was **running** when round 9 began and was left
+running: another session (vks-airgap-cicd) was open on this host, so this one did not stop it. If
+`esxi01` is shut off, start it with
 `make -C ~/projects/nested-vsphere-lab lab-start` (about 20 minutes; it prints `lab started`),
-then the method below. The harness container needs `python3` (ubuntu:24.04 lacks it) for the step
-that fills the env file. Lab values: `make creds` in that repo prints the endpoints (Harbor
+then the method below. The Linux harness container needs `python3` (ubuntu:24.04 lacks it) for the
+step that fills the env file. Lab values: `make creds` in that repo prints the endpoints (Harbor
 `harbor.env1.lab.test`, project `apps`, Supervisor `192.168.101.128`, vCenter
-`vcsa.env1.lab.test`, cluster `lab-gc1` in namespace `lab`); the passwords are in its gitignored
-`secrets.env`. Harbor ended with no `golang-web` repository and no robot. Its registry volume was
+`vcsa.env1.lab.test`, cluster `lab-gc1` in namespace `lab`, guest API `192.168.101.132:6443`); the
+passwords are in its gitignored
+`secrets.env`. After round 9, Harbor has no `golang-web` repository and no robot in `apps`, and
+the guest cluster has no `golang-web` namespace (all three checked from this host). Its registry
+volume was
 at 60% after a GC; run GC again if pushes fail with `blob upload invalid` (the volume is full).
-Stop the lab afterwards: `make -C ~/projects/nested-vsphere-lab lab-stop`.
+Stop the lab when nobody else needs it: `make -C ~/projects/nested-vsphere-lab lab-stop`.
 
 **The rented Mac was replaced on 2026-09-30** (owner decision: more RAM). The M1 at
 `51.159.120.46` is deleted; everything below that describes "the rented Mac" before this date is
@@ -31,18 +36,19 @@ about that machine. The new one, measured over SSH on 2026-09-30:
 | Scaleway server | id `65fa64c6-d0ed-49de-bcf1-a766b9f67a11`, zone **fr-par-1** |
 | hardware / OS | **Apple M2**, 8 cores, 16 GB, 228 GB disk — **macOS 26.6.1 (25G76)**, arm64 |
 | access | `ssh m1@62.210.166.48` (this lab host's `~/.ssh/id_ed25519`) |
-| installed | Xcode at `/Applications/Xcode.app`; `/usr/bin/{jq,git,make}` |
-| NOT installed | Homebrew, podman, colima, docker, `vcf`, `kubectl` |
+| as delivered | Xcode at `/Applications/Xcode.app`; `/usr/bin/{jq,git,make,python3}`; Rosetta present; no `/usr/local/bin`; no Homebrew, engine, `vcf` or `kubectl` |
+| after round 9 | Homebrew 7.0.7 with podman 6.1.3, colima 0.10.3, docker 29.8.2 and docker-buildx 0.37.2; `/usr/local/bin/{vcf,kubectl}` (kubectl v1.36.2); `~/.zprofile` (the README's Homebrew line) |
 
-- It is macOS 26.6.1; every earlier macOS walk ran on 26.6.2.
-- Nothing from the README is installed, so a walk there starts at the README's first block. The
-  Darwin VCF CLI archives must be copied again from the lab host's `~/Downloads/vcf`, and the
-  tunnel, loopback-alias and socat scaffolding rebuilt (see "Once on the Mac" below).
+- It is macOS 26.6.1; every earlier macOS walk ran on 26.6.2 (25G83). Round 9 found no
+  difference in behaviour.
+- The podman machine and the Colima VM exist and are **stopped**; both cache the build's base
+  images. To resume: `podman machine start` or `colima start`.
+- The Darwin VCF CLI archives were removed from `~/Downloads`; copy them again from the lab host's
+  `~/Downloads/vcf`. The tunnel, loopback-alias and relay scaffolding was removed too (round 9
+  says how to rebuild it).
+- Passwordless sudo is set up for `m1` (`/etc/sudoers.d/m1`, added by the owner 2026-09-30).
 - It is kept for vks-airgap-cicd (B735 macOS jump box, B736 arm64 build tags). Apple's 24 h
   minimum runs from its creation on 2026-09-30.
-- `m1` is in the `admin` group, but `sudo` asks for a password, so nothing that needs root
-  (Homebrew, the README's trust step, `/etc/hosts`, loopback aliases) runs unattended until the
-  owner sets up passwordless sudo, as on the old Mac.
 - Not checked: whether ticket #1619590 was closed with the old server.
 
 How to walk it again: extract every `sh` block from `vks/README.md` and run each in a fresh login
@@ -53,6 +59,55 @@ round sections below are for the README at that round; recount before reusing th
 The old probe script `vks/macosx.sh` and its `vks/macosx.res` were REMOVED (2026-09-23): running
 every README block verbatim on a real Mac superseded the subset they checked. They are in git
 history; references to them below are history.
+
+## ✅ ROUND 9 — both macOS paths walked on the replaced Mac — 2026-09-30
+
+The README at `09e2c84` (step 4 cloned `main`, no deviation), every macOS block verbatim, each in
+its own fresh login `zsh`, judged by its Expect line. Machine: Apple M2, 16 GB, **macOS 26.6.1
+(25G76)**, delivered that day with nothing installed.
+
+| path | blocks run | result |
+|---|---|---|
+| macOS podman (6.1.3, applehv machine) | 35 | every Expect matched, steps 1–10 |
+| macOS docker (Colima 0.10.3, docker 29.8.2 client / 29.5.2 server, buildx 0.37.2) | 35 | every Expect matched, steps 1–10 |
+
+- **OS version.** The earlier macOS walks ran on 26.6.2 (25G83) on an M1 with 8 GB. On 26.6.1
+  nothing behaved differently: no block needed a change, and the README needs no version note.
+  Tool versions that differ from round 5: podman 6.1.3 (was 6.1.2), Homebrew 7.0.7. `/usr/bin`
+  still has LibreSSL 3.3.6 (`SHA256 Fingerprint=`), curl 8.7.1, jq 1.7.1, GNU Make 3.81, zsh 5.9.
+- **Not run, as the README says:** the editor block and the `REGISTRY_*` snippet (the harness
+  edits the env file instead), `brew install jq` (macOS 26 has jq), the pull-secret block (the
+  check printed `http=200`), and, on the docker path, the Homebrew block (already installed).
+- **From zero.** The Homebrew block installed Homebrew in 20 s with no prompt (stdin was not a
+  terminal; passwordless sudo). Xcode was already on the machine, so the installer's Command Line
+  Tools download did not run here. `/usr/local/bin` did not exist; the kubectl and `vcf` blocks
+  created it. `podman machine init`/`start` and `colima start` each ran from no prior state.
+- **Checks that passed on both paths:**
+  - both CA fingerprints equalled the lab's copies;
+  - the two archive SHA-256 lines equalled the lab host's copies;
+  - `vcf` ran with Safari's quarantine flag set on both archives, and installed 12 plugins;
+  - the push listed `amd64` and `arm64`;
+  - step 2's kubectl was v1.37.1 and step 7 replaced it with v1.36.2 (guest `v1.36.2+vmware.2`);
+  - the pod's `IMAGEID` equalled the pushed digest;
+  - `Hello, World` came back over the LoadBalancer address and over the port-forward;
+  - step 10 left no repository, no robot, no namespace, no Harbor login and no `vcf` context.
+- **The lab was not in the state this file described.** A `golang-web` namespace (22 h old, with a
+  deployment and a `harbor-creds` secret) and an image pushed 2026-09-30 03:58 UTC already
+  existed; who made them is not known. Effects on the podman walk: the namespace block printed
+  `unchanged`, the deploy block `configured`, and the architecture check printed a second,
+  untagged line for the older image. Step 10 removed all of it. The docker walk then ran against
+  a clean lab and printed `created` and a single line.
+- **Scaffolding (not under test).** `ssh -N -R 127.0.0.1:<high port>:<lab ip>:<port>` from the
+  lab host for vCenter, the Supervisor, Harbor, the guest API and the app's LoadBalancer address
+  (`.159`, then `.137`); `lo0` aliases of those lab IPs on the Mac; a root `/usr/bin/python3`
+  relay from each alias to its tunnel port; two `/etc/hosts` lines for the vCenter and Harbor
+  names. A Python relay replaced `socat`, so nothing outside the README was installed with
+  Homebrew. Neither VM needed its own `/etc/hosts` entry: the podman machine and the Colima VM
+  both resolved Harbor's name through the Mac and reached it by its lab IP (measured with
+  `getent hosts` and `curl` inside each VM). All of it was removed afterwards.
+- **Not covered:** a Mac without Rosetta (this image ships it), a Mac without Xcode, Terminal.app
+  (the walk ran over SSH), and the Broadcom portal download itself.
+- The walk logs were not committed.
 
 ## ✅ ROUND 8 — second end-user review, walked on the lab — 2026-09-29
 
