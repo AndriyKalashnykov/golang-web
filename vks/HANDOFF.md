@@ -10,7 +10,8 @@ Resume point for the `vks/README.md` work. Read this before touching `vks/`.
 Linux podman and Linux docker end to end on the lab, and the docker install block alone on
 Debian 12 and arm64 Ubuntu (round 8); **macOS podman and macOS Colima end to end on the new Mac
 (round 9, 2026-09-30)**. Linux arm64 was last walked end to end in round 5; no arm64-only block
-has changed since.
+has changed since. Round 10 added one optional block (the Supervisor's kubectl) and ran it on
+Linux and macOS; the other blocks' commands did not change.
 
 **Resume point:** nothing is pending. The lab was **running** when round 9 began and was left
 running: another session (vks-airgap-cicd) was open on this host, so this one did not stop it. If
@@ -59,6 +60,60 @@ round sections below are for the README at that round; recount before reusing th
 The old probe script `vks/macosx.sh` and its `vks/macosx.res` were REMOVED (2026-09-23): running
 every README block verbatim on a real Mac superseded the subset they checked. They are in git
 history; references to them below are history.
+
+## ✅ ROUND 10 — kubectl wording, and a Supervisor-kubectl alternative — 2026-09-30
+
+- **README, step 2 "Install kubectl".** The intro now says the block installs the newest stable
+  kubectl with `sudo`, and that step 7 installs the guest cluster's matching version over it. The
+  old text put "`sudo` asks for your password" right after the step 7 sentence, so it read as
+  being about step 7.
+- **A collapsed alternative under that block** installs the kubectl the Supervisor serves, for
+  sites where dl.k8s.io is blocked. The README now has **50** `sh` blocks; the new one is block 14,
+  so every later block number in the round sections below is one higher.
+  - It picks the platform with a `case` on `uname`, like the docker install block, and installs
+    nothing on a platform the Supervisor has no build for.
+  - TLS is verified with the vCenter CA from the block before it. `wget --no-check-certificate`
+    was not used: macOS has no `wget`, and the CA is already on disk at that point.
+  - The Troubleshooting row for `cannot reach dl.k8s.io` no longer carries its own one-liner; it
+    points at this block.
+- **Measured on the lab Supervisor:** `/wcp/plugin/<platform>/vsphere-plugin.zip` answers 200 for
+  `linux-amd64`, `darwin-amd64` and `windows-amd64`, and 404 for `linux-arm64` and
+  `darwin-arm64`. The kubectl inside is `v1.32.9+vmware.2-fips`.
+- **The block was run as written:**
+
+  | where | result |
+  |---|---|
+  | clean `ubuntu:24.04` amd64, bash, dl.k8s.io blocked | step 2's block printed `cannot reach dl.k8s.io`; the alternative installed v1.32.9; step 7 logged in, read the kubeconfig, printed `cannot reach dl.k8s.io`, kept v1.32.9, and listed the nodes with a `version difference` warning |
+  | the same, dl.k8s.io reachable | the alternative installed v1.32.9 over v1.37.1; step 7 replaced it with v1.36.2 |
+  | macOS 26.6.1 arm64, zsh 5.9 and bash 3.2 | installed the Intel kubectl, which ran under Rosetta; step 7 behaved as on Linux, blocked and unblocked |
+  | `ubuntu:24.04` arm64 (Colima on the Mac) | printed `No Supervisor kubectl for Linux/aarch64: nothing installed`, and installed nothing |
+  | Linux, seven failure cases, with a kubectl already installed | wrong CA, missing CA file, empty endpoint, unresolvable name, a 404, an unreachable endpoint (stops after 20 s) and a kubectl that cannot run each printed the error, then `Nothing installed`, removed the temp directory, and left the existing kubectl as it was |
+  | clean `ubuntu:24.04` amd64, dl.k8s.io blocked, **steps 8–10 with the v1.32.9 kubectl** | namespace, deploy by digest, `IMAGEID` equal to the pushed digest, `Hello, World` over the LoadBalancer and the port-forward, namespace and repository deleted. The namespace delete printed `very short watch` warnings from the old client and still deleted it |
+
+- **A review found seven things; all applied.**
+  - The block now runs the downloaded kubectl once before `sudo install`, so one that cannot run
+    (no Rosetta, wrong platform) never replaces a working kubectl.
+  - `mktemp` is inside the `if`, so a failed `mktemp` cannot make `unzip` write into the current
+    directory.
+  - The failure line says "the download … or the check of the downloaded kubectl, failed".
+  - The If-not strings match what curl prints on each platform: `error setting certificate file`
+    (curl 8.5, Ubuntu 24.04), `error setting certificate verify locations` (macOS curl 8.7.1) and
+    `provided to --cacert does not exist` (curl 8.18, this host), all measured.
+- **`kubectl_install` and step 2's block got `--connect-timeout 10`.** This is a change to block 1
+  and block 13, outside the alternative itself. Reason, measured with dl.k8s.io pointed at a
+  black-hole address (a firewall that drops instead of refusing):
+
+  | | before | after |
+  |---|---|---|
+  | step 2's kubectl block | 136 s, then `cannot reach dl.k8s.io` | 10 s |
+  | `kubectl_install <guest version>` (what step 7 calls) | 1,089 s (about 18 minutes), then `cannot reach dl.k8s.io` | 94 s |
+
+  The success path was re-run with the timeout on Linux (v1.37.1, then v1.36.2) and on the Mac in
+  zsh and bash 3.2.
+- **Not measured:** an Intel Mac; an Apple-silicon Mac without Rosetta (the `bad CPU type` line is
+  inferred).
+- The Mac was left as round 9 left it: native kubectl v1.36.2, no scaffolding, both VMs stopped.
+  This host's podman pushed the test image; its login, image and `certs.d` entry were removed.
 
 ## ✅ ROUND 9 — both macOS paths walked on the replaced Mac — 2026-09-30
 

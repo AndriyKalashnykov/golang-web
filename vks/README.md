@@ -115,16 +115,16 @@ kubectl_install() {
   case "$v" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "kubectl_install: no version ('$1') — not logged in, or the server unreachable?" >&2; return 1 ;; esac
   case "$(uname -s)" in Linux) os=linux ;; Darwin) os=darwin ;; *) echo "kubectl_install: unsupported OS $(uname -s)" >&2; return 1 ;; esac
   case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; arm64|aarch64) arch=arm64 ;; *) echo "kubectl_install: unsupported CPU $(uname -m)" >&2; return 1 ;; esac
-  if ! curl -fsIL --retry 3 -o /dev/null "https://dl.k8s.io/release/${v}/bin/${os}/${arch}/kubectl"; then
+  if ! curl -fsIL --connect-timeout 10 --retry 3 -o /dev/null "https://dl.k8s.io/release/${v}/bin/${os}/${arch}/kubectl"; then
     m="${v#v}"; m="${m%.*}"
-    v="$(curl -fsSL --retry 3 "https://dl.k8s.io/release/stable-${m}.txt")" \
+    v="$(curl -fsSL --connect-timeout 10 --retry 3 "https://dl.k8s.io/release/stable-${m}.txt")" \
       || { echo "kubectl_install: cannot reach dl.k8s.io (blocked or offline?)" >&2; return 1; }
     echo "note: no upstream kubectl ${1%%+*}; using ${v}, the newest of that minor" >&2
   fi
   u="https://dl.k8s.io/release/${v}/bin/${os}/${arch}/kubectl"
   t="$(mktemp -d)" || return 1
-  if curl -fsSL --retry 3 -o "$t/kubectl" "$u" \
-     && h="$(curl -fsSL --retry 3 "${u}.sha256")" && [ -n "$h" ] \
+  if curl -fsSL --connect-timeout 10 --retry 3 -o "$t/kubectl" "$u" \
+     && h="$(curl -fsSL --connect-timeout 10 --retry 3 "${u}.sha256")" && [ -n "$h" ] \
      && [ "$( (sha256sum "$t/kubectl" 2>/dev/null || shasum -a 256 "$t/kubectl") | awk '{print $1}')" = "$h" ] \
      && sudo install -d /usr/local/bin && sudo install -m 0755 "$t/kubectl" /usr/local/bin/kubectl; then
     rm -rf "$t"; /usr/local/bin/kubectl version --client
@@ -322,7 +322,7 @@ cluster and installs the matching kubectl over this one.
 
 ```sh
 source ~/.vks-golang-web.env
-V="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+V="$(curl -fsSL --connect-timeout 10 https://dl.k8s.io/release/stable.txt)"
 if [ -n "$V" ]; then kubectl_install "$V"; else echo "kubectl_install: cannot reach dl.k8s.io (blocked or offline?)"; fi
 ```
 
@@ -343,8 +343,8 @@ downloads it from the Supervisor (checked against the vCenter CA you saved above
 into `/usr/local/bin`; its `sudo` asks for your password. On any other machine it installs nothing
 and says so. This kubectl is the Supervisor's version, which can be several versions older than
 your guest cluster. Step 7 still tries to install the matching one from dl.k8s.io; if that is
-still blocked, it says so, this kubectl stays, and step 7's last check prints a
-`version difference` warning.
+still blocked, it says so (after up to about a minute and a half), this kubectl stays, and
+step 7's last check prints a `version difference` warning.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -354,18 +354,19 @@ case "$(uname -s)/$(uname -m)" in
   *)                          P= ;;
 esac
 if [ -n "$P" ]; then
-  T="$(mktemp -d)"
-  if curl -fsS --connect-timeout 20 --cacert "$SUPERVISOR_CA" -o "$T/vsphere-plugin.zip" \
-       "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${P}/vsphere-plugin.zip" \
+  if T="$(mktemp -d)" \
+     && curl -fsS --connect-timeout 20 --cacert "$SUPERVISOR_CA" -o "$T/vsphere-plugin.zip" \
+          "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${P}/vsphere-plugin.zip" \
      && unzip -oq "$T/vsphere-plugin.zip" bin/kubectl -d "$T" \
+     && chmod +x "$T/bin/kubectl" && "$T/bin/kubectl" version --client >/dev/null \
      && sudo install -d /usr/local/bin && sudo install -m 0755 "$T/bin/kubectl" /usr/local/bin/kubectl; then
     /usr/local/bin/kubectl version --client
     [ "$(command -v kubectl)" = /usr/local/bin/kubectl ] \
       || echo "WARNING: 'kubectl' on your PATH is '$(command -v kubectl || echo not found)', not /usr/local/bin/kubectl"
   else
-    echo "Nothing installed: the download from https://${SUPERVISOR_ENDPOINT} failed (see the error above)"
+    echo "Nothing installed: the download from https://${SUPERVISOR_ENDPOINT}, or the check of the downloaded kubectl, failed (see the error above)"
   fi
-  rm -rf "$T"
+  [ -n "$T" ] && rm -rf "$T"
 else
   echo "No Supervisor kubectl for $(uname -s)/$(uname -m): nothing installed. Ask your administrator to allow dl.k8s.io."
 fi
@@ -376,13 +377,17 @@ fi
 **If not:**
 - `No Supervisor kubectl for …: nothing installed` (Linux on arm64): the Supervisor has no kubectl
   for this machine. Ask your administrator to allow dl.k8s.io, then run the block above.
-- `Nothing installed: the download … failed`: read the `curl:` line above it.
-  `SSL certificate problem` or `error setting certificate file` means the vCenter CA is wrong or
-  missing: run the *Download and check the vCenter CA* block again. `Failed to connect` or
-  `Could not resolve host` means `SUPERVISOR_ENDPOINT` in the env file is wrong, or this machine
-  cannot reach the Supervisor.
-- `bad CPU type in executable` (a Mac with Apple silicon): this kubectl is an Intel program and
-  needs Rosetta. Run `softwareupdate --install-rosetta --agree-to-license`, then this block again.
+- `Nothing installed: …`: your existing kubectl, if any, is unchanged. Read the error above that
+  line:
+  - `SSL certificate problem`, `error setting certificate …`, or a `--cacert` file that
+    `does not exist`: the vCenter CA is wrong or missing. Run the *Download and check the vCenter
+    CA* block again.
+  - `Failed to connect` or `Could not resolve host`: `SUPERVISOR_ENDPOINT` in the env file is
+    wrong, or this machine cannot reach the Supervisor.
+  - `bad CPU type in executable` (a Mac with Apple silicon): this kubectl is an Intel program and
+    needs Rosetta. Run `softwareupdate --install-rosetta --agree-to-license`, then this block
+    again.
+  - Anything else (for example `404`, or an `unzip` error): send the error to your administrator.
 - `WARNING: 'kubectl' on your PATH is …`: as in the block above.
 
 </details>
