@@ -22,6 +22,29 @@ that fills the env file. Lab values: `make creds` in that repo prints the endpoi
 at 60% after a GC; run GC again if pushes fail with `blob upload invalid` (the volume is full).
 Stop the lab afterwards: `make -C ~/projects/nested-vsphere-lab lab-stop`.
 
+**The rented Mac was replaced on 2026-09-30** (owner decision: more RAM). The M1 at
+`51.159.120.46` is deleted; everything below that describes "the rented Mac" before this date is
+about that machine. The new one, measured over SSH on 2026-09-30:
+
+| | |
+|---|---|
+| Scaleway server | id `65fa64c6-d0ed-49de-bcf1-a766b9f67a11`, zone **fr-par-1** |
+| hardware / OS | **Apple M2**, 8 cores, 16 GB, 228 GB disk — **macOS 26.6.1 (25G76)**, arm64 |
+| access | `ssh m1@62.210.166.48` (this lab host's `~/.ssh/id_ed25519`) |
+| installed | Xcode at `/Applications/Xcode.app`; `/usr/bin/{jq,git,make}` |
+| NOT installed | Homebrew, podman, colima, docker, `vcf`, `kubectl` |
+
+- It is macOS 26.6.1; every earlier macOS walk ran on 26.6.2.
+- Nothing from the README is installed, so a walk there starts at the README's first block. The
+  Darwin VCF CLI archives must be copied again from the lab host's `~/Downloads/vcf`, and the
+  tunnel, loopback-alias and socat scaffolding rebuilt (see "Once on the Mac" below).
+- It is kept for vks-airgap-cicd (B735 macOS jump box, B736 arm64 build tags). Apple's 24 h
+  minimum runs from its creation on 2026-09-30.
+- `m1` is in the `admin` group, but `sudo` asks for a password, so nothing that needs root
+  (Homebrew, the README's trust step, `/etc/hosts`, loopback aliases) runs unattended until the
+  owner sets up passwordless sudo, as on the old Mac.
+- Not checked: whether ticket #1619590 was closed with the old server.
+
 How to walk it again: extract every `sh` block from `vks/README.md` and run each in a fresh login
 shell, in a clean `ubuntu:24.04` container (`--privileged --network host`, plus
 `-v /var/lib/docker` for docker). Judge each block by its Expect line. Block numbers in the
@@ -340,6 +363,9 @@ repo and robot deleted. Results:
   before, plus one for the app's LoadBalancer IP, which changes with every deploy (.159, then
   .137). All of it was removed afterwards, along with the containers and the host tunnels, and
   Colima was stopped. Harbor ended with no `golang-web` repo and no robot.
+
+> Superseded 2026-09-30: this machine was deleted and replaced. See "The rented Mac was replaced"
+> under "Where it stands". The paragraphs below record the old M1's state.
 
 **Mac cleaned up 2026-09-24, and KEPT (owner decision): vks-airgap-cicd still needs it.**
 B735 (macOS jump box) and B736 (arm64 build tags) are open in that repo's `BACKLOG.md`, and
