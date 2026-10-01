@@ -339,9 +339,9 @@ if [ -n "$V" ]; then kubectl_install "$V"; else echo "kubectl_install: cannot re
 
 Run this only if the block above printed `cannot reach dl.k8s.io`. Your Supervisor serves its own
 kubectl, for Intel/AMD (amd64) Linux and macOS only. This block picks the one for this machine,
-downloads it from the Supervisor (checked against the vCenter CA you saved above) and installs it
-into `/usr/local/bin`; its `sudo` asks for your password. On any other machine it installs nothing
-and says so. This kubectl is the Supervisor's version, which can be several versions older than
+downloads it from the Supervisor and installs it into `/usr/local/bin`; its `sudo` asks for your
+password. The download does not check the Supervisor's certificate (`curl -k`), so it needs no CA
+file. On any other machine the block installs nothing and says so. This kubectl is the Supervisor's version, which can be several versions older than
 your guest cluster. Step 7 still tries to install the matching one from dl.k8s.io; if that is
 still blocked, it says so (after up to about a minute and a half), this kubectl stays, and
 step 7's last check prints a `version difference` warning.
@@ -355,7 +355,7 @@ case "$(uname -s)/$(uname -m)" in
 esac
 if [ -n "$P" ]; then
   if T="$(mktemp -d)" \
-     && curl -fsS --connect-timeout 20 --cacert "$SUPERVISOR_CA" -o "$T/vsphere-plugin.zip" \
+     && curl -fsSk --connect-timeout 20 -o "$T/vsphere-plugin.zip" \
           "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${P}/vsphere-plugin.zip" \
      && unzip -oq "$T/vsphere-plugin.zip" bin/kubectl -d "$T" \
      && chmod +x "$T/bin/kubectl" && "$T/bin/kubectl" version --client >/dev/null \
@@ -379,9 +379,6 @@ fi
   for this machine. Ask your administrator to allow dl.k8s.io, then run the block above.
 - `Nothing installed: …`: your existing kubectl, if any, is unchanged. Read the error above that
   line:
-  - `SSL certificate problem`, `error setting certificate …`, or a `--cacert` file that
-    `does not exist`: the vCenter CA is wrong or missing. Run the *Download and check the vCenter
-    CA* block again.
   - `Failed to connect` or `Could not resolve host`: `SUPERVISOR_ENDPOINT` in the env file is
     wrong, or this machine cannot reach the Supervisor.
   - `bad CPU type in executable` (a Mac with Apple silicon): this kubectl is an Intel program and
