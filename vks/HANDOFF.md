@@ -51,7 +51,8 @@ about that machine. The new one, measured over SSH on 2026-09-30:
 - Passwordless sudo is set up for `m1` (`/etc/sudoers.d/m1`, added by the owner 2026-09-30).
 - It is kept for vks-airgap-cicd (B735 macOS jump box, B736 arm64 build tags). Apple's 24 h
   minimum runs from its creation on 2026-09-30.
-- Not checked: whether ticket #1619590 was closed with the old server.
+- Scaleway ticket #1619590 is closed (by the owner, reported 2026-10-01). The older sections
+  below that say to close it are history.
 
 How to walk it again: extract every `sh` block from `vks/README.md` and run each in a fresh login
 shell, in a clean `ubuntu:24.04` container (`--privileged --network host`, plus
