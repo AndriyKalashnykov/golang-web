@@ -72,8 +72,15 @@ history; references to them below are history.
   so every later block number in the round sections below is one higher.
   - It picks the platform with a `case` on `uname`, like the docker install block, and installs
     nothing on a platform the Supervisor has no build for.
-  - TLS is verified with the vCenter CA from the block before it. `wget --no-check-certificate`
-    was not used: macOS has no `wget`, and the CA is already on disk at that point.
+  - **The download uses `curl -k` (owner decision, later the same day).** It first shipped with
+    `--cacert "$SUPERVISOR_CA"`; the owner chose `-k` so the block needs no CA file. Do not put
+    `--cacert` back without asking. The cost, stated once: the kubectl installed with `sudo` is
+    not verified to come from the Supervisor, and this download has no checksum. `wget` was not
+    used because macOS has none; measured, it refuses the Supervisor's certificate just as curl
+    does unless given `--ca-certificate` or `--no-check-certificate`. The `-k` block was re-run
+    with no CA file present on clean `ubuntu:24.04` (good case, unresolvable name, unreachable
+    endpoint, 404, each with an existing kubectl left unchanged) and on the Mac in zsh and
+    bash 3.2.
   - The Troubleshooting row for `cannot reach dl.k8s.io` no longer carries its own one-liner; it
     points at this block.
 - **Measured on the lab Supervisor:** `/wcp/plugin/<platform>/vsphere-plugin.zip` answers 200 for
@@ -96,9 +103,10 @@ history; references to them below are history.
   - `mktemp` is inside the `if`, so a failed `mktemp` cannot make `unzip` write into the current
     directory.
   - The failure line says "the download … or the check of the downloaded kubectl, failed".
-  - The If-not strings match what curl prints on each platform: `error setting certificate file`
-    (curl 8.5, Ubuntu 24.04), `error setting certificate verify locations` (macOS curl 8.7.1) and
-    `provided to --cacert does not exist` (curl 8.18, this host), all measured.
+  - The If-not list first carried curl's CA error strings, which differ by platform (measured:
+    `error setting certificate file` on curl 8.5, `error setting certificate verify locations` on
+    macOS curl 8.7.1, `provided to --cacert does not exist` on curl 8.18). That bullet went away
+    with the switch to `-k`.
 - **`kubectl_install` and step 2's block got `--connect-timeout 10`.** This is a change to block 1
   and block 13, outside the alternative itself. Reason, measured with dl.k8s.io pointed at a
   black-hole address (a firewall that drops instead of refusing):
