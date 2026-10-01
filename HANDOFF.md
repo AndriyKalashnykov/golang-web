@@ -6,10 +6,10 @@ content when the state changes, do not append history (git has it).
 
 ## State — 2026-09-30
 
-`main` is green and the working tree is clean. No worktrees or local branches. Two Renovate PRs
-are open and green (#213 Docker dependencies, #214 renovate), both created 2026-10-01 UTC; they
-merge on Renovate's next cycle (see the branch-protection entry in CLAUDE.md's backlog for why
-they do not merge at once).
+`main` is green and the working tree is clean. No open PRs, worktrees or local branches. The two
+Renovate PRs from 2026-10-01 (#213 Docker dependencies, #214 renovate) were merged by hand that
+day; #213's Dockerfile was built and smoke-tested locally first, because CI builds the image only
+on tags.
 
 Since 2026-09-25 the work has been the VKS runbook (`vks/README.md`, PRs #202–#212 and #215–#218): multi-arch
 push, an end-user rewrite, two newcomer reviews, and `make image-push` refusing podman < 5 on
