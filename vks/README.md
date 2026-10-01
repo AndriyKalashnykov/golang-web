@@ -208,11 +208,23 @@ brew install colima docker docker-buildx
 mkdir -p ~/.docker/cli-plugins
 ln -sfn "$(brew --prefix)/opt/docker-buildx/bin/docker-buildx" ~/.docker/cli-plugins/docker-buildx
 colima start
-docker info --format '{{.OperatingSystem}}/{{.Architecture}} server={{.ServerVersion}}'
+docker context use colima
+docker info --format '{{.Name}}: {{.OperatingSystem}}/{{.Architecture}} server={{.ServerVersion}}'
 docker buildx version
 ```
 
-**Expect:** a line like `Ubuntu 24.04…/aarch64 server=29.…` (`/x86_64` on an Intel Mac), then `github.com/docker/buildx v0.…`.
+`docker context use colima` points the `docker` command at Colima. On a new install `colima start`
+already does that; the line matters when Colima was running before and `docker` was pointed at
+another engine (Docker Desktop, for example).
+
+**Expect:** `Current context is now "colima"`, a line like
+`colima: Ubuntu 24.04…/aarch64 server=29.…` (`/x86_64` on an Intel Mac), then
+`github.com/docker/buildx v0.…`. If Colima was already running, `colima start` prints
+`already running, ignoring`, which is fine.
+
+**If not:** the line does not start with `colima:`, or a `Warning: DOCKER_HOST environment variable
+overrides the active context` appears — a variable in your shell points `docker` at another
+engine: run `unset DOCKER_HOST DOCKER_CONTEXT`, then the block again.
 
 Linux (Debian/Ubuntu), podman:
 
@@ -531,15 +543,22 @@ source ~/.vks-golang-web.env
 sudo install -D -m0644 "$HARBOR_CA" "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt"
 ```
 
-macOS, docker (Colima). If you ever run `colima delete`, run this again:
+macOS, docker (Colima). The CA goes inside Colima's VM, so the first line starts Colima if it is
+stopped (after a restart of the Mac, for example). `</dev/null` keeps `colima ssh` from reading
+the lines you pasted after it. If you ever run `colima delete`, run this again:
 
 ```sh
 source ~/.vks-golang-web.env
-colima ssh -- sudo mkdir -p "/etc/docker/certs.d/${HARBOR_FQDN}"
+colima status >/dev/null 2>&1 || colima start
+colima ssh -- sudo mkdir -p "/etc/docker/certs.d/${HARBOR_FQDN}" </dev/null
 colima ssh -- sudo tee "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt" < "$HARBOR_CA" >/dev/null
 ```
 
-**Expect:** no output.
+**Expect:** no output. On the Colima path, if Colima was stopped, its start-up lines come first and
+end with `done`.
+
+**If not:** `colima not running` (Colima path) — Colima did not start: run `colima start` by itself
+and read its error.
 
 ### Check the CA file
 
@@ -1013,7 +1032,8 @@ gone is harmless.
 ### Remove the Harbor CA
 
 Skip this if you use this Harbor for other work: those tools need the CA too. Run only the block
-for your engine; each prints nothing. podman, Linux and macOS:
+for your engine; each prints nothing (the Colima block starts Colima first if it is stopped, and
+then prints its start-up lines). podman, Linux and macOS:
 
 ```sh
 source ~/.vks-golang-web.env
@@ -1031,6 +1051,7 @@ macOS, docker (Colima):
 
 ```sh
 source ~/.vks-golang-web.env
+colima status >/dev/null 2>&1 || colima start
 colima ssh -- sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
 ```
 
@@ -1083,10 +1104,10 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | symptom | fix |
 |---|---|
 | Fingerprint differs from your administrator's (step 2 or 3) | Do not continue. Check `VCENTER_FQDN` or `HARBOR_FQDN`; send the fingerprint you got to your administrator and ask them to confirm it or send the CA file. A company proxy replacing HTTPS certificates also causes this. |
-| `x509: certificate signed by unknown authority` on login or push | Run the step 3 block for **your** engine; the directory must be exactly `$HARBOR_FQDN`. |
+| `x509: certificate signed by unknown authority` on login or push | Run the step 3 block for **your** engine; the directory must be exactly `$HARBOR_FQDN`. On macOS with Colima, `docker context show` must also print `colima`; if it does not, run `docker context use colima`. |
 | `x509: "harbor" certificate is not standards compliant` (macOS) | If you added the CA to the macOS Keychain instead of step 3: use step 3's podman or Colima block. |
 | `docker: unknown command: docker buildx` (macOS) | Re-run the `ln -sfn … docker-buildx` line in step 2. |
-| `dial unix /var/run/docker.sock` (macOS) | `colima start` |
+| `dial unix /var/run/docker.sock` (macOS) | `colima start`. If it prints `already running`, `docker` is pointed at another engine: `docker context use colima`. |
 | `bad CPU type in executable` (macOS) | An Intel-only program (such as the Supervisor's kubectl, from step 2's alternative under *Install kubectl*) needs Rosetta: `softwareupdate --install-rosetta --agree-to-license` |
 | `vcf plugin list` pauses on `Refreshing plugin inventory cache` | Wait: it stops by itself after about 30 s (it cannot reach VMware's plugin server). The installed plugins do not need that server. |
 | `kubectl_install: command not found` | Re-run step 1's block; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
