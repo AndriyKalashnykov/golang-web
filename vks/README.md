@@ -115,16 +115,16 @@ kubectl_install() {
   case "$v" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "kubectl_install: no version ('$1') — not logged in, or the server unreachable?" >&2; return 1 ;; esac
   case "$(uname -s)" in Linux) os=linux ;; Darwin) os=darwin ;; *) echo "kubectl_install: unsupported OS $(uname -s)" >&2; return 1 ;; esac
   case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; arm64|aarch64) arch=arm64 ;; *) echo "kubectl_install: unsupported CPU $(uname -m)" >&2; return 1 ;; esac
-  if ! curl -fsIL --retry 3 -o /dev/null "https://dl.k8s.io/release/${v}/bin/${os}/${arch}/kubectl"; then
+  if ! curl -fsIL --connect-timeout 10 --retry 3 -o /dev/null "https://dl.k8s.io/release/${v}/bin/${os}/${arch}/kubectl"; then
     m="${v#v}"; m="${m%.*}"
-    v="$(curl -fsSL --retry 3 "https://dl.k8s.io/release/stable-${m}.txt")" \
+    v="$(curl -fsSL --connect-timeout 10 --retry 3 "https://dl.k8s.io/release/stable-${m}.txt")" \
       || { echo "kubectl_install: cannot reach dl.k8s.io (blocked or offline?)" >&2; return 1; }
     echo "note: no upstream kubectl ${1%%+*}; using ${v}, the newest of that minor" >&2
   fi
   u="https://dl.k8s.io/release/${v}/bin/${os}/${arch}/kubectl"
   t="$(mktemp -d)" || return 1
-  if curl -fsSL --retry 3 -o "$t/kubectl" "$u" \
-     && h="$(curl -fsSL --retry 3 "${u}.sha256")" && [ -n "$h" ] \
+  if curl -fsSL --connect-timeout 10 --retry 3 -o "$t/kubectl" "$u" \
+     && h="$(curl -fsSL --connect-timeout 10 --retry 3 "${u}.sha256")" && [ -n "$h" ] \
      && [ "$( (sha256sum "$t/kubectl" 2>/dev/null || shasum -a 256 "$t/kubectl") | awk '{print $1}')" = "$h" ] \
      && sudo install -d /usr/local/bin && sudo install -m 0755 "$t/kubectl" /usr/local/bin/kubectl; then
     rm -rf "$t"; /usr/local/bin/kubectl version --client
@@ -315,13 +315,14 @@ colons and upper/lower case.
 
 ### Install kubectl
 
-`kubectl` is the Kubernetes command-line tool. This installs the current release from the official
-site (dl.k8s.io), for this machine. Step 7 replaces it with the version that matches your
-guest cluster. `sudo` asks for your password.
+`kubectl` is the Kubernetes command-line tool. This block installs the newest stable release from
+the official site (dl.k8s.io) into `/usr/local/bin`; its `sudo` asks for your password. It is only a
+starting point: your guest cluster's version is not known yet. Step 7 reads that version from the
+cluster and installs the matching kubectl over this one.
 
 ```sh
 source ~/.vks-golang-web.env
-V="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+V="$(curl -fsSL --connect-timeout 10 https://dl.k8s.io/release/stable.txt)"
 if [ -n "$V" ]; then kubectl_install "$V"; else echo "kubectl_install: cannot reach dl.k8s.io (blocked or offline?)"; fi
 ```
 
@@ -331,7 +332,65 @@ if [ -n "$V" ]; then kubectl_install "$V"; else echo "kubectl_install: cannot re
 - `WARNING: 'kubectl' on your PATH is …`: another kubectl is found first, or (`not found`)
   `/usr/local/bin` is not in your `PATH`. Put `/usr/local/bin` first in your `PATH`, and remove
   the other kubectl if there is one.
-- `cannot reach dl.k8s.io`: see Troubleshooting.
+- `cannot reach dl.k8s.io`: ask your administrator to allow dl.k8s.io, or use the alternative below.
+
+<details>
+<summary><b>Alternative: install the kubectl your Supervisor serves</b> (only if dl.k8s.io is blocked)</summary>
+
+Run this only if the block above printed `cannot reach dl.k8s.io`. Your Supervisor serves its own
+kubectl, for Intel/AMD (amd64) Linux and macOS only. This block picks the one for this machine,
+downloads it from the Supervisor (checked against the vCenter CA you saved above) and installs it
+into `/usr/local/bin`; its `sudo` asks for your password. On any other machine it installs nothing
+and says so. This kubectl is the Supervisor's version, which can be several versions older than
+your guest cluster. Step 7 still tries to install the matching one from dl.k8s.io; if that is
+still blocked, it says so (after up to about a minute and a half), this kubectl stays, and
+step 7's last check prints a `version difference` warning.
+
+```sh
+source ~/.vks-golang-web.env
+case "$(uname -s)/$(uname -m)" in
+  Linux/x86_64)               P=linux-amd64 ;;
+  Darwin/x86_64|Darwin/arm64) P=darwin-amd64 ;;
+  *)                          P= ;;
+esac
+if [ -n "$P" ]; then
+  if T="$(mktemp -d)" \
+     && curl -fsS --connect-timeout 20 --cacert "$SUPERVISOR_CA" -o "$T/vsphere-plugin.zip" \
+          "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${P}/vsphere-plugin.zip" \
+     && unzip -oq "$T/vsphere-plugin.zip" bin/kubectl -d "$T" \
+     && chmod +x "$T/bin/kubectl" && "$T/bin/kubectl" version --client >/dev/null \
+     && sudo install -d /usr/local/bin && sudo install -m 0755 "$T/bin/kubectl" /usr/local/bin/kubectl; then
+    /usr/local/bin/kubectl version --client
+    [ "$(command -v kubectl)" = /usr/local/bin/kubectl ] \
+      || echo "WARNING: 'kubectl' on your PATH is '$(command -v kubectl || echo not found)', not /usr/local/bin/kubectl"
+  else
+    echo "Nothing installed: the download from https://${SUPERVISOR_ENDPOINT}, or the check of the downloaded kubectl, failed (see the error above)"
+  fi
+  [ -n "$T" ] && rm -rf "$T"
+else
+  echo "No Supervisor kubectl for $(uname -s)/$(uname -m): nothing installed. Ask your administrator to allow dl.k8s.io."
+fi
+```
+
+**Expect:** `Client Version: v1.…` (and a `Kustomize Version` line), and no `WARNING` line.
+
+**If not:**
+- `No Supervisor kubectl for …: nothing installed` (Linux on arm64): the Supervisor has no kubectl
+  for this machine. Ask your administrator to allow dl.k8s.io, then run the block above.
+- `Nothing installed: …`: your existing kubectl, if any, is unchanged. Read the error above that
+  line:
+  - `SSL certificate problem`, `error setting certificate …`, or a `--cacert` file that
+    `does not exist`: the vCenter CA is wrong or missing. Run the *Download and check the vCenter
+    CA* block again.
+  - `Failed to connect` or `Could not resolve host`: `SUPERVISOR_ENDPOINT` in the env file is
+    wrong, or this machine cannot reach the Supervisor.
+  - `bad CPU type in executable` (a Mac with Apple silicon): this kubectl is an Intel program and
+    needs Rosetta. Run `softwareupdate --install-rosetta --agree-to-license`, then this block
+    again.
+  - Anything else (for example `404`, or an `unzip` error): send the error to your administrator.
+- `WARNING: 'kubectl' on your PATH is …`: as in the block above.
+
+</details>
 
 ### Install the VCF CLI and its plugins
 
@@ -1031,11 +1090,11 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `x509: "harbor" certificate is not standards compliant` (macOS) | If you added the CA to the macOS Keychain instead of step 3: use step 3's podman or Colima block. |
 | `docker: unknown command: docker buildx` (macOS) | Re-run the `ln -sfn … docker-buildx` line in step 2. |
 | `dial unix /var/run/docker.sock` (macOS) | `colima start` |
-| `bad CPU type in executable` (macOS) | An amd64-only program (such as the Supervisor's kubectl, see `kubectl_install: cannot reach dl.k8s.io`) needs Rosetta: `softwareupdate --install-rosetta --agree-to-license` |
+| `bad CPU type in executable` (macOS) | An Intel-only program (such as the Supervisor's kubectl, from step 2's alternative under *Install kubectl*) needs Rosetta: `softwareupdate --install-rosetta --agree-to-license` |
 | `vcf plugin list` pauses on `Refreshing plugin inventory cache` | Wait: it stops by itself after about 30 s (it cannot reach VMware's plugin server). The installed plugins do not need that server. |
 | `kubectl_install: command not found` | Re-run step 1's block; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | `kubectl_install: no version` in step 7 | The guest cluster did not answer: check the kubeconfig block's output, and re-run step 7's login. |
-| `kubectl_install: cannot reach dl.k8s.io` | Allow dl.k8s.io, or use the Supervisor's kubectl: amd64 only (no Linux arm64; on Apple silicon it needs Rosetta, see `bad CPU type` above) and the Supervisor's older version, which may be more than one minor version behind your guest cluster (allowing dl.k8s.io is the real fix). Run: `source ~/.vks-golang-web.env; ( cd "$(mktemp -d)" && curl -fsS --cacert "$SUPERVISOR_CA" -O "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/linux-amd64/vsphere-plugin.zip" && unzip -oq vsphere-plugin.zip bin/kubectl && sudo install -m 0755 bin/kubectl /usr/local/bin/kubectl )` (macOS: `darwin-amd64`). |
+| `kubectl_install: cannot reach dl.k8s.io` | Ask your administrator to allow dl.k8s.io (the real fix). Until then, run step 2's *Alternative: install the kubectl your Supervisor serves* block (under *Install kubectl*): Intel/AMD machines only, and the Supervisor's older version. |
 | `ImagePullBackOff` with `x509` in `kubectl describe pod` | The guest cluster does not trust Harbor's CA. Ask your administrator to add Harbor's CA certificate (your `$HARBOR_CA` file) to the trusted CAs of the guest cluster `$VKS_CLUSTER`. |
 | `ImagePullBackOff` with `pull access denied` or `no basic auth credentials` in `kubectl describe pod` | The project is private: run step 8's pull-secret block, then `kubectl rollout restart deploy/golang-web` (running pods keep their old pull settings). |
 | `403` on the step 6 or 8 lookup | The robot needs `artifact` read and list; create it with step 5. |
