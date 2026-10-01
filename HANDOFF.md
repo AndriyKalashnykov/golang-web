@@ -38,9 +38,10 @@ The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
 
 ## Environment
 
-- **Test machines:** the Ubuntu VM used for the Linux runs is deleted. The rented Mac
-  (`ssh m1@51.159.120.46`) is KEPT for vks-airgap-cicd: podman machine and Colima stopped, no
-  clones or harness files left in `~`. See vks/HANDOFF.md before deleting it.
+- **Test machines:** the Ubuntu VM used for the Linux runs is deleted. The rented Mac was
+  REPLACED on 2026-09-30: the M1 (8 GB, `51.159.120.46`) is deleted, and a new M2 with 16 GB is at
+  `ssh m1@62.210.166.48`. It is a factory-fresh macOS 26.6.1 with nothing from the vks README
+  installed, and it is kept for vks-airgap-cicd. See vks/HANDOFF.md before deleting it.
 - **KinD:** no cluster on this host (the `golang-web` cluster was deleted 2026-09-29). `make e2e`
   creates one when needed.
 - **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`) is stopped.
