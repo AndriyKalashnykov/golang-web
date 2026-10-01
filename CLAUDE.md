@@ -114,14 +114,14 @@ make version        # Print current version tag
 - [ ] **`make ci-run` on Apple Silicon runs linux/arm64 jobs, so it does not prove amd64.**
       Colima without Rosetta runs amd64 under qemu-user, where the Go toolchain panics
       (`growslice: len out of range`). `ACT_ARCH=linux/amd64` forces amd64 where it works.
-- [ ] **`static-check` fails intermittently in CI on `engine_ready`'s 15 s limit (first seen 2026-10-01).**
-      `diagrams-check` prints `podman did not answer within 15 s (it may be hung)` on the GitHub
-      runner. Measured that evening: 2 of 6 `static-check` runs (PR #224's first run, and the
-      post-merge run on `main` at `2c382f6`); each passed when re-run on the same commit. None
-      of the 39 CI runs before that showed it. Same runner image (ubuntu-24.04 `20260901.588`)
-      and podman 4.9.3 in a failing and a passing run. In a passing run the whole gate
-      (`podman info`, image pull, render) takes 12 s, so the failing `podman info` is stuck, not
-      slow. Cause not found. Next step: time `podman info` in a workflow step before the gate.
+- [x] **`static-check` failed intermittently in CI on `engine_ready`'s 15 s limit: fixed 2026-10-01.**
+      `diagrams-check` printed `podman did not answer within 15 s (it may be hung)` in 2 of 8
+      runs that evening. podman was slow, not hung: its first `podman info` on a fresh runner
+      also looks up package versions with `dpkg-query` on a cold disk. Measured, 20 fresh
+      runners each, as the first podman call inside `make static-check`: `info` 4.8-13.7 s,
+      `ps -q` 2.4-8.4 s; on a bare runner `info` reached 22.7 s. The fix: the check runs
+      `ps -q` and its limit is 60 s. Not proven: how long `ps -q` can take on a bad evening
+      (podman's first-run storage check is still paid), which is why the limit was raised too.
 - [ ] `check-env.sh` blind spots, listed in its header: multi-line getenv calls, keys held in
       constants, syscall.Getenv, aliased os imports, third-party env readers, un-`git add`ed files.
 - [x] **Renovate is running again (2026-09-22).** It had been dormant since
