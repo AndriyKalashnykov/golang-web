@@ -161,40 +161,43 @@ HOST_OS := $(shell uname -s)
 # Colima (the same steps as vks/README.md step 2). Printed wherever docker is missing on macOS.
 colima_install_hint = echo "  On macOS, install Colima (a small VM that runs the Docker engine) and the docker CLI:"; echo "    brew install colima docker docker-buildx"; echo '    mkdir -p ~/.docker/cli-plugins && ln -sfn "$$(brew --prefix)/opt/docker-buildx/bin/docker-buildx" ~/.docker/cli-plugins/docker-buildx'; echo "    colima start"
 
-# $(within_15s) CMD...: run CMD, killing it after 15 s (exit 142). macOS has no `timeout`, so perl.
-# A plain `perl -e 'alarm 15; exec @ARGV'` does NOT work here: docker and podman are Go programs,
+# $(within_60s) CMD...: run CMD, killing it after 60 s (exit 142). macOS has no `timeout`, so perl.
+# A plain `perl -e 'alarm 60; exec @ARGV'` does NOT work here: docker and podman are Go programs,
 # and Go catches SIGALRM (measured: docker kept running past the alarm). So perl forks, and the
 # parent kills the child when the alarm fires. A command that is not found exits 127; a child
 # killed by any other signal exits 128+signal. Only the direct child is killed: a wrapper that
-# leaves its own child holding stderr can keep a `$$( … 2>&1 )` capture waiting past 15 s (the
+# leaves its own child holding stderr can keep a `$$( … 2>&1 )` capture waiting past 60 s (the
 # docker and podman CLIs are single processes, so they do not).
-within_15s = perl -e '$$p = fork; defined $$p or exit 127; if (!$$p) { exec @ARGV or exit 127 } $$SIG{ALRM} = sub { kill "KILL", $$p; exit 142 }; alarm 15; waitpid $$p, 0; exit($$? & 127 ? 128 + ($$? & 127) : $$? >> 8)'
+within_60s = perl -e '$$p = fork; defined $$p or exit 127; if (!$$p) { exec @ARGV or exit 127 } $$SIG{ALRM} = sub { kill "KILL", $$p; exit 142 }; alarm 60; waitpid $$p, 0; exit($$? & 127 ? 128 + ($$? & 127) : $$? >> 8)'
 
 # $(call engine_ready,<engine>): stop with a next step unless <engine> can run containers.
 # A CLI can be installed while its engine is not running (podman machine stopped, Colima
 # stopped, dockerd down); `ps -q` fails fast then (measured on macOS: 0.02-0.05 s). It is bounded
 # anyway, because a wedged daemon can hang.
 # The probe is `ps -q`, NOT `info`: `podman info` also looks up each helper's package version
-# (`dpkg-query --search`), which on a cold disk is slow. Measured as the first podman command on
-# 20 fresh GitHub runners each (podman 4.9.3): `info` 2.2-16.1 s (median 5.4), `ps -q` 0.1-8.8 s
-# (median 0.4). `info` crossed the 15 s limit and failed static-check in CI (2026-10-01).
+# (`dpkg-query --search`), which is slow on a cold disk. Both still pay podman's first-run storage
+# check. Measured on fresh GitHub runners (podman 4.9.3), 20 runs each, as the first podman call
+# inside `make static-check`: `info` 4.8-13.7 s (median 6.1), `ps -q` 2.4-8.4 s (median 3.3).
+# With the old 15 s limit, `info` failed static-check in CI twice on 2026-10-01 (and reached
+# 22.7 s on a bare runner). The limit is 60 s because it only has to catch a hung engine: a
+# stopped one fails in under 0.1 s, so a generous limit costs nothing in the normal cases.
 define engine_ready
 if [ "$(1)" = none ]; then echo "No container engine found (podman or docker). Run: make deps"; exit 1; fi; \
 command -v $(1) >/dev/null 2>&1 || { echo "$(1) is not installed (or not on PATH)."; \
 	case "$(HOST_OS)/$(1)" in */podman) echo "  Install it: make deps";; Darwin/*) $(colima_install_hint);; *) echo "  Install it: https://docs.docker.com/get-docker/";; esac; exit 1; }; \
-rc=0; err=$$( ($(within_15s) $(1) ps -q >/dev/null) 2>&1 ) || rc=$$?; \
+rc=0; err=$$( ($(within_60s) $(1) ps -q >/dev/null) 2>&1 ) || rc=$$?; \
 if [ $$rc -ne 0 ]; then \
 	case "$$err" in \
 	  *[Pp]ermission?denied*) \
 	    echo "$(1) is running, but this user may not use it: $$(printf '%s' "$$err" | head -1)"; \
 	    echo "  Fix: sudo usermod -aG docker $$USER   then log out and back in";; \
-	  *) if [ $$rc -eq 142 ]; then echo "$(1) did not answer within 15 s (it may be hung). Check: $(1) info"; else \
+	  *) if [ $$rc -eq 142 ]; then echo "$(1) did not answer within 60 s (it may be hung). Check: $(1) info"; else \
 	    echo "$(1) is installed but not running."; \
 	    case "$(HOST_OS)/$(1)" in \
 	      Darwin/podman) if podman machine inspect --format '{{.State}}' 2>/dev/null | grep -qx running; then \
 	          echo "  Its VM is running but does not answer. Restart it:  podman machine stop && podman machine start"; \
 	        else echo "  Start its VM:  podman machine start"; fi; \
-	        (docker info >/dev/null 2>&1) && echo "  Or use Docker, which is running: add CONTAINER_ENGINE=docker to the make command";; \
+	        ($(within_60s) docker ps -q >/dev/null 2>&1) && echo "  Or use Docker, which is running: add CONTAINER_ENGINE=docker to the make command";; \
 	      Darwin/docker) if command -v colima >/dev/null 2>&1; then echo "  Start it:  colima start   (already running? docker context use colima)"; \
 	        elif [ -d /Applications/Docker.app ] || [ -d "$$HOME/Applications/Docker.app" ]; then echo "  Start it:  open -a Docker"; \
 	        elif [ -d /Applications/OrbStack.app ] || [ -d "$$HOME/Applications/OrbStack.app" ]; then echo "  Start it:  open -a OrbStack"; \
@@ -544,7 +547,7 @@ image-build: deps-buildx
 clean:
 	@rm -f manager coverage.out
 	@if [ "$(DOCKERCMD)" = none ]; then echo "Removed build artifacts (no container engine: image not checked)."; exit 0; fi; \
-	if ! $(within_15s) $(DOCKERCMD) ps -q >/dev/null 2>&1; then \
+	if ! $(within_60s) $(DOCKERCMD) ps -q >/dev/null 2>&1; then \
 		echo "Removed build artifacts. $(DOCKERCMD) is not running, so image $(OPV) was not checked."; exit 0; fi; \
 	if [ -n "$$($(DOCKERCMD) ps -q --filter ancestor=$(OPV))$$($(DOCKERCMD) ps -q --filter ancestor=$(KIND_IMAGE))" ]; then \
 		echo "Image $(OPV) is used by a running container. Stop it first: make image-stop"; exit 1; fi; \
