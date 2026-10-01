@@ -12,7 +12,8 @@ Debian 12 and arm64 Ubuntu (round 8); **macOS podman and macOS Colima end to end
 (round 9, 2026-09-30)**. Linux arm64 was last walked end to end in round 5; no arm64-only block
 has changed since. Round 10 added one optional block (the Supervisor's kubectl) and ran it, with
 steps 7–10, on Linux and macOS. Its only other command change is `--connect-timeout 10` on the
-dl.k8s.io downloads (blocks 1 and 13), re-run on Linux and on the Mac.
+dl.k8s.io downloads (blocks 1 and 13), re-run on Linux and on the Mac. Round 11 (2026-10-01)
+changed three Colima blocks (steps 2, 3 and 10) and ran those three on the Mac, not the whole path.
 
 **Resume point:** nothing is pending. The lab was **running** when round 9 began and was left
 running after round 10: this session did not start it, so it did not stop it. If
@@ -62,6 +63,49 @@ round sections below are for the README at that round; recount before reusing th
 The old probe script `vks/macosx.sh` and its `vks/macosx.res` were REMOVED (2026-09-23): running
 every README block verbatim on a real Mac superseded the subset they checked. They are in git
 history; references to them below are history.
+
+## ✅ ROUND 11 — Colima: stopped VM, wrong docker context, stdin — 2026-10-01
+
+Three macOS/Colima blocks changed; each was run verbatim on the Mac (M2, macOS 26.6.1, Colima
+0.10.3, docker 29.8.2 client / 29.5.2 server), in its own fresh login zsh. **Not** an end-to-end
+walk: no lab tunnel was built, so steps 5–9 were not re-run. The step 3 and step 10 blocks ran
+against a stand-in CA file and a two-line env file (the block only copies bytes into the VM).
+
+- **What was wrong (measured before the change):**
+  - With Colima stopped, step 3's and step 10's `colima ssh` lines fail with
+    `level=fatal msg="colima not running"` (rc 1) and the README had no line for it.
+  - `colima stop` removes the `colima` docker context and `colima start` from stopped creates and
+    selects it. `colima start` on a running Colima prints `already running, ignoring` (rc 0) and
+    does **not** switch the context back. So "Colima running, `docker` pointed elsewhere" gave
+    `dial unix /var/run/docker.sock`, and the troubleshooting row's `colima start` did not fix it.
+  - `colima ssh -- <cmd>` reads stdin. Pasted without bracketed paste (bash 3.2, or zsh fed plain
+    lines over a pty), it ate the next line of the block: a marker line after it did not run
+    (0 of 1), and ran with `</dev/null` (1 of 1). zsh with bracketed paste, which Terminal uses,
+    was not affected.
+- **README changes:**
+  - step 2: `docker context use colima` after `colima start`; the info line now starts with the
+    engine's name (`colima: Ubuntu 24.04…`); an If-not for `DOCKER_HOST`/`DOCKER_CONTEXT`;
+  - step 3 and step 10: `colima status >/dev/null 2>&1 || colima start` first; step 3's `mkdir`
+    line has `</dev/null`; step 3 has an If-not for `colima not running`;
+  - troubleshooting: the `dial unix` row adds `docker context use colima`, and the x509 row says
+    `docker context show` must print `colima`.
+- **Results (every block rc 0):**
+
+  | block | state before | result |
+  |---|---|---|
+  | step 2 | Colima stopped | started; `Current context is now "colima"`; `colima: Ubuntu 24.04.4 LTS/aarch64 server=29.5.2` |
+  | step 2 | running, context `default` | `already running, ignoring`; context switched; same info line |
+  | step 2 | `DOCKER_HOST` set to a dead socket | the `Warning: DOCKER_HOST …` line and `: / server=`, as the If-not says |
+  | step 3 | Colima stopped | started (ends with `done`); CA in the VM, SHA-256 equal; `docker` reaches `colima` |
+  | step 3 | running | no output; SHA-256 equal |
+  | step 3 | fed on stdin, zsh and bash 3.2 | no output; SHA-256 equal (the `tee` line was not eaten) |
+  | step 10 | Colima stopped | started; `certs.d` in the VM empty |
+  | step 10 | running | no output |
+
+- **Not tested:** Docker Desktop or OrbStack installed beside Colima (neither is on the Mac; the
+  wrong-context case was made with `docker context use default`), a failing `colima start`, and
+  Terminal.app itself (SSH only; bracketed paste was simulated with its escape codes).
+- The Mac was left as found: Colima and the podman machine stopped, no env file, no CA file.
 
 ## ✅ ROUND 10 — kubectl wording, and a Supervisor-kubectl alternative — 2026-09-30
 
