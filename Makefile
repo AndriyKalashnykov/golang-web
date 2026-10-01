@@ -172,13 +172,17 @@ within_15s = perl -e '$$p = fork; defined $$p or exit 127; if (!$$p) { exec @ARG
 
 # $(call engine_ready,<engine>): stop with a next step unless <engine> can run containers.
 # A CLI can be installed while its engine is not running (podman machine stopped, Colima
-# stopped, dockerd down); `info` fails fast then (measured on macOS: 0.05 s). It is bounded
+# stopped, dockerd down); `ps -q` fails fast then (measured on macOS: 0.02-0.05 s). It is bounded
 # anyway, because a wedged daemon can hang.
+# The probe is `ps -q`, NOT `info`: `podman info` also looks up each helper's package version
+# (`dpkg-query --search`), which on a cold disk is slow. Measured as the first podman command on
+# 20 fresh GitHub runners each (podman 4.9.3): `info` 2.2-16.1 s (median 5.4), `ps -q` 0.1-8.8 s
+# (median 0.4). `info` crossed the 15 s limit and failed static-check in CI (2026-10-01).
 define engine_ready
 if [ "$(1)" = none ]; then echo "No container engine found (podman or docker). Run: make deps"; exit 1; fi; \
 command -v $(1) >/dev/null 2>&1 || { echo "$(1) is not installed (or not on PATH)."; \
 	case "$(HOST_OS)/$(1)" in */podman) echo "  Install it: make deps";; Darwin/*) $(colima_install_hint);; *) echo "  Install it: https://docs.docker.com/get-docker/";; esac; exit 1; }; \
-rc=0; err=$$( ($(within_15s) $(1) info >/dev/null) 2>&1 ) || rc=$$?; \
+rc=0; err=$$( ($(within_15s) $(1) ps -q >/dev/null) 2>&1 ) || rc=$$?; \
 if [ $$rc -ne 0 ]; then \
 	case "$$err" in \
 	  *[Pp]ermission?denied*) \
@@ -540,7 +544,7 @@ image-build: deps-buildx
 clean:
 	@rm -f manager coverage.out
 	@if [ "$(DOCKERCMD)" = none ]; then echo "Removed build artifacts (no container engine: image not checked)."; exit 0; fi; \
-	if ! $(within_15s) $(DOCKERCMD) info >/dev/null 2>&1; then \
+	if ! $(within_15s) $(DOCKERCMD) ps -q >/dev/null 2>&1; then \
 		echo "Removed build artifacts. $(DOCKERCMD) is not running, so image $(OPV) was not checked."; exit 0; fi; \
 	if [ -n "$$($(DOCKERCMD) ps -q --filter ancestor=$(OPV))$$($(DOCKERCMD) ps -q --filter ancestor=$(KIND_IMAGE))" ]; then \
 		echo "Image $(OPV) is used by a running container. Stop it first: make image-stop"; exit 1; fi; \
