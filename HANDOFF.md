@@ -21,7 +21,9 @@ arm64 Linux before it builds. On 2026-09-30:
 | #217 | "Install kubectl" reworded; a collapsed alternative installs the kubectl the Supervisor serves when dl.k8s.io is blocked; `--connect-timeout 10` on the dl.k8s.io downloads |
 | #218 | That alternative downloads with `curl -k` (owner decision; do not revert without asking) |
 
-Its state and resume point are in [vks/HANDOFF.md](vks/HANDOFF.md) (rounds 9 and 10).
+Its state and resume point are in [vks/HANDOFF.md](vks/HANDOFF.md) (rounds 9 to 12). Round 11
+(#222, 2026-10-01) made the Colima blocks start Colima and select its docker context; round 12
+walked the macOS Colima path end to end on the merged text.
 
 Earlier, 2026-09-25:
 
