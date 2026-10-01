@@ -10,11 +10,12 @@ Resume point for the `vks/README.md` work. Read this before touching `vks/`.
 Linux podman and Linux docker end to end on the lab, and the docker install block alone on
 Debian 12 and arm64 Ubuntu (round 8); **macOS podman and macOS Colima end to end on the new Mac
 (round 9, 2026-09-30)**. Linux arm64 was last walked end to end in round 5; no arm64-only block
-has changed since. Round 10 added one optional block (the Supervisor's kubectl) and ran it on
-Linux and macOS; the other blocks' commands did not change.
+has changed since. Round 10 added one optional block (the Supervisor's kubectl) and ran it, with
+steps 7–10, on Linux and macOS. Its only other command change is `--connect-timeout 10` on the
+dl.k8s.io downloads (blocks 1 and 13), re-run on Linux and on the Mac.
 
 **Resume point:** nothing is pending. The lab was **running** when round 9 began and was left
-running: another session (vks-airgap-cicd) was open on this host, so this one did not stop it. If
+running after round 10: this session did not start it, so it did not stop it. If
 `esxi01` is shut off, start it with
 `make -C ~/projects/nested-vsphere-lab lab-start` (about 20 minutes; it prints `lab started`),
 then the method below. The Linux harness container needs `python3` (ubuntu:24.04 lacks it) for the
@@ -22,7 +23,7 @@ step that fills the env file. Lab values: `make creds` in that repo prints the e
 `harbor.env1.lab.test`, project `apps`, Supervisor `192.168.101.128`, vCenter
 `vcsa.env1.lab.test`, cluster `lab-gc1` in namespace `lab`, guest API `192.168.101.132:6443`); the
 passwords are in its gitignored
-`secrets.env`. After round 9, Harbor has no `golang-web` repository and no robot in `apps`, and
+`secrets.env`. After round 10, Harbor has no `golang-web` repository and no robot in `apps`, and
 the guest cluster has no `golang-web` namespace (all three checked from this host). Its registry
 volume was
 at 60% after a GC; run GC again if pushes fail with `blob upload invalid` (the volume is full).
@@ -118,6 +119,16 @@ history; references to them below are history.
 
   The success path was re-run with the timeout on Linux (v1.37.1, then v1.36.2) and on the Mac in
   zsh and bash 3.2.
+- **Steps 7–10 re-run with the final `-k` block, dl.k8s.io blocked, on both platforms**
+  (README at `d11ed58`): clean `ubuntu:24.04` amd64 in bash, and the Mac (macOS 26.6.1) in zsh.
+  On each: the alternative installed v1.32.9 with no CA argument; Supervisor login; namespace
+  visible; guest kubeconfig (then `cannot reach dl.k8s.io`, kubectl kept); nodes `Ready` with the
+  `version difference` warning; namespace created; deploy by digest rolled out; `IMAGEID` equal
+  to the pushed digest; `Hello, World` over the LoadBalancer and the port-forward; namespace,
+  repository, Supervisor login, files, clone and env file deleted. The image was pushed from the
+  lab host with podman (amd64 only), as scaffolding; steps 5–6 were not part of this re-run. On
+  the Mac the Harbor login used the admin account (option B) and both engines were stopped, so
+  step 10's local-image block printed its two `is not running` lines.
 - **Not measured:** an Intel Mac; an Apple-silicon Mac without Rosetta (the `bad CPU type` line is
   inferred).
 - The Mac was left as round 9 left it: native kubectl v1.36.2, no scaffolding, both VMs stopped.

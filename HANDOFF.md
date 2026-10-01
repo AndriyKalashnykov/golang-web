@@ -4,13 +4,24 @@ Resume point for work on this repo. Durable facts and the backlog are in [CLAUDE
 the VKS runbook has its own [vks/HANDOFF.md](vks/HANDOFF.md). Keep this file short: replace its
 content when the state changes, do not append history (git has it).
 
-## State — 2026-09-29
+## State — 2026-09-30
 
-`main` is green; no open PRs, branches or worktrees. Everything below is merged.
+`main` is green and the working tree is clean. No worktrees or local branches. Two Renovate PRs
+are open and green (#213 Docker dependencies, #214 renovate), both created 2026-10-01 UTC; they
+merge on Renovate's next cycle (see the branch-protection entry in CLAUDE.md's backlog for why
+they do not merge at once).
 
-Since 2026-09-25 the work has been the VKS runbook (`vks/README.md`, PRs #202–#212): multi-arch
+Since 2026-09-25 the work has been the VKS runbook (`vks/README.md`, PRs #202–#212 and #215–#218): multi-arch
 push, an end-user rewrite, two newcomer reviews, and `make image-push` refusing podman < 5 on
-arm64 Linux before it builds. Its state and resume point are in [vks/HANDOFF.md](vks/HANDOFF.md).
+arm64 Linux before it builds. On 2026-09-30:
+
+| PR | What |
+|---|---|
+| #215, #216 | The rented Mac was replaced; both macOS paths of the runbook walked end to end on the new one (macOS 26.6.1), no difference from 26.6.2 |
+| #217 | "Install kubectl" reworded; a collapsed alternative installs the kubectl the Supervisor serves when dl.k8s.io is blocked; `--connect-timeout 10` on the dl.k8s.io downloads |
+| #218 | That alternative downloads with `curl -k` (owner decision; do not revert without asking) |
+
+Its state and resume point are in [vks/HANDOFF.md](vks/HANDOFF.md) (rounds 9 and 10).
 
 Earlier, 2026-09-25:
 
@@ -42,8 +53,13 @@ The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
   REPLACED on 2026-09-30: the M1 (8 GB, `51.159.120.46`) is deleted, and a new M2 with 16 GB is at
   `ssh m1@62.210.166.48`. It runs macOS 26.6.1; both macOS paths of the vks README were walked on
   it the same day (vks/HANDOFF.md, round 9). Left on it: Homebrew, podman and Colima (both
-  stopped), `vcf`, kubectl, passwordless sudo. It is kept for vks-airgap-cicd. See vks/HANDOFF.md
-  before deleting it.
+  stopped), `vcf`, native kubectl v1.36.2, passwordless sudo; no clone, env file, tunnel or
+  relay. It is kept for vks-airgap-cicd. See vks/HANDOFF.md before deleting it.
 - **KinD:** no cluster on this host (the `golang-web` cluster was deleted 2026-09-29). `make e2e`
   creates one when needed.
-- **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`) is stopped.
+- **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`) is **running**. It
+  was already up when this session began and this session did not start or stop it. Harbor's
+  `apps` project has no `golang-web` repository and no robot; the guest cluster has no
+  `golang-web` namespace. Stop it with `make -C ~/projects/nested-vsphere-lab lab-stop` when
+  nothing else needs it.
+- **This host:** no tunnels, test containers or test images left. podman has no Harbor login.
