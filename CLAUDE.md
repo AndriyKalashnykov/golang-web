@@ -127,9 +127,17 @@ make version        # Print current version tag
       so the runner's preinstalled tools change under them without a commit here. What depends
       on the runner rather than on `.mise.toml`: podman (4.9.3 today; `static-check` runs
       diagrams through it, and the `engine_ready` timings in the Makefile were measured on it),
-      docker/buildx in the tag-only `docker` job, and perl. Not measured: what Ubuntu 26
-      runners ship. When the first run on Ubuntu 26 lands, read its `static-check` log; if it
-      breaks, `runs-on: ubuntu-24.04` holds the old image while it is fixed.
+      docker/buildx in the tag-only `docker` job, and perl.
+      **Probed 2026-10-01 (run 36956449741, a throwaway branch, since deleted):** all four
+      jobs ran on `ubuntu-24.04` and `ubuntu-26.04` side by side and passed on both. The
+      `docker` job ran up to the push (build, Trivy scan, smoke test, a multi-arch build
+      without push, cosign install). Not run on Ubuntu 26: the push, `cosign sign`/`verify`
+      and the tagging, which need a real tag. Ubuntu 26.04.1 ships podman 5.7.0 (24.04:
+      4.9.3), Docker 29.4.2 (28.0.4), perl 5.40.1 (5.38.2), buildx 0.37.1 on both.
+      Still open until the label really moves: read the first `ubuntu-latest` run on
+      Ubuntu 26. To hold the old image, use `runs-on: ubuntu-24.04`. To move early,
+      `runs-on: ubuntu-26.04` fails `make lint-ci` today: actionlint 1.7.12 does not know
+      that label.
 - [x] **mise binary pinned in CI (2026-10-01):** `MISE_VERSION` in `ci.yml`'s `env:`, passed to
       all three `jdx/mise-action` steps. Without it, mise-action v5 picked the newest mise at
       least 24 h old on each run and reinstalled over the cached one with the warning
@@ -137,6 +145,10 @@ make version        # Print current version tag
       custom manager in `renovate.json` ("Tool versions" group, 3-day wait). Its built-in
       github-actions manager also sees the `version:` inputs and skips them (`invalid-value`,
       because they are `${{ env.MISE_VERSION }}`); that is expected and harmless.
+      "Cache Go modules" runs BEFORE the mise step in every job: on a mise cache miss, mise
+      compiles govulncheck into `~/go/pkg/mod`, and restoring the module cache after that
+      failed with `tar ... Cannot open: File exists`. Proven with a forced mise cache miss
+      in the probe run above: no warning on either image.
 - [ ] `check-env.sh` blind spots, listed in its header: multi-line getenv calls, keys held in
       constants, syscall.Getenv, aliased os imports, third-party env readers, un-`git add`ed files.
 - [x] **Renovate is running again (2026-09-22).** It had been dormant since
