@@ -97,7 +97,7 @@ make version        # Print current version tag
       sign-before-tag job end to end: `cosign verify` passed, the image was multi-arch, and
       `latest` did not move. The prerelease image (7 GHCR versions) and its git tag were deleted
       afterwards.
-- [x] **`latest` is signed: v0.0.4 released 2026-10-01** (run 36957261190). `0.0.4`, `0.0`,
+- [x] **`latest` is signed: v0.0.4 released 2026-10-01.** `0.0.4`, `0.0`,
       `0` and `latest` all point at `sha256:a7df346e...69eec` (amd64 + arm64), and
       `cosign verify` passes for it and fails for a wrong tag identity. `0.0.3` stays unsigned.
       Verify any release with:
@@ -108,7 +108,7 @@ make version        # Print current version tag
       ```
       `k8s/golang-web.yaml` pins `0.0.4@sha256:a7df346e...` (Renovate, #234).
 - [x] **Cleanup workflow re-enabled 2026-09-25** (it had been `disabled_inactivity`). Its first
-      real run, 2026-09-27 (run 36282095087), logged "7 versions; 1 orphaned images, keeping the
+      real run, 2026-09-27, logged "7 versions; 1 orphaned images, keeping the
       newest 1": nothing deleted, as the dry run predicted.
 - [ ] **Liveness restarts (fixed in #192): one part of the cause is unexplained.** The old pod's
       container was charged ~4.7 MB of the binary's code pages at start; a fresh pod ~2.7 MB.
@@ -131,7 +131,7 @@ make version        # Print current version tag
       on the runner rather than on `.mise.toml`: podman (4.9.3 today; `static-check` runs
       diagrams through it, and the `engine_ready` timings in the Makefile were measured on it),
       docker/buildx in the tag-only `docker` job, and perl.
-      **Probed 2026-10-01 (run 36956449741, a throwaway branch, since deleted):** all four
+      **Probed 2026-10-01 on a throwaway branch (deleted, and its run with it):** all four
       jobs ran on `ubuntu-24.04` and `ubuntu-26.04` side by side and passed on both. The
       `docker` job ran up to the push (build, Trivy scan, smoke test, a multi-arch build
       without push, cosign install). Not run on Ubuntu 26: the push, `cosign sign`/`verify`

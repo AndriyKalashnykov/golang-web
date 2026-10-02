@@ -35,6 +35,7 @@ Also on 2026-10-01:
 | #232 | "Cache Go modules" runs before the mise step, which removes a `tar` restore warning on a mise cache miss. A throwaway probe ran all four CI jobs on `ubuntu-24.04` and `ubuntu-26.04`; both passed (CLAUDE.md backlog has the details) |
 | release | v0.0.4, cut with `make release`. Signed, verified, amd64 + arm64 |
 | settings | Branch protection on `main` (not a commit; CLAUDE.md backlog has the command) |
+| Actions | On 2026-10-02 the owner had every workflow run deleted except the newest, so run logs from before that date are gone (the release run, the Ubuntu 26 probe). What they showed is written in CLAUDE.md's backlog |
 | #234 | Renovate bumped `k8s/golang-web.yaml` to the 0.0.4 image and merged it itself once the required checks passed: the first auto-merge under the protection |
 
 Earlier, 2026-09-25:
@@ -69,10 +70,13 @@ The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
   relay. It is kept for vks-airgap-cicd. See vks/HANDOFF.md before deleting it.
 - **KinD:** no cluster on this host (the `golang-web` cluster was deleted 2026-09-29). `make e2e`
   creates one when needed.
-- **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`) is **running**. The
-  nested-vsphere-lab session restarted it on 2026-10-01 (13:32-14:04 local); the work here did
-  not start or stop it. Harbor's
-  `apps` project has no `golang-web` repository and no robot; the guest cluster has no
-  `golang-web` namespace. Stop it with `make -C ~/projects/nested-vsphere-lab lab-stop` when
-  nothing else needs it.
-- **This host:** no tunnels, test containers or test images left. podman has no Harbor login.
+- **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`) is **running**
+  (Harbor and vCenter answered on 2026-10-02). The nested-vsphere-lab session restarted it on
+  2026-10-01; the work here did not start or stop it. Harbor's `apps` project has no
+  `golang-web` repository and no robot; the guest cluster has no `golang-web` namespace. Stop
+  it with `make -C ~/projects/nested-vsphere-lab lab-stop` when nothing else needs it.
+- **This host** (checked 2026-10-02): no tunnels, KinD clusters, or golang-web test containers.
+  Not from this repo and left alone: podman's Harbor login as `robot$vks-cicd` (it belongs to
+  vks-airgap-cicd), two `nodejswebapp-builder` containers from 2026-09-05, and the docker
+  `multi-platform-builder` buildx container. A pulled `ghcr.io/andriykalashnykov/golang-web:latest`
+  from April (the old 0.0.3) is still in both engines; `make e2e` builds its own image.
