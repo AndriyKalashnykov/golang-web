@@ -30,7 +30,8 @@ Also on 2026-10-01:
 | PR | What |
 |---|---|
 | #228 | CI's `static-check` failed 2 of 8 runs with `podman did not answer within 15 s`. Cause: the first `podman info` on a fresh runner is slow (package lookups on a cold disk), not hung. The engine check now runs `ps -q` with a 60 s limit. Measurements are in the Makefile comment and the CLAUDE.md backlog entry |
-| #223, #225, #227 | Renovate merged these itself: renovate v44.117.0, and `jdx/mise-action` v4 to v5 (a major bump) with a digest update. CI on `main` passed after each; nobody reviewed the v5 change by hand |
+| #223, #225, #227 | Renovate merged these itself: renovate v44.117.0, and `jdx/mise-action` v4 to v5 (a major bump) with a digest update. CI on `main` passed after each. The v5 change was reviewed afterwards: it works, but with no `version:` it reinstalled mise on every job with an "integrity verification" warning |
+| mise pin | `MISE_VERSION` in `ci.yml` pins the mise binary for all three `jdx/mise-action` steps, and Renovate bumps it ("Tool versions" group). CLAUDE.md's backlog also records that `ubuntu-latest` moves to Ubuntu 26 from 2026-10-19 |
 
 Earlier, 2026-09-25:
 

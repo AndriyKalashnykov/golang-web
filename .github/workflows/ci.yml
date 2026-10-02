@@ -45,6 +45,15 @@ permissions:
 env:
   GH_REGISTRY: ghcr.io
   FULL_IMAGE_NAME: ${{ github.repository }}
+  # The mise binary itself (the tools it installs are pinned in .mise.toml).
+  # Pinned because jdx/mise-action v5, with no version, picks the newest mise at
+  # least 24 h old on every run and then finds the cached binary "fails integrity
+  # verification" (it is merely an older mise): a warning on every job, and a
+  # lookup of mise.jdx.dev/releases.tsv that fails the job if it is unavailable.
+  # With a version, it is part of the cache key and the cached binary verifies.
+  # Renovate bumps it (custom manager in renovate.json, "Tool versions" group).
+  # renovate: datasource=github-releases depName=jdx/mise extractVersion=^v(?<version>.*)$
+  MISE_VERSION: "2026.9.18"
 
 jobs:
 
@@ -63,6 +72,7 @@ jobs:
       - name: Set up toolchain (mise)
         uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5
         with:
+          version: ${{ env.MISE_VERSION }}
           cache: true
 
       - name: Cache Go modules
@@ -91,6 +101,7 @@ jobs:
       - name: Set up toolchain (mise)
         uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5
         with:
+          version: ${{ env.MISE_VERSION }}
           cache: true
 
       - name: Cache Go modules
@@ -119,6 +130,7 @@ jobs:
       - name: Set up toolchain (mise)
         uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5
         with:
+          version: ${{ env.MISE_VERSION }}
           cache: true
 
       - name: Cache Go modules
