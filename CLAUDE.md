@@ -122,6 +122,21 @@ make version        # Print current version tag
       `ps -q` 2.4-8.4 s; on a bare runner `info` reached 22.7 s. The fix: the check runs
       `ps -q` and its limit is 60 s. Not proven: how long `ps -q` can take on a bad evening
       (podman's first-run storage check is still paid), which is why the limit was raised too.
+- [ ] **`ubuntu-latest` moves to Ubuntu 26 from 2026-10-19** (notice on every CI run;
+      actions/runner-images#14748). All four CI jobs and the cleanup jobs use `ubuntu-latest`,
+      so the runner's preinstalled tools change under them without a commit here. What depends
+      on the runner rather than on `.mise.toml`: podman (4.9.3 today; `static-check` runs
+      diagrams through it, and the `engine_ready` timings in the Makefile were measured on it),
+      docker/buildx in the tag-only `docker` job, and perl. Not measured: what Ubuntu 26
+      runners ship. When the first run on Ubuntu 26 lands, read its `static-check` log; if it
+      breaks, `runs-on: ubuntu-24.04` holds the old image while it is fixed.
+- [x] **mise binary pinned in CI (2026-10-01):** `MISE_VERSION` in `ci.yml`'s `env:`, passed to
+      all three `jdx/mise-action` steps. Without it, mise-action v5 picked the newest mise at
+      least 24 h old on each run and reinstalled over the cached one with the warning
+      `Existing mise failed integrity verification`. Renovate bumps the pin through the second
+      custom manager in `renovate.json` ("Tool versions" group, 3-day wait). Its built-in
+      github-actions manager also sees the `version:` inputs and skips them (`invalid-value`,
+      because they are `${{ env.MISE_VERSION }}`); that is expected and harmless.
 - [ ] `check-env.sh` blind spots, listed in its header: multi-line getenv calls, keys held in
       constants, syscall.Getenv, aliased os imports, third-party env readers, un-`git add`ed files.
 - [x] **Renovate is running again (2026-09-22).** It had been dormant since
