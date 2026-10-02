@@ -6,10 +6,10 @@ content when the state changes, do not append history (git has it).
 
 ## State — 2026-10-01
 
-`main` is green and the working tree is clean. No open PRs, worktrees or local branches. The two
-Renovate PRs from 2026-10-01 (#213 Docker dependencies, #214 renovate) were merged by hand that
-day; #213's Dockerfile was built and smoke-tested locally first, because CI builds the image only
-on tags.
+`main` is green and the working tree is clean. No open PRs, worktrees or local branches.
+**v0.0.4 is released and signed** (`latest` points at it), and **`main` is protected**:
+`static-check`, `build` and `test` are required. A PR that touches only files CI ignores (this
+file, README.md) gets no checks; merge it with `gh pr merge <n> --squash --admin`.
 
 Since 2026-09-25 the work has been the VKS runbook (`vks/README.md`, PRs #202–#212 and #215–#218): multi-arch
 push, an end-user rewrite, two newcomer reviews, and `make image-push` refusing podman < 5 on
@@ -31,7 +31,10 @@ Also on 2026-10-01:
 |---|---|
 | #228 | CI's `static-check` failed 2 of 8 runs with `podman did not answer within 15 s`. Cause: the first `podman info` on a fresh runner is slow (package lookups on a cold disk), not hung. The engine check now runs `ps -q` with a 60 s limit. Measurements are in the Makefile comment and the CLAUDE.md backlog entry |
 | #223, #225, #227 | Renovate merged these itself: renovate v44.117.0, and `jdx/mise-action` v4 to v5 (a major bump) with a digest update. CI on `main` passed after each. The v5 change was reviewed afterwards: it works, but with no `version:` it reinstalled mise on every job with an "integrity verification" warning |
-| mise pin | `MISE_VERSION` in `ci.yml` pins the mise binary for all three `jdx/mise-action` steps, and Renovate bumps it ("Tool versions" group). CLAUDE.md's backlog also records that `ubuntu-latest` moves to Ubuntu 26 from 2026-10-19 |
+| #230 | `MISE_VERSION` in `ci.yml` pins the mise binary for all three `jdx/mise-action` steps, and Renovate bumps it ("Tool versions" group). CLAUDE.md's backlog also records that `ubuntu-latest` moves to Ubuntu 26 from 2026-10-19 |
+| #232 | "Cache Go modules" runs before the mise step, which removes a `tar` restore warning on a mise cache miss. A throwaway probe ran all four CI jobs on `ubuntu-24.04` and `ubuntu-26.04`; both passed (CLAUDE.md backlog has the details) |
+| release | v0.0.4, cut with `make release`. Signed, verified, amd64 + arm64 |
+| settings | Branch protection on `main` (not a commit; CLAUDE.md backlog has the command) |
 
 Earlier, 2026-09-25:
 
@@ -51,9 +54,9 @@ and tag); the fixed pod ran 2 h with 0 restarts; `make ci-run` passes on Linux a
 
 ## Next
 
-1. **Next release** gives the first signed `latest`; verify it with the `cosign verify` command in
-   CLAUDE.md's backlog entry, then close that entry.
-2. **Owner decision:** branch protection on `main` (CLAUDE.md backlog has the exact command).
+1. **First Renovate PR under branch protection:** check that it auto-merges once its checks
+   pass (the `k8s/golang-web.yaml` bump to 0.0.4 is the likely first one).
+2. **After 2026-10-19:** read the first CI run that lands on Ubuntu 26 (`ubuntu-latest` moves).
 
 The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
 

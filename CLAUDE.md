@@ -97,13 +97,16 @@ make version        # Print current version tag
       sign-before-tag job end to end: `cosign verify` passed, the image was multi-arch, and
       `latest` did not move. The prerelease image (7 GHCR versions) and its git tag were deleted
       afterwards.
-- [ ] **`0.0.3` / `latest` is still UNSIGNED.** It was published before the fix, and a signature
-      needs GitHub OIDC, so only the next release produces a signed `latest`. Verify it with:
+- [x] **`latest` is signed: v0.0.4 released 2026-10-01** (run 36957261190). `0.0.4`, `0.0`,
+      `0` and `latest` all point at `sha256:a7df346e...69eec` (amd64 + arm64), and
+      `cosign verify` passes for it and fails for a wrong tag identity. `0.0.3` stays unsigned.
+      Verify any release with:
       ```
       cosign verify ghcr.io/andriykalashnykov/golang-web:<version-without-v> \
         --certificate-identity https://github.com/AndriyKalashnykov/golang-web/.github/workflows/ci.yml@refs/tags/<vX.Y.Z> \
         --certificate-oidc-issuer https://token.actions.githubusercontent.com
       ```
+      `k8s/golang-web.yaml` still pins `0.0.3@sha256`; Renovate bumps it.
 - [x] **Cleanup workflow re-enabled 2026-09-25** (it had been `disabled_inactivity`). Its first
       real run, 2026-09-27 (run 36282095087), logged "7 versions; 1 orphaned images, keeping the
       newest 1": nothing deleted, as the dry run predicted.
@@ -156,25 +159,21 @@ make version        # Print current version tag
       on 2026-09-22 and PRs #121–#123 opened the same day. No repo-side change
       caused this and none was needed — the entry is kept so the next reader
       does not re-diagnose a dormancy that has ended.
-- [ ] **`main` has NO branch protection, so automerge does not engage.**
-      `gh api repos/.../branches/main/protection` -> 404 and
-      `gh api repos/.../rulesets` -> 0, while the repo itself has
-      `allow_auto_merge: true`. With no required checks a Renovate PR reaches
-      `mergeStateStatus: CLEAN` immediately, GitHub's native auto-merge never
-      engages (`autoMergeRequest: null` on every PR, measured), and the merge
-      waits for Renovate's own next cycle. It is also the safety gap: automerge
-      is only as safe as the checks it is *required* to wait for. Fix (owner
-      decision — a repo-settings mutation):
+- [x] **`main` is protected since 2026-10-01:** `static-check`, `build` and `test` are
+      required and the branch must be up to date (`strict`). Admins are not held to it
+      (`enforce_admins: false`), so `make release` still pushes its version commit straight
+      to `main` (GitHub prints "Bypassed rule violations"; seen on v0.0.4). Before this, no
+      check was required and GitHub's auto-merge never engaged on Renovate PRs.
+      The cost: a PR that changes only files CI ignores (root `*.md` except CLAUDE.md,
+      `docs/**`, images) starts no CI run, so its required checks never report. Merge such
+      a PR with `gh pr merge <n> --squash --admin`.
+      `docker` is NOT required: it is tag-gated and reports `skipping` on every PR.
+      Not yet seen: a Renovate PR auto-merging under the new rule.
+      To change it (`gh api -F a.b=c` does not build nested JSON; send a body):
       ```
-      gh api -X PUT repos/AndriyKalashnykov/golang-web/branches/main/protection \
-        -F required_status_checks.strict=true \
-        -f 'required_status_checks.contexts[]=static-check' \
-        -f 'required_status_checks.contexts[]=build' \
-        -f 'required_status_checks.contexts[]=test' \
-        -F enforce_admins=false -F required_pull_request_reviews=null -F restrictions=null
+      echo '{"required_status_checks":{"strict":true,"contexts":["static-check","build","test"]},"enforce_admins":false,"required_pull_request_reviews":null,"restrictions":null}' \
+        | gh api -X PUT repos/AndriyKalashnykov/golang-web/branches/main/protection --input -
       ```
-      Do NOT require `docker` — it is tag-gated (`if: startsWith(github.ref,
-      'refs/tags/')`), so it reports `skipping` on every PR and would block them all.
 - [ ] **Claude workflows are DISABLED** (`claude.yml.disabled`,
       `claude-ci-fix.yml.disabled`). GitHub only loads
       `.github/workflows/*.yml`, so the suffix stops them running while
