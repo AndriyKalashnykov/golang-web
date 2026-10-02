@@ -4,7 +4,7 @@ Resume point for work on this repo. Durable facts and the backlog are in [CLAUDE
 the VKS runbook has its own [vks/HANDOFF.md](vks/HANDOFF.md). Keep this file short: replace its
 content when the state changes, do not append history (git has it).
 
-## State — 2026-10-01
+## State — 2026-10-02
 
 `main` is green and the working tree is clean. No open PRs, worktrees or local branches.
 **v0.0.4 is released and signed** (`latest` points at it), and **`main` is protected**:
@@ -35,6 +35,7 @@ Also on 2026-10-01:
 | #232 | "Cache Go modules" runs before the mise step, which removes a `tar` restore warning on a mise cache miss. A throwaway probe ran all four CI jobs on `ubuntu-24.04` and `ubuntu-26.04`; both passed (CLAUDE.md backlog has the details) |
 | release | v0.0.4, cut with `make release`. Signed, verified, amd64 + arm64 |
 | settings | Branch protection on `main` (not a commit; CLAUDE.md backlog has the command) |
+| #234 | Renovate bumped `k8s/golang-web.yaml` to the 0.0.4 image and merged it itself once the required checks passed: the first auto-merge under the protection |
 
 Earlier, 2026-09-25:
 
@@ -54,9 +55,7 @@ and tag); the fixed pod ran 2 h with 0 restarts; `make ci-run` passes on Linux a
 
 ## Next
 
-1. **First Renovate PR under branch protection:** check that it auto-merges once its checks
-   pass (the `k8s/golang-web.yaml` bump to 0.0.4 is the likely first one).
-2. **After 2026-10-19:** read the first CI run that lands on Ubuntu 26 (`ubuntu-latest` moves).
+1. **After 2026-10-19:** read the first CI run that lands on Ubuntu 26 (`ubuntu-latest` moves).
 
 The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
 

@@ -106,7 +106,7 @@ make version        # Print current version tag
         --certificate-identity https://github.com/AndriyKalashnykov/golang-web/.github/workflows/ci.yml@refs/tags/<vX.Y.Z> \
         --certificate-oidc-issuer https://token.actions.githubusercontent.com
       ```
-      `k8s/golang-web.yaml` still pins `0.0.3@sha256`; Renovate bumps it.
+      `k8s/golang-web.yaml` pins `0.0.4@sha256:a7df346e...` (Renovate, #234).
 - [x] **Cleanup workflow re-enabled 2026-09-25** (it had been `disabled_inactivity`). Its first
       real run, 2026-09-27 (run 36282095087), logged "7 versions; 1 orphaned images, keeping the
       newest 1": nothing deleted, as the dry run predicted.
@@ -168,7 +168,8 @@ make version        # Print current version tag
       `docs/**`, images) starts no CI run, so its required checks never report. Merge such
       a PR with `gh pr merge <n> --squash --admin`.
       `docker` is NOT required: it is tag-gated and reports `skipping` on every PR.
-      Not yet seen: a Renovate PR auto-merging under the new rule.
+      Seen working 2026-10-02: Renovate's #234 (the `k8s/golang-web.yaml` bump to 0.0.4)
+      merged itself 1 min 47 s after it opened, once its three checks had passed.
       To change it (`gh api -F a.b=c` does not build nested JSON; send a body):
       ```
       echo '{"required_status_checks":{"strict":true,"contexts":["static-check","build","test"]},"enforce_admins":false,"required_pull_request_reviews":null,"restrictions":null}' \
