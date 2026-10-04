@@ -227,7 +227,10 @@ MY_GITREF := $(shell git rev-parse --short HEAD)
 help:
 	@echo "Usage: make COMMAND"
 	@echo "Commands :"
-	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-28s\033[0m - %s\n", $$1, $$2}'
+	@# Only the Makefile itself (firstword): with .env included, MAKEFILE_LIST is two files, so grep
+	@# prefixed every line with the file name (awk then printed it as the target name), and a
+	@# .env comment shaped like a help line would be listed as a target.
+	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(firstword $(MAKEFILE_LIST))| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-28s\033[0m - %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Resolved now (override any of them on the command line):"
 	@printf "\033[32m%-28s\033[0m - %s\n" "CONTAINER_ENGINE" "$(CONTAINER_ENGINE)  <- builds and runs YOUR image (make engines explains)"
@@ -242,8 +245,8 @@ engines:
 	@echo "CONTAINER_ENGINE = $(CONTAINER_ENGINE)$(if $(filter none,$(CONTAINER_ENGINE)),  <- no engine found: run 'make deps' (installs podman))"
 	@echo "    Builds and runs YOUR image (image-*, diagrams, e2e's build step)."
 	@echo "    THIS is the knob you set. Auto-detected: podman if present, else docker."
-	@echo "    Override:  make image-build CONTAINER_ENGINE=docker"
-	@echo "               export CONTAINER_ENGINE=docker      # for the whole shell"
+	@echo "    One command:  make image-build CONTAINER_ENGINE=docker"
+	@echo "    Whole shell:  export CONTAINER_ENGINE=docker"
 	@echo ""
 	@echo "KIND_ENGINE = $(KIND_ENGINE)"
 	@echo "    Manages KIND'S OWN containers: the cloud-provider-kind LoadBalancer"
@@ -369,13 +372,15 @@ registry-login:
 	@# make ate the `$a`, turning robot$$apps+golang-web-push into robotpps+golang-web-push.
 	@if [ -z "$$REGISTRY_TOKEN" ]; then \
 		echo "ERROR: no credential for $(IMAGE_REGISTRY) in the environment."; \
-		echo "    export REGISTRY_TOKEN=<token-or-password>"; \
-		echo "    export REGISTRY_USERNAME=<user>   # optional; defaults to OWNER ($(OWNER))"; \
+		echo "  Run this line alone, then paste the token and press Enter (nothing is shown):"; \
+		echo "    read -rs REGISTRY_TOKEN && export REGISTRY_TOKEN"; \
+		echo "  Then:"; \
 		echo "    make registry-login"; \
-		echo "  Not $(OWNER)? Set your own namespace too: make registry-login OWNER=<you>"; \
+		echo "  The login user is OWNER ($(OWNER)). Not you? First run: export OWNER=your-name"; \
+		echo "  Login name differs from OWNER? Also run: export REGISTRY_USERNAME=your-login"; \
 		case "$(IMAGE_REGISTRY)" in \
-		  ghcr.io) echo "  For ghcr.io this is a GitHub PAT with 'write:packages':"; \
-		           echo "  https://github.com/settings/tokens";; \
+		  ghcr.io) echo "  For ghcr.io this is a GitHub personal access token (classic) with 'write:packages':"; \
+		           echo "  https://github.com/settings/tokens/new?scopes=write:packages";; \
 		  *)       echo "  Use whatever credential $(IMAGE_REGISTRY) issues (Harbor robot"; \
 		           echo "  account, Docker Hub access token, ECR password, ...).";; \
 		esac; \
@@ -683,8 +688,8 @@ image-push: deps-buildx
 	else $$E push $(OPV); fi || { \
 		echo ""; \
 		echo "Push to $(OPV) failed."; \
-		echo "  Not your namespace? Push to yours:  make image-push OWNER=<you> [IMAGE_REGISTRY=<registry>]"; \
-		echo "  Not logged in?  export REGISTRY_TOKEN=<credential for $(IMAGE_REGISTRY)>; make registry-login"; \
+		echo "  Not your namespace? Push to yours:  make image-push OWNER=your-name"; \
+		echo "  Not logged in to $(IMAGE_REGISTRY)?  Set REGISTRY_TOKEN, then: make registry-login"; \
 		exit 1; }
 
 # $(call kube_target,<verb>): name the cluster and namespace a kubectl target is about to touch.

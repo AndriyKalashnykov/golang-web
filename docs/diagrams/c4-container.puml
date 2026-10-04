@@ -22,20 +22,19 @@ LAYOUT_LEFT_RIGHT()
 title golang-web — Container view
 
 Person(operator, "Operator / client", "Curls the service, scrapes metrics, runs the e2e suite")
-System_Ext(prometheus, "Prometheus", "Scrapes /metrics on an interval")
+System_Ext(prometheus, "Prometheus (optional)", "Not part of this repo. Any Prometheus you run can scrape /metrics.")
 
-System_Boundary(cluster, "Kubernetes cluster (KinD locally, any cluster in production)") {
+System_Boundary(cluster, "Kubernetes test cluster (KinD locally)") {
     Container(svc, "golang-web-service", "Service type=LoadBalancer", "Exposes port 8080; the external IP is allocated by cloud-provider-kind on KinD")
-    Container(app, "golang-web", "Go 1.27 · net/http · distroless nonroot", "Single static binary /manager. Serves the greeting page, /healthz, /metrics and /shutdown. Runs as uid 65532 with a read-only rootfs and ALL capabilities dropped.")
+    Container(app, "golang-web", "Go 1.27 · net/http · distroless nonroot", "Single static binary /manager. Serves the main page on /myhello/ (APP_CONTEXT), /healthz, /metrics and /shutdown. Prints the pod name, namespace, node, IP and service account that Kubernetes sets (Downward API). Runs as uid 65532 with a read-only rootfs and ALL capabilities dropped.")
 }
 
 System_Ext(ghcr, "GHCR", "ghcr.io/andriykalashnykov/golang-web — multi-arch image, cosign keyless-signed on tag builds")
 
-Rel(operator, svc, "HTTP :8080", "GET /, /healthz, /shutdown")
+Rel(operator, svc, "HTTP :8080", "GET /myhello/, /healthz")
 Rel(prometheus, svc, "Scrapes", "GET /metrics")
 Rel(svc, app, "Routes to targetPort 8080", "TCP")
-Rel_Back(app, ghcr, "Image pulled from", "OCI")
-Rel(app, app, "Kubernetes Downward API injects pod identity", "MY_POD_NAME, MY_POD_IP, MY_NODE_NAME, …")
+Rel_Back(app, ghcr, "Image pulled from (kubectl deploy; make e2e loads a local build instead)", "OCI")
 
 SHOW_LEGEND()
 @enduml
