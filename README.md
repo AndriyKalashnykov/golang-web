@@ -58,23 +58,37 @@ again at any time:
 |------|-------|
 | [mise](https://mise.jdx.dev/) | Goes into `~/.local/bin`. It installs the rest of this table. |
 | Go, the linters and scanners, kind | The versions pinned in [`.mise.toml`](.mise.toml) |
-| [Podman](https://podman.io/) | Only when neither podman nor Docker is installed. On Ubuntu or Debian this runs `sudo apt-get` and asks for your password. |
+| [Podman](https://podman.io/) | Only when neither podman nor Docker is installed. On Ubuntu or Debian this runs `sudo apt-get` and asks for your password. To install it yourself instead, see [podman's instructions](https://podman.io/docs/installation). |
 
 ### Install these yourself only for the Kubernetes sections
 
 `make deps` does not install these two. Skip them if you only build and run the app or its
 image.
 
-| Tool | Needed for |
-|------|------------|
-| [Docker](https://docs.docker.com/get-docker/) | The local Kubernetes cluster. KinD needs Docker, even when you build images with podman. |
-| [kubectl](https://kubernetes.io/docs/tasks/tools/) | The two Kubernetes sections and step 5 of the push section |
+| Tool | Needed for | How to install |
+|------|------------|----------------|
+| Docker | The local Kubernetes cluster. KinD needs Docker, even when you build images with podman. | Linux: Docker's instructions for [Ubuntu](https://docs.docker.com/engine/install/ubuntu/), [Debian](https://docs.docker.com/engine/install/debian/) or [another distribution](https://docs.docker.com/engine/install/). macOS: the block below. |
+| kubectl | The two Kubernetes sections and step 5 of the push section | Kubernetes' instructions for [Linux](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/) or [macOS](https://kubernetes.io/docs/tasks/tools/install-kubectl-macos/) |
+
+Docker on macOS, with [Colima](https://github.com/abiosoft/colima), which runs the Docker
+engine in a small virtual machine:
+
+```bash
+brew install colima docker docker-buildx
+mkdir -p ~/.docker/cli-plugins
+ln -sfn "$(brew --prefix)/opt/docker-buildx/bin/docker-buildx" ~/.docker/cli-plugins/docker-buildx
+colima start
+docker context use colima
+docker buildx version
+```
+
+Expect `Current context is now "colima"` and a last line starting `github.com/docker/buildx`.
 
 ### Start the container engine on macOS
 
-On macOS the container engine runs in a virtual machine that must be started before any image
-or cluster command. For podman, run `podman machine init` once and then `podman machine start`.
-For Docker with [Colima](https://github.com/abiosoft/colima), run `colima start`.
+On macOS the container engine runs in a virtual machine that must be running before any image
+or cluster command. After a restart of the Mac, start it again: `podman machine start` for
+podman (run `podman machine init` once before the first start), `colima start` for Docker.
 
 ### Tested platforms
 
