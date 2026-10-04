@@ -18,54 +18,59 @@ packaged as a multi-arch image with a KinD end-to-end harness.
 | Local Kubernetes | KinD + [cloud-provider-kind](https://github.com/kubernetes-sigs/cloud-provider-kind) |
 | CI/CD | GitHub Actions, [Renovate](https://docs.renovatebot.com/) |
 
-## Run it locally
-
-Needs make, git and curl; see [Install the prerequisites](#install-the-prerequisites).
-
-```bash
-git clone https://github.com/AndriyKalashnykov/golang-web.git
-cd golang-web
-make deps
-make build
-make test
-make run
-```
-
-| Command | What it does |
-|---|---|
-| `make deps` | Installs [mise](https://mise.jdx.dev/) into `~/.local/bin` and, through it, Go and the other pinned tools. If neither podman nor Docker is installed it also installs podman: on Ubuntu or Debian with `sudo apt-get` (it asks for your password), on macOS with Homebrew (install [Homebrew](https://brew.sh) first). |
-| `make build` | Builds the Go binary `manager`. |
-| `make test` | Runs the tests with coverage. |
-| `make run` | Starts the app on port 8080 and keeps running. |
-
-Expect `make run` to end with these lines (each after a timestamp) and stay in the foreground:
-
-```text
-Starting web server on port 8080
-Open http://localhost:8080/
-```
-
-Open <http://localhost:8080>; [Endpoints](#endpoints) shows the page. Press Ctrl-C to stop the
-app. If port 8080 is taken, use another: `make run APP_PORT=9090`.
-
-`make help` lists every target.
-
 ## Install the prerequisites
 
-### Tools to install by hand
+Most tools are installed for you by `make deps`, the first command in
+[Run it locally](#run-it-locally). You install only the few below yourself, because `make deps`
+cannot run without them.
+
+### Install these yourself first
 
 | Tool | Needed for |
 |------|------------|
-| [GNU Make](https://www.gnu.org/software/make/) | Every command on this page |
+| [GNU Make](https://www.gnu.org/software/make/) | Every command on this page, including `make deps` |
 | [Git](https://git-scm.com/) | Cloning the repository |
-| [curl](https://curl.se/) | `make deps` (it downloads mise). Not preinstalled on Ubuntu. |
-| [Podman](https://podman.io/) or [Docker](https://www.docker.com/) | Building and running the image. `make deps` installs podman if neither is present. |
+| [curl](https://curl.se/) | `make deps` uses it to download mise. Not preinstalled on Ubuntu. |
+| [Homebrew](https://brew.sh) (macOS only) | `make deps` uses it to install podman |
+
+On Ubuntu or Debian:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y make git curl
+```
+
+macOS already has curl; make and Git come with Apple's command line tools:
+
+```bash
+xcode-select --install
+```
+
+Expect a dialog asking to install the tools, or
+`xcode-select: note: Command line tools are already installed` if you have them.
+
+### What `make deps` installs for you
+
+You do not install these. `make deps` does, into your home directory, and it is safe to run
+again at any time:
+
+| Tool | Notes |
+|------|-------|
+| [mise](https://mise.jdx.dev/) | Goes into `~/.local/bin`. It installs the rest of this table. |
+| Go, the linters and scanners, kind | The versions pinned in [`.mise.toml`](.mise.toml) |
+| [Podman](https://podman.io/) | Only when neither podman nor Docker is installed. On Ubuntu or Debian this runs `sudo apt-get` and asks for your password. |
+
+### Install these yourself only for the Kubernetes sections
+
+`make deps` does not install these two. Skip them if you only build and run the app or its
+image.
+
+| Tool | Needed for |
+|------|------------|
 | [Docker](https://docs.docker.com/get-docker/) | The local Kubernetes cluster. KinD needs Docker, even when you build images with podman. |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | The two Kubernetes sections and step 5 of the push section |
-| [Homebrew](https://brew.sh) (macOS only) | Installing podman or Docker |
 
-Everything else (Go, the linters and scanners, kind) is pinned in [`.mise.toml`](.mise.toml)
-and installed by `make deps`.
+### Start the container engine on macOS
 
 On macOS the container engine runs in a virtual machine that must be started before any image
 or cluster command. For podman, run `podman machine init` once and then `podman machine start`.
@@ -91,11 +96,43 @@ The image commands use podman when both are installed.
 | Docker for every command in this terminal | `export CONTAINER_ENGINE=docker` |
 | See which engine is used | `make engines` |
 
+## Run it locally
+
+Needs make, git and curl; see [Install these yourself first](#install-these-yourself-first).
+
+```bash
+git clone https://github.com/AndriyKalashnykov/golang-web.git
+cd golang-web
+make deps
+make build
+make test
+make run
+```
+
+| Command | What it does |
+|---|---|
+| `make deps` | Installs the tools listed in [What `make deps` installs for you](#what-make-deps-installs-for-you). The first run downloads them; later runs print one line. |
+| `make build` | Builds the Go binary `manager`. |
+| `make test` | Runs the tests with coverage. |
+| `make run` | Starts the app on port 8080 and keeps running. |
+
+Expect `make run` to end with these lines (each after a timestamp) and stay in the foreground:
+
+```text
+Starting web server on port 8080
+Open http://localhost:8080/
+```
+
+Open <http://localhost:8080>; [Endpoints](#endpoints) shows the page. Press Ctrl-C to stop the
+app. If port 8080 is taken, use another: `make run APP_PORT=9090`.
+
+`make help` lists every target.
+
 ### Use the pinned tools at your own prompt
 
-Optional: the `make` commands find the pinned tools by themselves. To also use them (`go`,
-`kind` and the rest) at your own prompt, run the line for your shell once, then open a new
-terminal.
+Optional, and only after `make deps` has run: the `make` commands find the pinned tools by
+themselves. To also use them (`go`, `kind` and the rest) at your own prompt, run the line for
+your shell once, then open a new terminal.
 
 zsh (the macOS default):
 
