@@ -40,7 +40,8 @@ sudo apt-get update
 sudo apt-get install -y make git curl
 ```
 
-macOS already has curl; make and Git come with Apple's command line tools:
+macOS already has curl; make and Git come with Apple's command line tools. If you install
+Homebrew, its installer adds these tools for you and you can skip this command:
 
 ```bash
 xcode-select --install
@@ -48,6 +49,9 @@ xcode-select --install
 
 Expect a dialog asking to install the tools, or
 `xcode-select: note: Command line tools are already installed` if you have them.
+
+Do not install make with Homebrew: it installs GNU Make under the name `gmake`, so `make`
+would still not exist.
 
 ### What `make deps` installs for you
 
