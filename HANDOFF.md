@@ -4,12 +4,39 @@ Resume point for work on this repo. Durable facts and the backlog are in [CLAUDE
 the VKS runbook has its own [vks/HANDOFF.md](vks/HANDOFF.md). Keep this file short: replace its
 content when the state changes, do not append history (git has it).
 
-## State — 2026-10-02
+## State — 2026-10-04
 
-`main` is green and the working tree is clean. No open PRs, worktrees or local branches.
-**v0.0.4 is released and signed** (`latest` points at it), and **`main` is protected**:
-`static-check`, `build` and `test` are required. A PR that touches only files CI ignores (this
-file, README.md) gets no checks; merge it with `gh pr merge <n> --squash --admin`.
+`main` is green and the working tree is clean. No worktrees or local branches; the only open PR
+is Renovate's. **v0.0.4 is released and signed** (`latest` points at it), and **`main` is
+protected**: `static-check`, `build` and `test` are required. A PR that touches only files CI
+ignores (this file, README.md) gets no checks; merge it with `gh pr merge <n> --squash --admin`.
+
+On 2026-10-03 and 04 the root README was validated as a first-time user and rewritten:
+
+| PR | What |
+|---|---|
+| #247 | README rewritten and reordered; `make help` no longer prints `Makefile` as every target name when a `.env` exists; the hints the Makefile prints are paste-safe; `ci.yml` passes the build time to both image builds; diagram corrected and re-rendered |
+| #250 | `vks/README.md`: the one trailing comment on a command line removed (docker install block) |
+| #251 | Prerequisites moved before "Run it locally" and split: install yourself, installed by `make deps`, install yourself for the Kubernetes sections |
+| #252, #253 | Per-OS install links for Docker and kubectl, the macOS Colima install block, and why macOS gets make and Git from Apple's command line tools |
+| the PR after #253 | Four small findings from the second macOS walk; this file and the backlog |
+
+How it was checked, so the next reader does not repeat it:
+
+- Every block executed on Linux (Ubuntu 26.04.1), including `make e2e` and the kubectl section.
+- Two walks on the Mac (macOS 26.6.1). The first ran the old README as scripts and pasted into an
+  interactive zsh; the second pasted the rewritten README into an interactive zsh, top to bottom.
+  It ran the text of #247, before #251 to #253 changed the prerequisites section: that section's
+  new blocks (`apt-get install`, `xcode-select --install`, the Colima install) were not walked.
+- The push section ran for real against the lab's Harbor: `make registry-login`,
+  `make image-push` (amd64 + arm64), `make k8s-apply` to `lab-gc1`, `make k8s-delete`. The
+  ghcr.io-specific lines (classic token, package private until made public) come from GitHub's
+  documentation, not a run.
+- Four adversary reviews (shell and make, engines and registry, Kubernetes, the diff).
+
+**The rule that came out of it:** no comment on a command line in a fenced block. macOS's default
+interactive zsh has `interactivecomments` off, so `make deps # ...` passes the comment as
+arguments. Running a block as a script cannot show this; paste it into `zsh -i` on a pty.
 
 Since 2026-09-25 the work has been the VKS runbook (`vks/README.md`, PRs #202–#212 and #215–#218): multi-arch
 push, an end-user rewrite, two newcomer reviews, and `make image-push` refusing podman < 5 on
@@ -57,6 +84,8 @@ and tag); the fixed pod ran 2 h with 0 restarts; `make ci-run` passes on Linux a
 ## Next
 
 1. **After 2026-10-19:** read the first CI run that lands on Ubuntu 26 (`ubuntu-latest` moves).
+2. **At the next release:** check `/healthz` of the released image shows a build timestamp, not
+   `now` (#247; it runs only on a tag, so a local build is the only proof so far).
 
 The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
 
@@ -68,15 +97,19 @@ The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
   it the same day (vks/HANDOFF.md, round 9). Left on it: Homebrew, podman and Colima (both
   stopped), `vcf`, native kubectl v1.36.2, passwordless sudo; no clone, env file, tunnel or
   relay. It is kept for vks-airgap-cicd. See vks/HANDOFF.md before deleting it.
-- **KinD:** no cluster on this host (the `golang-web` cluster was deleted 2026-09-29). `make e2e`
-  creates one when needed.
-- **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`) is **running**
-  (Harbor and vCenter answered on 2026-10-02). The nested-vsphere-lab session restarted it on
-  2026-10-01; the work here did not start or stop it. Harbor's `apps` project has no
-  `golang-web` repository and no robot; the guest cluster has no `golang-web` namespace. Stop
-  it with `make -C ~/projects/nested-vsphere-lab lab-stop` when nothing else needs it.
-- **This host** (checked 2026-10-02): no tunnels, KinD clusters, or golang-web test containers.
-  Not from this repo and left alone: podman's Harbor login as `robot$vks-cicd` (it belongs to
-  vks-airgap-cicd), two `nodejswebapp-builder` containers from 2026-09-05, and the docker
-  `multi-platform-builder` buildx container. A pulled `ghcr.io/andriykalashnykov/golang-web:latest`
-  from April (the old 0.0.3) is still in both engines; `make e2e` builds its own image.
+- **KinD:** no cluster on this host (the last one was created and deleted on 2026-10-04).
+  `make e2e` creates one when needed.
+- **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`) is **stopped**:
+  this session started it on 2026-10-03 for the push test and stopped it on 2026-10-04
+  (`lab stopped`, `esxi01` shut off). Start it with `make -C ~/projects/nested-vsphere-lab
+  lab-start` (about 23 minutes). Harbor's `apps` project has no `golang-web` repository and no
+  robot; the guest cluster has no `golang-web` namespace. `make guest-login` there rewrote
+  `kubeconfig-guest` with a fresh token.
+- **The Mac** was left as found after both walks: podman machine and Colima stopped, no clone, no
+  mise, no Go caches, no registry login. Left by the walks: `~/.kube/config` (28 bytes, written
+  by kind), an empty `~/.local/state`, and a `kind` network inside the Colima VM.
+- **This host** (checked 2026-10-04): no tunnels, KinD clusters, golang-web test containers or
+  worktrees. Not from this repo and left alone: podman's Harbor login as `robot$vks-cicd` (it
+  belongs to vks-airgap-cicd), two `nodejswebapp-builder` containers from 2026-09-05, and the
+  docker `multi-platform-builder` buildx container. `ghcr.io/andriykalashnykov/golang-web:latest`
+  in both engines is now the 0.0.4 image (re-pulled 2026-10-03).

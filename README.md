@@ -142,7 +142,8 @@ Open http://localhost:8080/
 ```
 
 Open <http://localhost:8080>; [Endpoints](#endpoints) shows the page. Press Ctrl-C to stop the
-app. If port 8080 is taken, use another: `make run APP_PORT=9090`.
+app; the `make: *** [run] Error` line it leaves is normal. If port 8080 is taken, use another:
+`make run APP_PORT=9090`.
 
 `make help` lists every target.
 
@@ -262,7 +263,7 @@ nothing is uploaded.
 |---|---|
 | `make image-build` | Builds the image without running it |
 | `make image-run-bg` | Builds the image and runs it in the background on port 8080 (`APP_PORT=9090` to change) |
-| `make image-logs` | Follows the container's log; Ctrl-C to leave |
+| `make image-logs` | Follows the container's log; Ctrl-C to leave (the `make: ***` line it prints then is normal) |
 | `make image-stop` | Stops the container; expect `Stopped golang-web.` |
 
 ## Test it on a local Kubernetes cluster
@@ -280,6 +281,7 @@ and runs five checks against it. Expect near the end (your address differs):
 
 ```text
 Service reachable at http://172.18.0.4:8080/myhello/
+...
 === Results: 5 passed, 0 failed ===
 ```
 
@@ -333,7 +335,8 @@ curl -sS --retry 10 --retry-connrefused --retry-delay 1 http://localhost:18080/m
 kill "$PF"
 ```
 
-The terminal prints a job number after the first line. Expect `Hello, World` and the line
+The terminal prints a job number after the first line and, in zsh, a `terminated` line after
+the last. Expect `Hello, World` and the line
 `MY_POD_NAMESPACE: golang-web-demo`. One `curl: (7) Failed to connect` line before the page is
 normal: the forward was still starting and curl retried.
 
@@ -415,8 +418,8 @@ make registry-login
 ```
 
 Expect `Login Succeeded`. If not: `ERROR: no credential` means `REGISTRY_TOKEN` is empty in
-this shell, so repeat step 2. `denied` or `unauthorized` means the token was mistyped, has
-expired, or is not a classic token, so repeat steps 1 and 2.
+this shell, so repeat step 2. `denied`, `unauthorized` or `403 Forbidden` means the token was
+mistyped, has expired, or is not a classic token, so repeat steps 1 and 2.
 
 ### 4. Build and push
 
