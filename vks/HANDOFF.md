@@ -17,6 +17,14 @@ changed three Colima blocks (steps 2, 3 and 10) and ran those three on the Mac, 
 **Round 12 (2026-10-01) then walked the macOS Colima path end to end at `8dcb88a`: every Expect
 matched.** macOS podman was last walked in round 9; none of its blocks has changed since.
 
+**2026-10-03, text only:** the Linux docker install block (step 2) lost its trailing
+`# then LOG OUT AND BACK IN` comment, and the sentence moved into the Expect line. A comment on a
+command line is passed as arguments in an interactive zsh without `interactivecomments` (measured
+on the Mac while validating the root README). No command changed and the block was not re-run; all
+50 blocks still parse with `bash -n` and `zsh -n`. The other `#` lines in fenced blocks sit inside
+here-documents, which the shell does not parse as commands. Every walk so far ran each block as a
+script (a fresh login zsh with stdin from /dev/null), so none of them could have shown this.
+
 **Resume point:** nothing is pending. The lab was **running** when round 9 began and was left
 running after round 10: this session did not start it, so it did not stop it. If
 `esxi01` is shut off, start it with
