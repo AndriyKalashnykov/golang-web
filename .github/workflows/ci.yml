@@ -228,6 +228,7 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             MY_VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+            MY_BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             MY_BUILTBY=github-action
 
       # ----------------------------------------------------------------
@@ -295,6 +296,7 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             MY_VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+            MY_BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             MY_BUILTBY=github-action
 
       # ----------------------------------------------------------------
