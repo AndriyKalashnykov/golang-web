@@ -40,6 +40,10 @@ volume was
 at 60% after a GC; run GC again if pushes fail with `blob upload invalid` (the volume is full).
 Stop the lab when nobody else needs it: `make -C ~/projects/nested-vsphere-lab lab-stop`.
 
+**2026-10-04:** the lab is **stopped**. The root-README session started it on 2026-10-03, pushed
+`golang-web` to Harbor's `apps` project and deployed it to `lab-gc1` with `make k8s-apply` (not
+this runbook), deleted the repository, the robot and the namespace again, and stopped the lab.
+
 **The rented Mac was replaced on 2026-09-30** (owner decision: more RAM). The M1 at
 `51.159.120.46` is deleted; everything below that describes "the rented Mac" before this date is
 about that machine. The new one, measured over SSH on 2026-09-30:

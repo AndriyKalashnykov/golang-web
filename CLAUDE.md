@@ -78,6 +78,22 @@ make version        # Print current version tag
 
 ## Upgrade Backlog
 
+- [x] **README validated as a first-time user, 2026-10-04** (#247, #250 to #253). The rule to
+      keep: **no comment on a command line in a fenced block.** macOS's default interactive zsh
+      has `interactivecomments` off, so the comment is passed as arguments (`make deps # ...`
+      ran nothing; `read -rs TOKEN && export TOKEN # ...` read the token and did not export it).
+      A walk that runs each block as a script cannot see it: paste into `zsh -i` on a pty.
+- [ ] **`BuildTime` in released images (#247) is unproven until the next tag.** The 0.0.4 image's
+      `/healthz` reports `"BuildTime":"now"`: `ci.yml` passed `MY_VERSION` but not
+      `MY_BUILDTIME`. Both image builds now pass the metadata step's `created` timestamp. A local
+      build with the argument returns it; the workflow path runs only on a tag.
+- [ ] **macOS, local KinD cluster: a second LoadBalancer Service never gets its address.**
+      cloud-provider-kind publishes Services on host port 8080 there, the e2e Service holds it,
+      and deleting the second Service's namespace then waits forever on its finalizer (measured:
+      killed after 5 min; `make kind-delete` clears it). The README tells macOS readers to skip
+      the namespace delete. Not fixed in the Makefile.
+- [ ] **One swallowed Ctrl-C on the Mac:** a Ctrl-C sent while `make run` was still starting did
+      not stop it; a later one did. Seen once in the second walk, not reproduced.
 - [x] **vks: settled 2026-09-29** (measured; details in `vks/HANDOFF.md` round 6):
       - podman 5.8.7 on arm64 Linux builds a correct amd64+arm64 image, so the README offers it
         beside docker. podman 4.9 (Ubuntu 24.04's apt) mislabels; 5.0–5.7 untested.
