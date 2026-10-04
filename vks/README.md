@@ -250,13 +250,14 @@ https://download.docker.com/linux/${D} $(. /etc/os-release && echo "$VERSION_COD
       | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
     sudo apt-get update
     sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin
-    sudo usermod -aG docker "$USER"   # then LOG OUT AND BACK IN, or `docker` needs sudo
+    sudo usermod -aG docker "$USER"
     ;;
   *) echo "Not Debian or Ubuntu ($D): nothing installed. See https://docs.docker.com/engine/install/" ;;
 esac
 ```
 
-**Expect:** after you log out and back in, `docker info` works without `sudo`.
+**Expect:** no error. Then log out and back in: until you do, `docker` needs `sudo`. After that,
+`docker info` works without `sudo`.
 
 **If not:**
 - `permission denied … docker.sock` — you are still in the old session: log out fully (or restart
