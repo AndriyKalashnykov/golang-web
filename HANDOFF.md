@@ -6,8 +6,8 @@ content when the state changes, do not append history (git has it).
 
 ## State — 2026-10-04
 
-`main` is green and the working tree is clean. No worktrees or local branches; the only open PR
-is Renovate's. **v0.0.4 is released and signed** (`latest` points at it), and **`main` is
+`main` is green and the working tree is clean. No open PRs, worktrees or local branches.
+**v0.0.4 is released and signed** (`latest` points at it), and **`main` is
 protected**: `static-check`, `build` and `test` are required. A PR that touches only files CI
 ignores (this file, README.md) gets no checks; merge it with `gh pr merge <n> --squash --admin`.
 
@@ -19,7 +19,7 @@ On 2026-10-03 and 04 the root README was validated as a first-time user and rewr
 | #250 | `vks/README.md`: the one trailing comment on a command line removed (docker install block) |
 | #251 | Prerequisites moved before "Run it locally" and split: install yourself, installed by `make deps`, install yourself for the Kubernetes sections |
 | #252, #253 | Per-OS install links for Docker and kubectl, the macOS Colima install block, and why macOS gets make and Git from Apple's command line tools |
-| the PR after #253 | Four small findings from the second macOS walk; this file and the backlog |
+| #254 | Four small findings from the second macOS walk; this file and the backlog |
 
 How it was checked, so the next reader does not repeat it:
 
