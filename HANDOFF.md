@@ -31,9 +31,22 @@ back afterwards), as were the macOS podman, Colima and Homebrew `PATH` blocks. T
 need `--network host` on this workstation: on Docker's default network every DNS lookup took
 5 s, which trips the block's 10 s limit. `make e2e` here gave client v1.37.1, server v1.37.0.
 
+Later the same day, on the Mac (macOS 26.6.1), from a state with no clone and no mise: the
+kubectl block with real sudo, the podman and Colima blocks, then "Run it locally" as written
+(clone, `make deps`, `make build`, `make test`, `make run` with a curl) and `make e2e` (5 passed,
+client v1.37.1, server v1.37.0). Under Colima, the Linux install blocks ran in clean **arm64**
+`ubuntu:24.04`, `ubuntu:26.04`, `debian:12` and `debian:13` containers. The Mac was put back
+afterwards: kubectl 1.36.2, both engines stopped, docker context `default`, no clone, no mise.
+
+Not done, and why: the Homebrew installer block was pasted and stopped at `Password:`. That
+Mac's `sudo` needs no password for commands, but the installer's `sudo -v` asks for the login
+password, which this session does not have. Its last full run is the fresh macOS guest recorded
+in `vks/HANDOFF.md`.
+
 A rule that came out of it: **in a block, nothing may follow a line that can prompt.** A shell
 without bracketed paste (macOS `/bin/bash` 3.2) hands the rest of the paste to the prompt:
-measured, the `sudo` password prompt swallowed the kubectl block's last line. That block now
+measured on Linux and on the Mac with a `sudo` that prompts, the password prompt swallowed the
+old kubectl block's last line and only the password after the fix. That block now
 cleans up inside its `if`, the two `apt-get` lines are joined with `&&`, and the Homebrew
 installer is a block of its own in both READMEs.
 
