@@ -55,6 +55,15 @@ The owner started the lab for this (`lab-start`, about an hour until Harbor answ
 pods sat in `FailedAttachVolume` for over 20 minutes, then recovered without anyone deleting them).
 **The lab was left running.**
 
+**Linux docker was walked the same way afterwards** (docker 29.8.2, buildx 0.37.1; the container
+also needs `-v /var/lib/docker`, and the harness starts `dockerd` after the install block, since
+the container has no systemd): 36 blocks, steps 1 to 10, every Expect matched; the push took
+24 s. This walk also ran the pull-secret block (on a public project: `secret/harbor-creds
+created`, `serviceaccount/default patched`) and the port-forward blocks (`Forwarding from
+127.0.0.1:8080`, then the page). **macOS against the lab was not walked:** the session's
+permission check refused the `ssh -N -R` tunnels the Mac needs to reach the lab. The only macOS
+block changed since round 12 is the Homebrew split, which the owner ran on the Mac.
+
 **Resume point:** nothing is pending. The lab was **running** when round 9 began and was left
 running after round 10: this session did not start it, so it did not stop it. If
 `esxi01` is shut off, start it with

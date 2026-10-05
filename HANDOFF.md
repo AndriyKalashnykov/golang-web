@@ -45,7 +45,8 @@ second block printed `Homebrew 7.0.8`. More text follows that line, so both READ
 installer prints it "near its end". A session without that password cannot run the installer.
 
 The same day the owner started the lab and the vks guide's Linux podman path was walked on it,
-steps 1 to 10; details are in `vks/HANDOFF.md`. The lab was left running.
+steps 1 to 10, and then its Linux docker path; details are in `vks/HANDOFF.md`. macOS against
+the lab was not walked (the session may not open the tunnels). The lab was left running.
 
 A rule that came out of it: **in a block, nothing may follow a line that can prompt.** A shell
 without bracketed paste (macOS `/bin/bash` 3.2) hands the rest of the paste to the prompt:
