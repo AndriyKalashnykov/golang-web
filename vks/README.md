@@ -175,6 +175,12 @@ take several minutes.
 
 ```sh
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+**Expect:** the installer ends with `Installation successful!`. Then, as its own block (the
+installer asks questions, so nothing may be pasted after it), put `brew` on your `PATH`:
+
+```sh
 B=/opt/homebrew/bin/brew; [ -x "$B" ] || B=/usr/local/bin/brew
 grep -qs "brew shellenv" ~/.zprofile || echo "eval \"\$($B shellenv)\"" >> ~/.zprofile
 eval "$($B shellenv)"

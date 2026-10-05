@@ -4,7 +4,7 @@ Resume point for work on this repo. Durable facts and the backlog are in [CLAUDE
 the VKS runbook has its own [vks/HANDOFF.md](vks/HANDOFF.md). Keep this file short: replace its
 content when the state changes, do not append history (git has it).
 
-## State — 2026-10-04
+## State — 2026-10-05
 
 `main` is green and the working tree is clean. No open PRs, worktrees or local branches.
 **v0.0.4 is released and signed** (`latest` points at it), and **`main` is
@@ -26,8 +26,16 @@ step 2 (Homebrew, the four engine blocks, a check block) and gained a standalone
 block; "Tested platforms" gained Debian 12 and 13 and a "What ran" column. Run for it: the Linux
 install blocks in clean `ubuntu:24.04`, `ubuntu:26.04`, `debian:12` and `debian:13` containers as
 a non-root user with sudo (engines installed, not started), and the kubectl block on the Mac
-without its `sudo` step. Those containers need `--network host` on this workstation: on Docker's
-default network every DNS lookup took 5 s, which trips the block's 10 s limit.
+pasted into an interactive zsh and bash 3.2 with real sudo (the Mac's kubectl 1.36.2 was put
+back afterwards), as were the macOS podman, Colima and Homebrew `PATH` blocks. Those containers
+need `--network host` on this workstation: on Docker's default network every DNS lookup took
+5 s, which trips the block's 10 s limit. `make e2e` here gave client v1.37.1, server v1.37.0.
+
+A rule that came out of it: **in a block, nothing may follow a line that can prompt.** A shell
+without bracketed paste (macOS `/bin/bash` 3.2) hands the rest of the paste to the prompt:
+measured, the `sudo` password prompt swallowed the kubectl block's last line. That block now
+cleans up inside its `if`, the two `apt-get` lines are joined with `&&`, and the Homebrew
+installer is a block of its own in both READMEs.
 
 How it was checked, so the next reader does not repeat it:
 
