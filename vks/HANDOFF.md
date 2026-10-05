@@ -43,6 +43,18 @@ wants the login password); the owner ran it in a terminal on the Mac and it prin
 `ubuntu:26.04` arm64 containers and an `ubuntu:26.04` amd64 one: v1.37.1, then v1.36.2. The Supervisor-kubectl alternative block has the same shape
 (its `sudo` is inside the chain) but its message already says "see the error above"; unchanged.
 
+**2026-10-05, Linux podman walked end to end on the lab** at `97adb90`, after the two text
+changes above. Clean `ubuntu:24.04` container (`--privileged --network host`), a non-root user
+with sudo, each block in a fresh login shell: 33 blocks, steps 1 to 10, every Expect matched.
+Step 7 installed kubectl v1.36.2 for the guest's v1.36.2+vmware.2; step 6 pushed amd64 + arm64
+in 70 s (podman 4.9.3 on amd64); the project was public, so the pull-secret block was skipped;
+the app answered on its LoadBalancer address. Not run, as before: the editor block and the
+`REGISTRY_*` snippet (the harness fills the env file with awk, so it no longer needs
+`python3`), and the port-forward blocks. Step 10 left no repository, robot or namespace.
+The owner started the lab for this (`lab-start`, about an hour until Harbor answered: its
+pods sat in `FailedAttachVolume` for over 20 minutes, then recovered without anyone deleting them).
+**The lab was left running.**
+
 **Resume point:** nothing is pending. The lab was **running** when round 9 began and was left
 running after round 10: this session did not start it, so it did not stop it. If
 `esxi01` is shut off, start it with
