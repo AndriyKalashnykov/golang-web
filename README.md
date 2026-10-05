@@ -39,8 +39,7 @@ To only build, test and run the app, install make, Git and curl and go to
 Ubuntu or Debian (curl is not preinstalled on Ubuntu):
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y make git curl
+sudo apt-get update && sudo apt-get install -y make git curl
 ```
 
 Expect the install to end without an error.
@@ -66,6 +65,12 @@ line tools too, and can take several minutes.
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Expect the installer to end with `Installation successful!`. Then, as its own block (the
+installer asks questions, so nothing may be pasted after it), put `brew` on your `PATH`:
+
+```bash
 B=/opt/homebrew/bin/brew; [ -x "$B" ] || B=/usr/local/bin/brew
 grep -qs "brew shellenv" ~/.zprofile || echo "eval \"\$($B shellenv)\"" >> ~/.zprofile
 eval "$($B shellenv)"
@@ -182,13 +187,14 @@ if [ -n "$T" ] && [ -n "$V" ] && [ -n "$K_OS" ] && [ -n "$K_ARCH" ] \
    && H="$(curl -fsSL --connect-timeout 10 --retry 3 "${U}.sha256")" && [ -n "$H" ] \
    && [ "$( (sha256sum "$T/kubectl" 2>/dev/null || shasum -a 256 "$T/kubectl") | awk '{print $1}')" = "$H" ] \
    && sudo install -d /usr/local/bin && sudo install -m 0755 "$T/kubectl" /usr/local/bin/kubectl; then
+  rm -rf "$T"
   /usr/local/bin/kubectl version --client
   [ "$(command -v kubectl)" = /usr/local/bin/kubectl ] \
     || echo "WARNING: 'kubectl' on your PATH is '$(command -v kubectl || echo not found)', not /usr/local/bin/kubectl"
 else
+  rm -rf "$T"
   echo "kubectl NOT installed: dl.k8s.io unreachable, unsupported machine, checksum mismatch, or sudo failed (${U})"
 fi
-rm -rf "$T"
 ```
 
 Expect `Client Version: v1.…` (and a `Kustomize Version` line), and no `WARNING` line.
@@ -248,7 +254,7 @@ podman (run `podman machine init` once before the first start), `colima start` f
 | Debian 12 | x86_64 | GNU Make 4.3, Git 2.39.5, podman 4.3.1, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1 | The install blocks only, in a clean container; the engines were not started |
 | Debian 13 | x86_64 | GNU Make 4.4.1, Git 2.47.3, podman 5.4.2, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1 | The install blocks only, in a clean container; the engines were not started |
 | macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | Every section except the kubectl install block |
-| macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 via Colima 0.10.3, kubectl 1.36.2 and 1.37.1, kind 0.33.0 | Every section; the kubectl install block ran without its `sudo` step, into a temporary directory |
+| macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 via Colima 0.10.3, kubectl 1.36.2 and 1.37.1, kind 0.33.0 | Every section |
 
 On arm64 Linux (Ubuntu 24.04) only the Docker install block and `make image-push` were run.
 Intel Macs are not tested.

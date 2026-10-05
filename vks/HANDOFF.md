@@ -32,7 +32,11 @@ or sudo failed`, and step 2's If-not and the Troubleshooting row say what a `sud
 means. The message still starts with `kubectl_install: cannot reach dl.k8s.io`, which is what
 those rows key on. Re-run: the function with the failing `sudo` (new message, rc 1) and its
 success path into a scratch directory, on Linux; all 50 blocks parse with `bash -n` and `zsh -n`.
-Not re-walked on the lab or the Mac. The Supervisor-kubectl alternative block has the same shape
+The failing-`sudo` case was repeated on the Mac (zsh 5.9 and bash 3.2): same message, rc 1.
+Not re-walked on the lab. The Homebrew block (step 2) is now two blocks, the installer alone and
+then the four `PATH` lines: the installer asks questions, and a shell without bracketed paste
+feeds it whatever was pasted after it. The second block was pasted into zsh on the Mac and
+printed `Homebrew 7.0.8`; the installer itself was not re-run. The Supervisor-kubectl alternative block has the same shape
 (its `sudo` is inside the chain) but its message already says "see the error above"; unchanged.
 
 **Resume point:** nothing is pending. The lab was **running** when round 9 began and was left
