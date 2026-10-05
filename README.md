@@ -253,11 +253,12 @@ podman (run `podman machine init` once before the first start), `colima start` f
 | Ubuntu 26.04.1 LTS | x86_64 | GNU Make 4.4.1, Git 2.53.0, podman 5.7.0, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
 | Debian 12 | x86_64 | GNU Make 4.3, Git 2.39.5, podman 4.3.1, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1 | The install blocks only, in a clean container; the engines were not started |
 | Debian 13 | x86_64 | GNU Make 4.4.1, Git 2.47.3, podman 5.4.2, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1 | The install blocks only, in a clean container; the engines were not started |
+| Ubuntu 24.04.5 and 26.04.1 LTS, Debian 12 and 13 | arm64 | The same podman versions as on x86_64, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1 | The install blocks only, in clean containers; the engines were not started |
 | macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | Every section except the kubectl install block |
 | macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 via Colima 0.10.3, kubectl 1.36.2 and 1.37.1, kind 0.33.0 | Every section |
 
-On arm64 Linux (Ubuntu 24.04) only the Docker install block and `make image-push` were run.
-Intel Macs are not tested.
+On arm64 Linux, `make image-push` also ran, on Ubuntu 24.04 with Docker. Intel Macs are not
+tested.
 
 ### Choose podman or Docker
 

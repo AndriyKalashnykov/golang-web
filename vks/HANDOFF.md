@@ -36,7 +36,11 @@ The failing-`sudo` case was repeated on the Mac (zsh 5.9 and bash 3.2): same mes
 Not re-walked on the lab. The Homebrew block (step 2) is now two blocks, the installer alone and
 then the four `PATH` lines: the installer asks questions, and a shell without bracketed paste
 feeds it whatever was pasted after it. The second block was pasted into zsh on the Mac and
-printed `Homebrew 7.0.8`; the installer itself was not re-run. The Supervisor-kubectl alternative block has the same shape
+printed `Homebrew 7.0.8`. The installer block was pasted too and stopped at `Password:` (its
+`sudo -v` wants the login password, which the session does not have), so it did not run to its
+end. Step 1's block, step 2's kubectl block and step 7's call (`kubectl_install
+"v1.36.2+vmware.2"`) ran as written on the Mac (zsh) and in clean `ubuntu:24.04` and
+`ubuntu:26.04` arm64 containers and an `ubuntu:26.04` amd64 one: v1.37.1, then v1.36.2. The Supervisor-kubectl alternative block has the same shape
 (its `sudo` is inside the chain) but its message already says "see the error above"; unchanged.
 
 **Resume point:** nothing is pending. The lab was **running** when round 9 began and was left
