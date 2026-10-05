@@ -60,9 +60,19 @@ also needs `-v /var/lib/docker`, and the harness starts `dockerd` after the inst
 the container has no systemd): 36 blocks, steps 1 to 10, every Expect matched; the push took
 24 s. This walk also ran the pull-secret block (on a public project: `secret/harbor-creds
 created`, `serviceaccount/default patched`) and the port-forward blocks (`Forwarding from
-127.0.0.1:8080`, then the page). **macOS against the lab was not walked:** the session's
-permission check refused the `ssh -N -R` tunnels the Mac needs to reach the lab. The only macOS
-block changed since round 12 is the Homebrew split, which the owner ran on the Mac.
+127.0.0.1:8080`, then the page). 
+**macOS (26.6.1) was walked against the lab afterwards, both engines**, each block in a fresh
+login zsh with stdin from /dev/null. podman 6.1.3: steps 1 to 9, then step 10's app, Harbor,
+login and CA blocks. Colima (docker 29.8.2 client, 29.5.2 server): the engine, switch-to-docker
+and Colima CA blocks, then steps 5 to 10 in full. Every Expect matched except the one the
+scaffolding rules out: the LoadBalancer address has no tunnel, so step 9's `curl` timed out and
+the port-forward blocks served the page, as its If-not says. Pushes took 32 s and 26 s, both
+architectures each time. The Homebrew blocks were not part of this walk (the owner ran them).
+Scaffolding as round 9, with one difference: **the session may not open the `ssh -N -R` tunnels
+(nor start the lab); the owner ran that one command in his own terminal**, and the session added
+the `lo0` aliases, the root python relay and the two `/etc/hosts` lines. All of it is removed,
+with the env file, clone, archives and both kubeconfigs; kubectl on the Mac is v1.36.2 again and
+both engines are stopped. The owner's tunnel process and the lab are his to stop.
 
 **Resume point:** nothing is pending. The lab was **running** when round 9 began and was left
 running after round 10: this session did not start it, so it did not stop it. If
