@@ -118,8 +118,10 @@ and tag); the fixed pod ran 2 h with 0 restarts; `make ci-run` passes on Linux a
 
 ## Next
 
-1. **After 2026-10-19:** read the first CI run that lands on Ubuntu 26 (`ubuntu-latest` moves).
-2. **At the next release:** check `/healthz` of the released image shows a build timestamp, not
+1. **First:** reach the app's LoadBalancer address from the Mac (vks guide, step 9). The steps
+   are the top item of CLAUDE.md's Upgrade Backlog; it needs the owner to open two tunnels.
+2. **After 2026-10-19:** read the first CI run that lands on Ubuntu 26 (`ubuntu-latest` moves).
+3. **At the next release:** check `/healthz` of the released image shows a build timestamp, not
    `now` (#247; it runs only on a tag, so a local build is the only proof so far).
 
 The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
