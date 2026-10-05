@@ -21,6 +21,14 @@ On 2026-10-03 and 04 the root README was validated as a first-time user and rewr
 | #252, #253 | Per-OS install links for Docker and kubectl, the macOS Colima install block, and why macOS gets make and Git from Apple's command line tools |
 | #254 | Four small findings from the second macOS walk; this file and the backlog |
 
+On 2026-10-05 the README's prerequisites section took its install blocks from `vks/README.md`
+step 2 (Homebrew, the four engine blocks, a check block) and gained a standalone kubectl install
+block; "Tested platforms" gained Debian 12 and 13 and a "What ran" column. Run for it: the Linux
+install blocks in clean `ubuntu:24.04`, `ubuntu:26.04`, `debian:12` and `debian:13` containers as
+a non-root user with sudo (engines installed, not started), and the kubectl block on the Mac
+without its `sudo` step. Those containers need `--network host` on this workstation: on Docker's
+default network every DNS lookup took 5 s, which trips the block's 10 s limit.
+
 How it was checked, so the next reader does not repeat it:
 
 - Every block executed on Linux (Ubuntu 26.04.1), including `make e2e` and the kubectl section.
