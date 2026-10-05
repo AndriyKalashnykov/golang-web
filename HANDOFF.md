@@ -38,10 +38,11 @@ client v1.37.1, server v1.37.0). Under Colima, the Linux install blocks ran in c
 `ubuntu:24.04`, `ubuntu:26.04`, `debian:12` and `debian:13` containers. The Mac was put back
 afterwards: kubectl 1.36.2, both engines stopped, docker context `default`, no clone, no mise.
 
-Not done, and why: the Homebrew installer block was pasted and stopped at `Password:`. That
-Mac's `sudo` needs no password for commands, but the installer's `sudo -v` asks for the login
-password, which this session does not have. Its last full run is the fresh macOS guest recorded
-in `vks/HANDOFF.md`.
+The Homebrew installer block needs the Mac's login password (its `sudo -v` asks for it even
+though `m1` has passwordless sudo for commands), so the owner ran it in a terminal on the Mac:
+`Password:`, `Press RETURN/ENTER to continue`, `==> Installation successful!`, and then the
+second block printed `Homebrew 7.0.8`. More text follows that line, so both READMEs now say the
+installer prints it "near its end". A session without that password cannot run the installer.
 
 A rule that came out of it: **in a block, nothing may follow a line that can prompt.** A shell
 without bracketed paste (macOS `/bin/bash` 3.2) hands the rest of the paste to the prompt:
