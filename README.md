@@ -21,27 +21,32 @@ packaged as a multi-arch image with a KinD end-to-end harness.
 ## Install the prerequisites
 
 Most tools are installed for you by `make deps`, the first command in
-[Run it locally](#run-it-locally). You install only the few below yourself, because `make deps`
-cannot run without them.
+[Run it locally](#run-it-locally). You install only the few below yourself. Run only the
+blocks for your system; the Linux blocks are for Ubuntu and Debian.
 
-### Install these yourself first
+| Tool | Needed for | Install it in |
+|------|------------|---------------|
+| [GNU Make](https://www.gnu.org/software/make/), [Git](https://git-scm.com/), [curl](https://curl.se/) | Every section. `make deps` cannot run without them. | [Install make, Git and curl](#install-make-git-and-curl) |
+| [Homebrew](https://brew.sh) (macOS only) | Installing podman or Docker on a Mac | [Install Homebrew](#install-homebrew-macos-only) |
+| [podman](https://podman.io/) or [Docker](https://docs.docker.com/) | The image sections. The Kubernetes sections and `make ci-run` need Docker. | [Install a container engine](#install-a-container-engine) |
+| [kubectl](https://kubernetes.io/docs/reference/kubectl/) | The two Kubernetes sections and step 5 of the push section | [Install kubectl](#install-kubectl) |
 
-| Tool | Needed for |
-|------|------------|
-| [GNU Make](https://www.gnu.org/software/make/) | Every command on this page, including `make deps` |
-| [Git](https://git-scm.com/) | Cloning the repository |
-| [curl](https://curl.se/) | `make deps` uses it to download mise. Not preinstalled on Ubuntu. |
-| [Homebrew](https://brew.sh) (macOS only) | `make deps` uses it to install podman |
+To only build, test and run the app, install make, Git and curl and go to
+[Run it locally](#run-it-locally).
 
-On Ubuntu or Debian:
+### Install make, Git and curl
+
+Ubuntu or Debian (curl is not preinstalled on Ubuntu):
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y make git curl
 ```
 
-macOS already has curl; make and Git come with Apple's command line tools. If you install
-Homebrew, its installer adds these tools for you and you can skip this command:
+Expect the install to end without an error.
+
+macOS already has curl; make and Git come with Apple's command line tools. Skip this command
+if you install Homebrew in the next section: its installer adds them.
 
 ```bash
 xcode-select --install
@@ -53,6 +58,168 @@ Expect a dialog asking to install the tools, or
 Do not install make with Homebrew: it installs GNU Make under the name `gmake`, so `make`
 would still not exist.
 
+### Install Homebrew (macOS only)
+
+Homebrew is the macOS package manager the engine blocks below use. Skip this block if
+`brew --version` already works. The installer asks for your password, installs Apple's command
+line tools too, and can take several minutes.
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+B=/opt/homebrew/bin/brew; [ -x "$B" ] || B=/usr/local/bin/brew
+grep -qs "brew shellenv" ~/.zprofile || echo "eval \"\$($B shellenv)\"" >> ~/.zprofile
+eval "$($B shellenv)"
+brew --version
+```
+
+Expect `Homebrew 4.…` (or newer).
+
+### Install a container engine
+
+The container engine builds and runs the image. Pick one and run only its block.
+
+| You will | Pick |
+|---|---|
+| Build, run or push the image | podman. Or skip this section: `make deps` installs podman when it finds no engine (on Ubuntu or Debian it runs `sudo apt-get` and asks for your password; on macOS it needs Homebrew). |
+| Also use the local Kubernetes cluster (`make e2e`) or `make ci-run` | Docker. KinD needs Docker, even when you build images with podman. Docker builds images too, so it is the only engine you need. |
+
+On arm64 Linux (`uname -m` prints `aarch64`), pick Docker if you will push images: podman 4.x
+(Ubuntu 24.04 has 4.9) cannot push the two-architecture image, and `make image-push` refuses
+it. podman 5.8 works; 5.0 to 5.7 are untested.
+
+macOS, podman:
+
+```bash
+brew install podman
+podman machine inspect >/dev/null 2>&1 || podman machine init
+podman info >/dev/null 2>&1 || podman machine start
+```
+
+Expect the last lines to say the machine `started successfully`, or nothing if it was already
+running.
+
+macOS, Docker, with [Colima](https://github.com/abiosoft/colima), which runs the Docker engine
+in a small virtual machine:
+
+```bash
+brew install colima docker docker-buildx
+mkdir -p ~/.docker/cli-plugins
+ln -sfn "$(brew --prefix)/opt/docker-buildx/bin/docker-buildx" ~/.docker/cli-plugins/docker-buildx
+colima start
+docker context use colima
+docker info --format '{{.Name}}: {{.OperatingSystem}}/{{.Architecture}} server={{.ServerVersion}}'
+docker buildx version
+```
+
+Expect `Current context is now "colima"`, a line like
+`colima: Ubuntu 24.04…/aarch64 server=29.…` (`/x86_64` on an Intel Mac), then
+`github.com/docker/buildx v0.…`. If Colima was already running, `colima start` prints
+`already running, ignoring`, which is fine.
+
+If the line does not start with `colima:`, or a
+`Warning: DOCKER_HOST environment variable overrides the active context` appears, a variable in
+your shell points `docker` at another engine: run `unset DOCKER_HOST DOCKER_CONTEXT`, then the
+block again.
+
+Linux, podman:
+
+```bash
+sudo apt-get update && sudo apt-get install -y podman
+```
+
+Expect the install to end without an error. podman must be 4.0 or newer (Ubuntu 24.04,
+Debian 12 or later); on older releases, use Docker.
+
+Linux, Docker. The first line reads whether you have Ubuntu or Debian:
+
+```bash
+D="$(. /etc/os-release && echo "$ID")"
+case "$D" in
+  ubuntu|debian)
+    sudo apt-get update && sudo apt-get install -y ca-certificates curl
+    sudo install -m 0755 -d /etc/apt/keyrings
+    sudo curl -fsSL "https://download.docker.com/linux/${D}/gpg" -o /etc/apt/keyrings/docker.asc
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+https://download.docker.com/linux/${D} $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+      | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+    sudo apt-get update
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+    sudo usermod -aG docker "$USER"
+    ;;
+  *) echo "Not Debian or Ubuntu ($D): nothing installed. See https://docs.docker.com/engine/install/" ;;
+esac
+```
+
+Expect no error. Then log out and back in: until you do, `docker` needs `sudo`. After that,
+`docker info` works without `sudo`.
+
+If not:
+
+- `permission denied … docker.sock`: you are still in the old session. Log out fully (or
+  restart the machine) and try again.
+- `Not Debian or Ubuntu (…): nothing installed` (Linux Mint, Pop!_OS and other derivatives):
+  the block changed nothing. Follow [Docker's instructions](https://docs.docker.com/engine/install/)
+  for your distribution, or use podman.
+
+When both engines are installed, the image commands use podman; see
+[Choose podman or Docker](#choose-podman-or-docker).
+
+### Install kubectl
+
+Only for the Kubernetes sections; skip it if `kubectl version --client` already works. This
+installs the newest stable kubectl from the official site (dl.k8s.io) into `/usr/local/bin`,
+after checking its checksum. Its `sudo` asks for your password.
+
+```bash
+V="$(curl -fsSL --connect-timeout 10 https://dl.k8s.io/release/stable.txt)"
+case "$(uname -s)" in Linux) K_OS=linux ;; Darwin) K_OS=darwin ;; *) K_OS= ;; esac
+case "$(uname -m)" in x86_64|amd64) K_ARCH=amd64 ;; arm64|aarch64) K_ARCH=arm64 ;; *) K_ARCH= ;; esac
+U="https://dl.k8s.io/release/${V}/bin/${K_OS}/${K_ARCH}/kubectl"
+T="$(mktemp -d)"
+if [ -n "$T" ] && [ -n "$V" ] && [ -n "$K_OS" ] && [ -n "$K_ARCH" ] \
+   && curl -fsSL --connect-timeout 10 --retry 3 -o "$T/kubectl" "$U" \
+   && H="$(curl -fsSL --connect-timeout 10 --retry 3 "${U}.sha256")" && [ -n "$H" ] \
+   && [ "$( (sha256sum "$T/kubectl" 2>/dev/null || shasum -a 256 "$T/kubectl") | awk '{print $1}')" = "$H" ] \
+   && sudo install -d /usr/local/bin && sudo install -m 0755 "$T/kubectl" /usr/local/bin/kubectl; then
+  /usr/local/bin/kubectl version --client
+  [ "$(command -v kubectl)" = /usr/local/bin/kubectl ] \
+    || echo "WARNING: 'kubectl' on your PATH is '$(command -v kubectl || echo not found)', not /usr/local/bin/kubectl"
+else
+  echo "kubectl NOT installed: dl.k8s.io unreachable, unsupported machine, checksum mismatch, or sudo failed (${U})"
+fi
+rm -rf "$T"
+```
+
+Expect `Client Version: v1.…` (and a `Kustomize Version` line), and no `WARNING` line.
+
+If not:
+
+- `kubectl NOT installed`: nothing changed. Read the `curl:` or `sudo:` error above it. If
+  this machine cannot reach dl.k8s.io, follow Kubernetes' instructions for
+  [Linux](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/) or
+  [macOS](https://kubernetes.io/docs/tasks/tools/install-kubectl-macos/).
+- `WARNING: 'kubectl' on your PATH is …`: another kubectl is found first, or (`not found`)
+  `/usr/local/bin` is not in your `PATH`. Put `/usr/local/bin` first in your `PATH`, or keep
+  using the other kubectl.
+
+### Check the tools
+
+This lists what is still missing and prints the versions of the rest.
+
+```bash
+for t in make git curl; do
+  command -v "$t" >/dev/null 2>&1 || echo "MISSING: $t"
+done
+command -v podman >/dev/null 2>&1 && podman --version
+command -v docker >/dev/null 2>&1 && docker --version
+command -v kubectl >/dev/null 2>&1 && kubectl version --client
+```
+
+Expect no `MISSING` line, then a version line for each engine you installed and, if you
+installed it, kubectl's `Client Version:`. No engine line is fine when you left podman to
+`make deps`.
+
 ### What `make deps` installs for you
 
 You do not install these. `make deps` does, into your home directory, and it is safe to run
@@ -62,31 +229,9 @@ again at any time:
 |------|-------|
 | [mise](https://mise.jdx.dev/) | Goes into `~/.local/bin`. It installs the rest of this table. |
 | Go, the linters and scanners, kind | The versions pinned in [`.mise.toml`](.mise.toml) |
-| [Podman](https://podman.io/) | Only when neither podman nor Docker is installed. On Ubuntu or Debian this runs `sudo apt-get` and asks for your password. To install it yourself instead, see [podman's instructions](https://podman.io/docs/installation). |
+| [Podman](https://podman.io/) | Only when neither podman nor Docker is installed; see [Install a container engine](#install-a-container-engine). |
 
-### Install these yourself only for the Kubernetes sections
-
-`make deps` does not install these two. Skip them if you only build and run the app or its
-image.
-
-| Tool | Needed for | How to install |
-|------|------------|----------------|
-| Docker | The local Kubernetes cluster. KinD needs Docker, even when you build images with podman. | Linux: Docker's instructions for [Ubuntu](https://docs.docker.com/engine/install/ubuntu/), [Debian](https://docs.docker.com/engine/install/debian/) or [another distribution](https://docs.docker.com/engine/install/). macOS: the block below. |
-| kubectl | The two Kubernetes sections and step 5 of the push section | Kubernetes' instructions for [Linux](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/) or [macOS](https://kubernetes.io/docs/tasks/tools/install-kubectl-macos/) |
-
-Docker on macOS, with [Colima](https://github.com/abiosoft/colima), which runs the Docker
-engine in a small virtual machine:
-
-```bash
-brew install colima docker docker-buildx
-mkdir -p ~/.docker/cli-plugins
-ln -sfn "$(brew --prefix)/opt/docker-buildx/bin/docker-buildx" ~/.docker/cli-plugins/docker-buildx
-colima start
-docker context use colima
-docker buildx version
-```
-
-Expect `Current context is now "colima"` and a last line starting `github.com/docker/buildx`.
+`make deps` does not install Docker or kubectl.
 
 ### Start the container engine on macOS
 
@@ -96,12 +241,17 @@ podman (run `podman machine init` once before the first start), `colima start` f
 
 ### Tested platforms
 
-| OS | Architecture | Tested with |
-|----|--------------|-------------|
-| Ubuntu 24.04.5 LTS | x86_64 | GNU Make 4.3, Git 2.43.0, podman 4.9.3, Docker 29.8.1 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 |
-| Ubuntu 26.04.1 LTS | x86_64 | GNU Make 4.4.1, Git 2.53.0, podman 5.7.0, Docker 29.8.1, kubectl 1.37.1, kind 0.33.0 |
-| macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 |
-| macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 |
+| OS | Architecture | Tested with | What ran |
+|----|--------------|-------------|----------|
+| Ubuntu 24.04.5 LTS | x86_64 | GNU Make 4.3, Git 2.43.0, podman 4.9.3, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
+| Ubuntu 26.04.1 LTS | x86_64 | GNU Make 4.4.1, Git 2.53.0, podman 5.7.0, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
+| Debian 12 | x86_64 | GNU Make 4.3, Git 2.39.5, podman 4.3.1, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1 | The install blocks only, in a clean container; the engines were not started |
+| Debian 13 | x86_64 | GNU Make 4.4.1, Git 2.47.3, podman 5.4.2, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1 | The install blocks only, in a clean container; the engines were not started |
+| macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | Every section except the kubectl install block |
+| macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 via Colima 0.10.3, kubectl 1.36.2 and 1.37.1, kind 0.33.0 | Every section; the kubectl install block ran without its `sudo` step, into a temporary directory |
+
+On arm64 Linux (Ubuntu 24.04) only the Docker install block and `make image-push` were run.
+Intel Macs are not tested.
 
 ### Choose podman or Docker
 
@@ -116,7 +266,7 @@ The image commands use podman when both are installed.
 
 ## Run it locally
 
-Needs make, git and curl; see [Install these yourself first](#install-these-yourself-first).
+Needs make, git and curl; see [Install make, Git and curl](#install-make-git-and-curl).
 
 ```bash
 git clone https://github.com/AndriyKalashnykov/golang-web.git
@@ -268,8 +418,8 @@ nothing is uploaded.
 
 ## Test it on a local Kubernetes cluster
 
-Needs Docker and kubectl. Stop anything that uses port 8080 first; on macOS the cluster
-publishes the app there.
+Needs Docker and kubectl; see [Install the prerequisites](#install-the-prerequisites). Stop
+anything that uses port 8080 first; on macOS the cluster publishes the app there.
 
 ```bash
 make e2e

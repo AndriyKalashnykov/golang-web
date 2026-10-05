@@ -131,7 +131,7 @@ kubectl_install() {
     [ "$(command -v kubectl)" = /usr/local/bin/kubectl ] \
       || echo "WARNING: 'kubectl' on your PATH is '$(command -v kubectl || echo not found)', not /usr/local/bin/kubectl" >&2
   else
-    rm -rf "$t"; echo "kubectl_install: cannot reach dl.k8s.io, or the checksum did not match (${u}) — kubectl NOT changed" >&2; return 1
+    rm -rf "$t"; echo "kubectl_install: cannot reach dl.k8s.io, the checksum did not match, or sudo failed (${u}) — kubectl NOT changed" >&2; return 1
   fi
 }
 EOF
@@ -345,7 +345,9 @@ if [ -n "$V" ]; then kubectl_install "$V"; else echo "kubectl_install: cannot re
 - `WARNING: 'kubectl' on your PATH is …`: another kubectl is found first, or (`not found`)
   `/usr/local/bin` is not in your `PATH`. Put `/usr/local/bin` first in your `PATH`, and remove
   the other kubectl if there is one.
-- `cannot reach dl.k8s.io`: ask your administrator to allow dl.k8s.io, or use the alternative below.
+- `cannot reach dl.k8s.io`: if a `sudo:` line is printed above it, sudo failed: run the block
+  again and enter your password. Otherwise ask your administrator to allow dl.k8s.io, or use the
+  alternative below.
 
 <details>
 <summary><b>Alternative: install the kubectl your Supervisor serves</b> (only if dl.k8s.io is blocked)</summary>
@@ -1113,7 +1115,7 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `vcf plugin list` pauses on `Refreshing plugin inventory cache` | Wait: it stops by itself after about 30 s (it cannot reach VMware's plugin server). The installed plugins do not need that server. |
 | `kubectl_install: command not found` | Re-run step 1's block; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | `kubectl_install: no version` in step 7 | The guest cluster did not answer: check the kubeconfig block's output, and re-run step 7's login. |
-| `kubectl_install: cannot reach dl.k8s.io` | Ask your administrator to allow dl.k8s.io (the real fix). Until then, run step 2's *Alternative: install the kubectl your Supervisor serves* block (under *Install kubectl*): Intel/AMD machines only, and the Supervisor's older version. |
+| `kubectl_install: cannot reach dl.k8s.io` | If a `sudo:` line is printed above it, sudo failed: run the block again and enter your password. Otherwise ask your administrator to allow dl.k8s.io (the real fix). Until then, run step 2's *Alternative: install the kubectl your Supervisor serves* block (under *Install kubectl*): Intel/AMD machines only, and the Supervisor's older version. |
 | `ImagePullBackOff` with `x509` in `kubectl describe pod` | The guest cluster does not trust Harbor's CA. Ask your administrator to add Harbor's CA certificate (your `$HARBOR_CA` file) to the trusted CAs of the guest cluster `$VKS_CLUSTER`. |
 | `ImagePullBackOff` with `pull access denied` or `no basic auth credentials` in `kubectl describe pod` | The project is private: run step 8's pull-secret block, then `kubectl rollout restart deploy/golang-web` (running pods keep their old pull settings). |
 | `403` on the step 6 or 8 lookup | The robot needs `artifact` read and list; create it with step 5. |

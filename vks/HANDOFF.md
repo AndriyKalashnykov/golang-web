@@ -25,6 +25,16 @@ on the Mac while validating the root README). No command changed and the block w
 here-documents, which the shell does not parse as commands. Every walk so far ran each block as a
 script (a fresh login zsh with stdin from /dev/null), so none of them could have shown this.
 
+**2026-10-05, one message:** `kubectl_install` (step 1) said `cannot reach dl.k8s.io, or the
+checksum did not match` when the download and checksum had passed and `sudo` failed. Reproduced
+with a `sudo` that exits 1, in bash and zsh. The message now ends `…, the checksum did not match,
+or sudo failed`, and step 2's If-not and the Troubleshooting row say what a `sudo:` line above it
+means. The message still starts with `kubectl_install: cannot reach dl.k8s.io`, which is what
+those rows key on. Re-run: the function with the failing `sudo` (new message, rc 1) and its
+success path into a scratch directory, on Linux; all 50 blocks parse with `bash -n` and `zsh -n`.
+Not re-walked on the lab or the Mac. The Supervisor-kubectl alternative block has the same shape
+(its `sudo` is inside the chain) but its message already says "see the error above"; unchanged.
+
 **Resume point:** nothing is pending. The lab was **running** when round 9 began and was left
 running after round 10: this session did not start it, so it did not stop it. If
 `esxi01` is shut off, start it with
