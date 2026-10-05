@@ -60,7 +60,7 @@ also needs `-v /var/lib/docker`, and the harness starts `dockerd` after the inst
 the container has no systemd): 36 blocks, steps 1 to 10, every Expect matched; the push took
 24 s. This walk also ran the pull-secret block (on a public project: `secret/harbor-creds
 created`, `serviceaccount/default patched`) and the port-forward blocks (`Forwarding from
-127.0.0.1:8080`, then the page). 
+127.0.0.1:8080`, then the page).
 **macOS (26.6.1) was walked against the lab afterwards, both engines**, each block in a fresh
 login zsh with stdin from /dev/null. podman 6.1.3: steps 1 to 9, then step 10's app, Harbor,
 login and CA blocks. Colima (docker 29.8.2 client, 29.5.2 server): the engine, switch-to-docker
