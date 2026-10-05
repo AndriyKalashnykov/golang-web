@@ -67,8 +67,9 @@ line tools too, and can take several minutes.
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-Expect the installer to end with `Installation successful!`. Then, as its own block (the
-installer asks questions, so nothing may be pasted after it), put `brew` on your `PATH`:
+Expect the installer to print `==> Installation successful!` near its end. Then, as its own
+block (the installer asks questions, so nothing may be pasted after it), put `brew` on your
+`PATH`:
 
 ```bash
 B=/opt/homebrew/bin/brew; [ -x "$B" ] || B=/usr/local/bin/brew
