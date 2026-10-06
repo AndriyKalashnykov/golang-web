@@ -146,8 +146,8 @@ The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
   mise, no Go caches, no registry login. Left by the walks: `~/.kube/config` (28 bytes, written
   by kind), an empty `~/.local/state`, and a `kind` network inside the Colima VM.
 - **This host** (checked 2026-10-04): no tunnels, KinD clusters, golang-web test containers or
-  worktrees. On 2026-10-05 the owner's two `ssh -N -R` tunnels to the Mac were still running
-  when the session ended; they are his to stop. Not from this repo and left alone: podman's Harbor login as `robot$vks-cicd` (it
+  worktrees. The owner closed his two `ssh -N -R` tunnels to the Mac after the 2026-10-05 walk
+  (checked: no tunnel process here, ports 18443 to 18448 closed on the Mac). Not from this repo and left alone: podman's Harbor login as `robot$vks-cicd` (it
   belongs to vks-airgap-cicd), two `nodejswebapp-builder` containers from 2026-09-05, and the
   docker `multi-platform-builder` buildx container. `ghcr.io/andriykalashnykov/golang-web:latest`
   in both engines is now the 0.0.4 image (re-pulled 2026-10-03).
