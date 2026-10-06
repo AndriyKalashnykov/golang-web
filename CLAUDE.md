@@ -273,6 +273,28 @@ make version        # Print current version tag
       (`mise uninstall`/`mise install`) or they fail with "application built
       with go1.<old>". Only `govulncheck` is affected today.
 
+## Deliberate differences from vks-airgap-cicd
+
+Owner decisions of 2026-10-06, after a three-way comparison of this README, `vks/README.md` and
+`~/projects/vks-airgap-cicd`. Do not "fix" these as inconsistencies:
+
+- **GNU Make on macOS:** all three guides start a Mac from Homebrew. vks-airgap-cicd also needs
+  GNU Make 3.82 or newer, so it uses Homebrew's `gmake`; that stays. This Makefile runs on the
+  make 3.81 that Homebrew's installer adds with Apple's command line tools, so it does not ask
+  for `brew install make`. The standalone `xcode-select --install` route was removed from the
+  README so that Homebrew is the one macOS path.
+- **Docker on Linux:** this README adds Docker's apt repository (`docker-ce`); vks-airgap-cicd
+  installs the distro's `docker.io` because it never adds a third-party repo to a jump box.
+- **KinD LoadBalancers on macOS:** here cloud-provider-kind maps the Service port to the Mac's
+  localhost; vks-airgap-cicd routes the LoadBalancer addresses with a root daemon
+  (docker-mac-net-connect) because it needs every address reachable.
+- **Default engine on a Docker-only machine:** here Docker is used; vks-airgap-cicd's `make deps`
+  installs podman anyway, by its engine policy.
+
+One thing was a defect, not a choice: vks-airgap-cicd's KinD teardown removed every
+`cloud-provider-kind` and `kindccm-*` container on the host, including this project's. Its fix
+is tracked in that repo.
+
 ## `vks/` — deploying this app to a VKS guest cluster
 
 `vks/README.md` is an end-user runbook: build locally, push to Harbor, deploy to a named VKS
