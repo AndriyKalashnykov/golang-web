@@ -137,8 +137,17 @@ make version        # Print current version tag
       and deleting the second Service's namespace then waits forever on its finalizer (measured:
       killed after 5 min; `make kind-delete` clears it). The README tells macOS readers to skip
       the namespace delete. Not fixed in the Makefile.
+- [x] **README walked on macOS 26.6.1 with each engine, 2026-10-06** (Tested platforms): podman
+      40 of 40 steps, Docker through Colima 51 of 51, each block pasted into the default login zsh
+      over `ssh -tt`. Not exercised: a bare Mac (Homebrew, both engine VMs and kubectl existed), the
+      Homebrew installer, a sudo password prompt, a fresh `go test` (the result was cached), any
+      section in a terminal without mise activated, podman building for a Docker-run KinD. Seen:
+      `make e2e` publishes port 8080 on every interface of the Mac; the second LoadBalancer
+      Service stays pending, as the backlog says. Logs: `~/.cache/gw-macos-walk/logs2`.
 - [ ] **One swallowed Ctrl-C on the Mac:** a Ctrl-C sent while `make run` was still starting did
-      not stop it; a later one did. Seen once in the second walk, not reproduced.
+      not stop it; a later one did. Seen once in the second walk, not reproduced. The 2026-10-06 walks
+      sent 26 Ctrl-C to running foreground steps and each stopped on the first, but always a few
+      seconds after start: a Ctrl-C during start-up, the case seen, was not sampled.
 - [x] **vks: settled 2026-09-29** (measured; details in `vks/HANDOFF.md`, "Settled"):
       - podman 5.8.7 on arm64 Linux builds a correct amd64+arm64 image, so the README offers it
         beside docker. podman 4.9 (Ubuntu 24.04's apt) mislabels; 5.4.2 and 5.7.0 each pushed
