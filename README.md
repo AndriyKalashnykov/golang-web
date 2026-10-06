@@ -643,16 +643,16 @@ fills them from the pod.
 | Ubuntu 26.04.1 LTS | x86_64 | GNU Make 4.4.1, Git 2.53.0, podman 5.7.0, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
 | Debian 12.15 | x86_64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section, with Docker only. podman 4.3.1 does not build the image; see [Install a container engine](#install-a-container-engine) |
 | Debian 13.7 | x86_64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section with Docker only. On a second machine with podman and Docker both installed, every section again, with podman (the default there) building and pushing the image |
-| Ubuntu 24.04.4 LTS | arm64 | GNU Make 4.3, Git 2.43.0, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.9.3 | Every section, with Docker only. Three endpoint checks (`/healthz` after `make build`, `/metrics`, `/shutdown` off) passed but their logs were lost. With podman, `make image-push` refused as documented |
+| Ubuntu 24.04.4 LTS | arm64 | GNU Make 4.3, Git 2.43.0, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.9.3 | Every section, with Docker only. With podman, `make image-push` refused as documented |
 | Ubuntu 26.04 LTS | arm64 | GNU Make 4.4.1, Git 2.53.0, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.7.0 | Every section, with Docker only. With podman, `make image-push` pushed both architectures |
 | Debian 12.15 | arm64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.3.1 | Every section, with Docker only. With podman, `make image-push` stops at `'podman buildx' is not available` |
-| Debian 13.6 | arm64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section, with Docker only. With podman, `make image-push` pushed both architectures on the second try, after the user's systemd session was restarted |
+| Debian 13.6 | arm64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section, with Docker only. With podman, `make image-push` failed twice in runc (no systemd user session) and pushed both architectures once every session of the user had ended; a plain log out and back in on a normal machine was not tested |
 | macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | Every section except the kubectl install block |
 | macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 via Colima 0.10.3, kubectl 1.36.2 and 1.37.1, kind 0.33.0 | Every section |
 
-The Debian rows and the arm64 rows are from 2026-10-06, each on a new virtual machine (the
-arm64 ones on an Apple silicon Mac; the Ubuntu images came with Git and curl, and Git was
-removed first), at commit `3509352`. In those
+The Debian rows and the arm64 rows are from 2026-10-06: each is one pass on a new virtual
+machine (the arm64 ones on an Apple silicon Mac; the Ubuntu images came with Git and curl, and
+Git was removed first), at commit `29c7329`, with every step matching its Expect text. In those
 walks sudo never asked for a password. The push section ran steps 2 to 4 against a registry on
 the same machine, not ghcr.io; steps 1 and 5 were not run, and the image for the other
 architecture was pushed but not run. `make release` was not run. Intel Macs are not tested.
