@@ -54,8 +54,8 @@ xcode-select --install
 Expect a dialog asking to install the tools, or
 `xcode-select: note: Command line tools are already installed` if you have them.
 
-Do not install make with Homebrew: it installs GNU Make under the name `gmake`, so `make`
-would still not exist.
+Homebrew's GNU Make is installed as `gmake`. You do not need it here: every `make` command
+in this README runs with Apple's make, and `gmake` works too if you already have it.
 
 ### Install Homebrew (macOS only)
 
