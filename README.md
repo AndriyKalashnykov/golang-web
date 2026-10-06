@@ -320,11 +320,14 @@ Pull it and run it; with Docker, replace `podman` with `docker`:
 
 ```bash
 podman pull ghcr.io/andriykalashnykov/golang-web:latest
-podman run --rm -p 8080:8080 ghcr.io/andriykalashnykov/golang-web:latest
+podman run --rm -p 127.0.0.1:8080:8080 ghcr.io/andriykalashnykov/golang-web:latest
 ```
 
+`127.0.0.1` keeps the port to this machine: the 0.0.4 image serves `/shutdown`, which stops
+the app for anyone who can reach it.
+
 Expect the log line `Starting web server on port 8080`. Open <http://localhost:8080>. Press
-Ctrl-C to stop it. If port 8080 is taken, change the first number, as in `-p 9090:8080`.
+Ctrl-C to stop it. If port 8080 is taken, change the first `8080`, as in `-p 127.0.0.1:9090:8080`.
 
 ## Build and run the image locally
 
@@ -398,8 +401,8 @@ Needs kubectl and a test cluster; the one `make e2e` created works. The image de
 published `ghcr.io/andriykalashnykov/golang-web:0.0.4`, not one you built.
 
 Do not use a cluster that others can reach: the 0.0.4 image always serves `/shutdown`, so
-anyone who can open the app's address can stop it. Later images serve it only with
-`ENABLE_SHUTDOWN=true`.
+anyone who can open the app's address can stop it. The first release after 0.0.4 will serve
+it only with `ENABLE_SHUTDOWN=true`.
 
 Check which cluster kubectl points at:
 
@@ -611,7 +614,7 @@ A statically linked Go binary in a distroless image, behind a LoadBalancer Servi
 | `/` | GET | Main page, plain text: `Hello, World`, a request counter, and the pod's node, name, namespace, IP and service account (`empty` outside Kubernetes). Set `APP_CONTEXT` to serve it on another path. |
 | `/healthz` | GET | Liveness/readiness probe — returns `{"health":"ok", "Version":…, "BuildTime":…}` (both empty under `make run`; set by `make build` and the image) |
 | `/metrics` | GET | Prometheus exposition; counter key `request_count_promtotal` |
-| `/shutdown` | any | Off by default. With `ENABLE_SHUTDOWN=true` it exits the process for anyone who can reach it, with no login. |
+| `/shutdown` | any | Exits the process for anyone who can reach it, with no login. A build of this checkout serves it only with `ENABLE_SHUTDOWN=true`; the published 0.0.4 image always serves it. |
 
 The main page under `make run`:
 

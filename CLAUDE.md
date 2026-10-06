@@ -96,6 +96,12 @@ make version        # Print current version tag
       the prompt: a `sudo` password prompt swallowed the old kubectl block's last line. So that
       block cleans up inside its `if`, the two `apt-get` lines are joined with `&&`, and the
       Homebrew installer is a block of its own in both READMEs.
+- [ ] **`/shutdown` is gated in the source, not in any published image (2026-10-06).** `main.go`
+      registers it only when `ENABLE_SHUTDOWN` is exactly `true`, and logs
+      `shutdown endpoint: enabled|disabled` at start. The 0.0.4 image (`latest`) still serves it
+      to anyone, and `k8s/golang-web.yaml` pins 0.0.4 behind a LoadBalancer Service. The exposure
+      closes only with the next release and Renovate's bump of that pin; when to release is the
+      owner's decision. Until then the README warns in both sections that run the published image.
 - [ ] **`BuildTime` in released images (#247) is unproven until the next tag.** The 0.0.4 image's
       `/healthz` reports `"BuildTime":"now"`: `ci.yml` passed `MY_VERSION` but not
       `MY_BUILDTIME`. Both image builds now pass the metadata step's `created` timestamp. A local
