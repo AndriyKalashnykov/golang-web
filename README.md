@@ -168,8 +168,12 @@ If not:
   the block changed nothing. Follow [Docker's instructions](https://docs.docker.com/engine/install/)
   for your distribution, or use podman.
 
-When both engines are installed, the image commands use podman; see
-[Choose podman or Docker](#choose-podman-or-docker).
+On macOS the container engine runs in a virtual machine that must be running before any image
+or cluster command. After a restart of the Mac, start it again: `podman machine start` for
+podman (run `podman machine init` once before the first start), `colima start` for Docker.
+
+podman is the default: the image commands use it whenever it is installed, and Docker
+otherwise; see [Choose podman or Docker](#choose-podman-or-docker).
 
 ### Install kubectl
 
@@ -240,38 +244,6 @@ again at any time:
 
 `make deps` does not install Docker or kubectl.
 
-### Start the container engine on macOS
-
-On macOS the container engine runs in a virtual machine that must be running before any image
-or cluster command. After a restart of the Mac, start it again: `podman machine start` for
-podman (run `podman machine init` once before the first start), `colima start` for Docker.
-
-### Tested platforms
-
-| OS | Architecture | Tested with | What ran |
-|----|--------------|-------------|----------|
-| Ubuntu 24.04.5 LTS | x86_64 | GNU Make 4.3, Git 2.43.0, podman 4.9.3, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
-| Ubuntu 26.04.1 LTS | x86_64 | GNU Make 4.4.1, Git 2.53.0, podman 5.7.0, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
-| Debian 12 | x86_64 | GNU Make 4.3, Git 2.39.5, podman 4.3.1, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1 | The install blocks only, in a clean container; the engines were not started |
-| Debian 13 | x86_64 | GNU Make 4.4.1, Git 2.47.3, podman 5.4.2, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1 | The install blocks only, in a clean container; the engines were not started |
-| Ubuntu 24.04.5 and 26.04.1 LTS, Debian 12 and 13 | arm64 | The same podman versions as on x86_64, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1 | The install blocks only, in clean containers; the engines were not started |
-| macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | Every section except the kubectl install block |
-| macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 via Colima 0.10.3, kubectl 1.36.2 and 1.37.1, kind 0.33.0 | Every section |
-
-On arm64 Linux, `make image-push` also ran, on Ubuntu 24.04 with Docker. Intel Macs are not
-tested.
-
-### Choose podman or Docker
-
-The image commands use podman when both are installed.
-
-| You want | Do this |
-|---|---|
-| The default engine | Nothing |
-| Docker for one command | Add `CONTAINER_ENGINE=docker` to it, as in `make engines CONTAINER_ENGINE=docker` |
-| Docker for every command in this terminal | `export CONTAINER_ENGINE=docker` |
-| See which engine is used | `make engines` |
-
 ## Run it locally
 
 Needs make, git and curl; see [Install make, Git and curl](#install-make-git-and-curl).
@@ -325,52 +297,6 @@ echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
 
 Expect `go version` in the repo directory to print `go1.27.1`.
 
-## Architecture
-
-A statically linked Go binary in a distroless image, behind a LoadBalancer Service.
-
-<p align="center"><img src="docs/diagrams/out/c4-container.png" alt="C4 Container diagram for golang-web" width="800"></p>
-
-## Endpoints
-
-| Path | Method | Purpose |
-|------|--------|---------|
-| `/` | GET | Main page, plain text: `Hello, World`, a request counter, and the pod's node, name, namespace, IP and service account (`empty` outside Kubernetes). Set `APP_CONTEXT` to serve it on another path. |
-| `/healthz` | GET | Liveness/readiness probe — returns `{"health":"ok", "Version":…, "BuildTime":…}` (both empty under `make run`; set by `make build` and the image) |
-| `/metrics` | GET | Prometheus exposition; counter key `request_count_promtotal` |
-| `/shutdown` | any | Exits the process (`os.Exit(0)`). Unauthenticated: do not expose it outside a test cluster. |
-
-The main page under `make run`:
-
-```text
-Hello, World
-request 0 GET /
-Host: localhost:8080
-MY_NODE_NAME: empty
-MY_POD_NAME: empty
-MY_POD_NAMESPACE: empty
-MY_POD_IP: empty
-MY_POD_SERVICE_ACCOUNT: empty
-```
-
-## Environment variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Listen port, when you run the binary or the container yourself. With `make run`, set `APP_PORT` instead; `make run` sets `PORT` from it. | `8080` |
-| `APP_CONTEXT` | Path the main page is served on, for example `/myhello/` | `/` |
-| `MESSAGE_TO` | Noun in the greeting (`Hello, <MESSAGE_TO>`) | `World` |
-
-Kubernetes sets these five from the pod (the Downward API); the main page prints them:
-
-| Variable | Description |
-|----------|-------------|
-| `MY_NODE_NAME` | Name of Kubernetes node |
-| `MY_POD_NAME` | Name of Kubernetes pod |
-| `MY_POD_NAMESPACE` | Namespace of Kubernetes pod |
-| `MY_POD_IP` | Kubernetes pod IP |
-| `MY_POD_SERVICE_ACCOUNT` | Service account of Kubernetes pod |
-
 ## Change settings
 
 Optional: every setting has a default. To change a setting once, put it on the command line,
@@ -394,11 +320,14 @@ Pull it and run it; with Docker, replace `podman` with `docker`:
 
 ```bash
 podman pull ghcr.io/andriykalashnykov/golang-web:latest
-podman run --rm -p 8080:8080 ghcr.io/andriykalashnykov/golang-web:latest
+podman run --rm -p 127.0.0.1:8080:8080 ghcr.io/andriykalashnykov/golang-web:latest
 ```
 
+`127.0.0.1` keeps the port to this machine: the 0.0.4 image serves `/shutdown`, which stops
+the app for anyone who can reach it.
+
 Expect the log line `Starting web server on port 8080`. Open <http://localhost:8080>. Press
-Ctrl-C to stop it. If port 8080 is taken, change the first number, as in `-p 9090:8080`.
+Ctrl-C to stop it. If port 8080 is taken, change the first `8080`, as in `-p 127.0.0.1:9090:8080`.
 
 ## Build and run the image locally
 
@@ -424,9 +353,23 @@ nothing is uploaded.
 | `make image-logs` | Follows the container's log; Ctrl-C to leave (the `make: ***` line it prints then is normal) |
 | `make image-stop` | Stops the container; expect `Stopped golang-web.` |
 
+### Choose podman or Docker
+
+podman is the default: the image commands use it whenever it is installed. With only Docker
+installed they use Docker, and there is nothing to set.
+
+| You want | Do this |
+|---|---|
+| podman (the default) | Nothing |
+| Docker, when podman is also installed, for one command | Add `CONTAINER_ENGINE=docker` to it, as in `make engines CONTAINER_ENGINE=docker` |
+| Docker, when podman is also installed, for every command in this terminal | `export CONTAINER_ENGINE=docker` |
+| See which engine is used | `make engines` |
+
 ## Test it on a local Kubernetes cluster
 
-Needs Docker and kubectl; see [Install the prerequisites](#install-the-prerequisites). Stop
+Needs Docker and kubectl; see [Install the prerequisites](#install-the-prerequisites). You do
+not install KinD: the `make` commands in this section install the version pinned in
+[`.mise.toml`](.mise.toml) and find it themselves, without `kind` on your `PATH`. Stop
 anything that uses port 8080 first; on macOS the cluster publishes the app there.
 
 ```bash
@@ -454,10 +397,12 @@ Expect `KinD cluster 'golang-web' deleted.`
 
 ## Deploy the published image to a cluster
 
-Needs a running cluster with kubectl pointed at it. The cluster from the previous section
-works. This deploys the published image `ghcr.io/andriykalashnykov/golang-web:0.0.4`, not one
-you built. Use a test cluster only: the app has an unauthenticated `/shutdown` endpoint and
-the manifest exposes it through a LoadBalancer Service.
+Needs kubectl and a test cluster; the one `make e2e` created works. The image deployed is the
+published `ghcr.io/andriykalashnykov/golang-web:0.0.4`, not one you built.
+
+Do not use a cluster that others can reach: the 0.0.4 image always serves `/shutdown`, so
+anyone who can open the app's address can stop it. The first release after 0.0.4 will serve
+it only with `ENABLE_SHUTDOWN=true`.
 
 Check which cluster kubectl points at:
 
@@ -472,8 +417,7 @@ Run the rest of this section in one terminal, from the repo directory; the block
 `NS` variable.
 
 Deploy [`k8s/golang-web.yaml`](k8s/golang-web.yaml), a Deployment and a LoadBalancer Service,
-into its own namespace. The manifest meets the Pod Security `restricted` level, so it also
-deploys into namespaces that enforce it:
+into its own namespace:
 
 ```bash
 NS=golang-web-demo
@@ -493,10 +437,9 @@ curl -sS --retry 10 --retry-connrefused --retry-delay 1 http://localhost:18080/m
 kill "$PF"
 ```
 
-The terminal prints a job number after the first line and, in zsh, a `terminated` line after
-the last. Expect `Hello, World` and the line
-`MY_POD_NAMESPACE: golang-web-demo`. One `curl: (7) Failed to connect` line before the page is
-normal: the forward was still starting and curl retried.
+Expect `Hello, World` and the line `MY_POD_NAMESPACE: golang-web-demo`. Also normal: a job
+number after the first line, one `curl: (7) Failed to connect` line before the page, and in
+zsh a `terminated` line at the end.
 
 Optional, and only where the cluster gives the Service an IP address your machine can reach:
 the local cluster on Linux, or a cloud cluster that publishes an IP. Skip it on macOS with the
@@ -524,8 +467,7 @@ Expect `namespace "golang-web-demo" deleted`.
 
 ## Push your own image to a registry
 
-Optional. Do this only to publish your own build of the app to a container registry, for
-example to deploy it to a cluster. A ready-made image is already published; see
+Optional: only to publish your own build. A ready-made image is already published; see
 [Run the published image](#run-the-published-image).
 
 The image is pushed as `<registry>/<owner>/golang-web:<version>`:
@@ -658,6 +600,61 @@ When you are done, remove the token from this terminal with `unset REGISTRY_TOKE
 ## Deploy to VMware VKS
 
 To build the image, push it to Harbor and deploy it to a VKS guest cluster, follow [`vks/README.md`](vks/README.md).
+
+## Architecture
+
+A statically linked Go binary in a distroless image, behind a LoadBalancer Service.
+
+<p align="center"><img src="docs/diagrams/out/c4-container.png" alt="C4 Container diagram for golang-web" width="800"></p>
+
+## Endpoints
+
+| Path | Method | Purpose |
+|------|--------|---------|
+| `/` | GET | Main page, plain text: `Hello, World`, a request counter, and the pod's node, name, namespace, IP and service account (`empty` outside Kubernetes). Set `APP_CONTEXT` to serve it on another path. |
+| `/healthz` | GET | Liveness/readiness probe — returns `{"health":"ok", "Version":…, "BuildTime":…}` (both empty under `make run`; set by `make build` and the image) |
+| `/metrics` | GET | Prometheus exposition; counter key `request_count_promtotal` |
+| `/shutdown` | any | Exits the process for anyone who can reach it, with no login. A build of this checkout serves it only with `ENABLE_SHUTDOWN=true`; the published 0.0.4 image always serves it. |
+
+The main page under `make run`:
+
+```text
+Hello, World
+request 0 GET /
+Host: localhost:8080
+MY_NODE_NAME: empty
+MY_POD_NAME: empty
+MY_POD_NAMESPACE: empty
+MY_POD_IP: empty
+MY_POD_SERVICE_ACCOUNT: empty
+```
+
+## Environment variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Listen port, when you run the binary or the container yourself. With `make run`, set `APP_PORT` instead; `make run` sets `PORT` from it. | `8080` |
+| `APP_CONTEXT` | Path the main page is served on, for example `/myhello/` | `/` |
+| `MESSAGE_TO` | Noun in the greeting (`Hello, <MESSAGE_TO>`) | `World` |
+| `ENABLE_SHUTDOWN` | Only the exact value `true` turns on `/shutdown`; see [Endpoints](#endpoints) | `false` |
+
+You do not set the five `MY_…` variables the main page prints: in Kubernetes the manifest
+fills them from the pod.
+
+## Tested platforms
+
+| OS | Architecture | Tested with | What ran |
+|----|--------------|-------------|----------|
+| Ubuntu 24.04.5 LTS | x86_64 | GNU Make 4.3, Git 2.43.0, podman 4.9.3, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
+| Ubuntu 26.04.1 LTS | x86_64 | GNU Make 4.4.1, Git 2.53.0, podman 5.7.0, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
+| Debian 12 | x86_64 | GNU Make 4.3, Git 2.39.5, podman 4.3.1, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1 | The install blocks only, in a clean container; the engines were not started |
+| Debian 13 | x86_64 | GNU Make 4.4.1, Git 2.47.3, podman 5.4.2, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1 | The install blocks only, in a clean container; the engines were not started |
+| Ubuntu 24.04.5 and 26.04.1 LTS, Debian 12 and 13 | arm64 | The same podman versions as on x86_64, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1 | The install blocks only, in clean containers; the engines were not started |
+| macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | Every section except the kubectl install block |
+| macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 via Colima 0.10.3, kubectl 1.36.2 and 1.37.1, kind 0.33.0 | Every section |
+
+On arm64 Linux, `make image-push` also ran, on Ubuntu 24.04 with Docker. Intel Macs are not
+tested.
 
 ## For contributors
 
