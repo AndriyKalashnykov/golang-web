@@ -96,6 +96,21 @@ make version        # Print current version tag
       the prompt: a `sudo` password prompt swallowed the old kubectl block's last line. So that
       block cleans up inside its `if`, the two `apt-get` lines are joined with `&&`, and the
       Homebrew installer is a block of its own in both READMEs.
+- [ ] **Debian 12's podman 4.3.1 cannot build or push the image (measured 2026-10-06).** It has
+      `podman buildx build` but no `podman buildx version`, which `deps-buildx` probes, so every
+      image target stops there; the README and the hint now say podman 4.9 or newer. Letting the
+      probe pass would not be enough: rootless podman there defaults to the `vfs` storage driver
+      (a build ran out of space until `storage.conf` selected overlay), and its buildah 1.28.2
+      does not set `BUILDPLATFORM`, so the two-platform build fails at `go mod download` with
+      `Exec format error`. 4.4 to 4.8 are unmeasured. Use Docker on Debian 12.
+- [x] **README walked on fresh Debian and arm64 Linux VMs, 2026-10-06** (Tested platforms).
+      Docker only, as the README prescribes for every section: Debian 12 and 13 on x86_64 (KVM),
+      Ubuntu 24.04 and 26.04 and Debian 12 and 13 on arm64 (Lima VMs on the Mac, deleted after).
+      A pty harness pasted each block and judged it by its Expect lines; it and its logs were in
+      the session scratchpad and are NOT in the repo. Not exercised: sudo password prompts,
+      ghcr.io (the push used a registry in the VM), push steps 1 and 5, `make release`. On arm64,
+      podman 5.4.2 and 5.7.0 each pushed a two-platform index once; 5.4.2 needed the user's
+      systemd session restarted first, which was not reproduced on a normal login.
 - [ ] **`/shutdown` is gated in the source, not in any published image (2026-10-06).** `main.go`
       registers it only when `ENABLE_SHUTDOWN` is exactly `true`, and logs
       `shutdown endpoint: enabled|disabled` at start. The 0.0.4 image (`latest`) still serves it

@@ -356,7 +356,8 @@ deps-buildx:
 		          echo "  Or switch engines:   make image-build CONTAINER_ENGINE=podman";; \
 		esac; \
 	else \
-		echo "  podman provides buildx via buildah: upgrade podman to 4.0 or newer."; \
+		echo "  This podman has no 'buildx version' (seen with podman 4.3 on Debian 12)."; \
+		echo "  Use podman 4.9 or newer, or Docker: add CONTAINER_ENGINE=docker to the make command."; \
 	fi; \
 	exit 1
 

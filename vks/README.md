@@ -239,8 +239,9 @@ Linux (Debian/Ubuntu), podman:
 sudo apt-get update && sudo apt-get install -y podman
 ```
 
-**Expect:** the install ends without an error; the Check below confirms it. podman must be 4.0 or
-newer (Ubuntu 24.04, Debian 12 or later); on older releases, use docker.
+**Expect:** the install ends without an error; the Check below confirms it. podman must be 4.9 or
+newer (Ubuntu 24.04, Debian 13 or later); on older releases, Debian 12 (podman 4.3) included, use
+docker.
 
 Linux (Debian/Ubuntu), docker. The first line reads which of the two you have:
 
