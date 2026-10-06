@@ -74,6 +74,27 @@ the `lo0` aliases, the root python relay and the two `/etc/hosts` lines. All of 
 with the env file, clone, archives and both kubeconfigs; kubectl on the Mac is v1.36.2 again and
 both engines are stopped. The owner's tunnel process and the lab are his to stop.
 
+**The LoadBalancer address was then reached from the Mac, the same day**, which closes that one
+Expect. podman 6.1.3 again, the README unchanged (all 51 `sh` blocks byte-identical to the walk
+above), each block in a fresh login zsh: steps 1 to 8, every Expect matched (push 34 s,
+`amd64,arm64`; kubectl v1.37.1, then v1.36.2; `IMAGEID` equal to the pushed digest). The lab
+assigned `192.168.101.148`. The owner opened a sixth tunnel to it, the session added its `lo0`
+alias and relay, and step 9's block printed `service/golang-web-service condition met`,
+`http://192.168.101.148:8080/myhello/`, then `Hello, World` with the name of the pod deployed in
+step 8. Step 10 ran (the "Delete the files" block exits 1, as round 12 notes); Harbor's `apps`
+project has no `golang-web` repository and no robot afterwards. The scaffolding, the env file,
+the copy of the two lab passwords and the archives are removed from the Mac; podman is stopped
+and kubectl is v1.36.2. The address is assigned at deploy time (`.144`, `.146` and `.148` that
+day), so its tunnel can only be opened after step 8. The owner's two commands, run on the lab
+host and left running:
+
+```
+ssh -N -o ExitOnForwardFailure=yes -R 127.0.0.1:18443:192.168.100.50:443 -R 127.0.0.1:18444:192.168.101.128:443 -R 127.0.0.1:18445:192.168.101.128:6443 -R 127.0.0.1:18446:192.168.101.130:443 -R 127.0.0.1:18447:192.168.101.132:6443 m1@62.210.166.48
+ssh -N -o ExitOnForwardFailure=yes -R 127.0.0.1:18448:<the assigned address>:8080 m1@62.210.166.48
+```
+
+The Mac side is one relay argument per forward, `<lab ip>:<port>:<tunnel port>`, in that order.
+
 **Resume point:** nothing is pending. The lab was **running** when round 9 began and was left
 running after round 10: this session did not start it, so it did not stop it. If
 `esxi01` is shut off, start it with
