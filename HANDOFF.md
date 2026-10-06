@@ -61,10 +61,11 @@ The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
   inside the Colima VM. It is kept for vks-airgap-cicd. See vks/HANDOFF.md before deleting it.
 - **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`): the owner
   started it on 2026-10-05 and it is his to stop (`make -C ~/projects/nested-vsphere-lab
-  lab-stop`; `lab-start` took about an hour that day). Its `esxi01` VM is **shut off
-  since 2026-10-06 15:11**: the kernel OOM killer killed it. A session had put about 76 GB of
-  test-VM disks in its scratchpad, and `/tmp` on this host is tmpfs (RAM). It was not shut down
-  cleanly, so expect the lab to need checking after the next `lab-start`. Keep large files off
-  `/tmp` here. After the last walk Harbor's `apps` project had no
+  lab-stop`; `lab-start` took about an hour that day). On 2026-10-06 at 15:11 the
+  kernel OOM killer killed its `esxi01` VM: a session had put about 76 GB of test-VM disks in
+  its scratchpad, and `/tmp` on this host is tmpfs (RAM). The owner restarted the lab the same
+  day (`esxi01` was running again by 17:00); nothing inside it was checked after the unclean
+  stop. **Keep VM disks and other large files on real disk (for example `~/.cache`), never in
+  the scratchpad.** After the last walk Harbor's `apps` project had no
   `golang-web` repository and no robot, and the guest cluster's `golang-web` namespace was
   deleted by step 10.
