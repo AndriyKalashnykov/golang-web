@@ -91,6 +91,11 @@ make version        # Print current version tag
       has `interactivecomments` off, so the comment is passed as arguments (`make deps # ...`
       ran nothing; `read -rs TOKEN && export TOKEN # ...` read the token and did not export it).
       A walk that runs each block as a script cannot see it: paste into `zsh -i` on a pty.
+      The second rule (2026-10-05): **in a block, nothing may follow a line that can prompt.**
+      A shell without bracketed paste (macOS `/bin/bash` 3.2) hands the rest of the paste to
+      the prompt: a `sudo` password prompt swallowed the old kubectl block's last line. So that
+      block cleans up inside its `if`, the two `apt-get` lines are joined with `&&`, and the
+      Homebrew installer is a block of its own in both READMEs.
 - [ ] **`BuildTime` in released images (#247) is unproven until the next tag.** The 0.0.4 image's
       `/healthz` reports `"BuildTime":"now"`: `ci.yml` passed `MY_VERSION` but not
       `MY_BUILDTIME`. Both image builds now pass the metadata step's `created` timestamp. A local
@@ -102,7 +107,7 @@ make version        # Print current version tag
       the namespace delete. Not fixed in the Makefile.
 - [ ] **One swallowed Ctrl-C on the Mac:** a Ctrl-C sent while `make run` was still starting did
       not stop it; a later one did. Seen once in the second walk, not reproduced.
-- [x] **vks: settled 2026-09-29** (measured; details in `vks/HANDOFF.md` round 6):
+- [x] **vks: settled 2026-09-29** (measured; details in `vks/HANDOFF.md`, "Settled"):
       - podman 5.8.7 on arm64 Linux builds a correct amd64+arm64 image, so the README offers it
         beside docker. podman 4.9 (Ubuntu 24.04's apt) mislabels; 5.0–5.7 untested.
       - The 9.1.1 Linux_ARM64 plugin bundle exists (SHA-256 matches the portal); the README's
