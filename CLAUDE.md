@@ -104,6 +104,10 @@ make version        # Print current version tag
       does not set `BUILDPLATFORM`, so the two-platform build fails at `go mod download` with
       `Exec format error`. 4.4 to 4.8 are unmeasured. Use Docker on Debian 12.
 - [x] **README walked on fresh Debian and arm64 Linux VMs, 2026-10-06** (Tested platforms).
+      **Re-walked the same day as single clean passes at `29c7329`: 51 of 51 steps on each of the
+      six VMs.** The first x86 walks had been pieced together from several passes after the
+      session's own VM disks filled `/tmp` (RAM on this host) and the lab VM was OOM-killed; the
+      re-walk kept its disks under `~/.cache`. Logs: `~/.cache/gw-x86-walk`, `~/.cache/gw-arm64-walk2`.
       Docker only, as the README prescribes for every section: Debian 12 and 13 on x86_64 (KVM),
       Ubuntu 24.04 and 26.04 and Debian 12 and 13 on arm64 (Lima VMs on the Mac, deleted after).
       A pty harness pasted each block and judged it by its Expect lines; it and its logs were in
