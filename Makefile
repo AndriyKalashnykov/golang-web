@@ -328,6 +328,9 @@ deps-engine:
 	esac; \
 	command -v podman >/dev/null 2>&1 || { echo "ERROR: podman install did not put podman on PATH."; exit 1; }; \
 	echo "podman installed: $$(podman --version)"; \
+	podman buildx version >/dev/null 2>&1 || { \
+		echo "NOTE: this podman has no 'buildx version' (seen with podman 4.3 on Debian 12), so it cannot build the image."; \
+		echo "  Install Docker (https://docs.docker.com/engine/install/), then add CONTAINER_ENGINE=docker to the make command."; }; \
 	case "$(HOST_OS) $$(uname -m)" in "Linux aarch64"|"Linux arm64") \
 		pv=$$(podman --version | sed -n 's/.*version \([0-9][0-9]*\)\..*/\1/p' | head -1); \
 		if [ -n "$$pv" ] && [ "$$pv" -lt 5 ]; then \
@@ -356,8 +359,8 @@ deps-buildx:
 		          echo "  Or switch engines:   make image-build CONTAINER_ENGINE=podman";; \
 		esac; \
 	else \
-		echo "  This podman has no 'buildx version' (seen with podman 4.3 on Debian 12)."; \
-		echo "  Use podman 4.9 or newer, or Docker: add CONTAINER_ENGINE=docker to the make command."; \
+		echo "  '$(CONTAINER_ENGINE) buildx version' failed (seen with podman 4.3 on Debian 12, which lacks it)."; \
+		echo "  podman 4.9 is the oldest tested. Use it or newer, or Docker: add CONTAINER_ENGINE=docker to the make command."; \
 	fi; \
 	exit 1
 
@@ -618,8 +621,8 @@ image-stop:
 #           built there, not even alone). containerd could be made to accept it by relabelling it
 #           `v1`, but podman rejects that (measured, 4.9 and 6.1); skopeo and CRI-O use the same
 #           library (inferred). So such a list is NOT pushed; the message names the ways out.
-#           podman 5.8.7 (arm64 Linux), podman 6.1 (the macOS VM), Docker, and x86 hosts produce
-#           no variant (measured).
+#           podman 5.8.7 (arm64 Linux; 5.4.2 and 5.7.0 once each), podman 6.1 (the macOS VM),
+#           Docker, and x86 hosts produce no variant (measured).
 #           The list's os/arch set must also equal PUSH_PLATFORMS (variants and duplicate
 #           entries are not compared).
 #   docker: loads a multi-platform image (needs the containerd image store) and pushes it.

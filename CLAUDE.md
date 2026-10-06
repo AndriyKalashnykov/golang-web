@@ -109,8 +109,15 @@ make version        # Print current version tag
       A pty harness pasted each block and judged it by its Expect lines; it and its logs were in
       the session scratchpad and are NOT in the repo. Not exercised: sudo password prompts,
       ghcr.io (the push used a registry in the VM), push steps 1 and 5, `make release`. On arm64,
-      podman 5.4.2 and 5.7.0 each pushed a two-platform index once; 5.4.2 needed the user's
-      systemd session restarted first, which was not reproduced on a normal login.
+      podman 5.4.2 and 5.7.0 each pushed a two-platform index once. On Debian 13, 5.4.2's first
+      build failed in runc (no user D-Bus socket) until the user's systemd session was
+      restarted; Lima keeps a session open, so a real log out and back in could not be tried.
+      Untested: Debian 13 with podman only, where the README asks for no re-login between the
+      podman block and the first build.
+      Steps outside the README that the walks needed: Git removed from the Ubuntu arm64 images
+      first; subuid/subgid ranges added for the Lima user before the podman pushes; on Debian 12
+      x86_64, `rm -rf ~/.cache/act` after a full host disk left act's cached jdx-mise-action
+      clone corrupt (`invalid git object`).
 - [ ] **`/shutdown` is gated in the source, not in any published image (2026-10-06).** `main.go`
       registers it only when `ENABLE_SHUTDOWN` is exactly `true`, and logs
       `shutdown endpoint: enabled|disabled` at start. The 0.0.4 image (`latest`) still serves it
@@ -130,7 +137,8 @@ make version        # Print current version tag
       not stop it; a later one did. Seen once in the second walk, not reproduced.
 - [x] **vks: settled 2026-09-29** (measured; details in `vks/HANDOFF.md`, "Settled"):
       - podman 5.8.7 on arm64 Linux builds a correct amd64+arm64 image, so the README offers it
-        beside docker. podman 4.9 (Ubuntu 24.04's apt) mislabels; 5.0–5.7 untested.
+        beside docker. podman 4.9 (Ubuntu 24.04's apt) mislabels; 5.4.2 and 5.7.0 each pushed
+        correctly once on 2026-10-06; other 5.0–5.7 untested.
       - The 9.1.1 Linux_ARM64 plugin bundle exists (SHA-256 matches the portal); the README's
         install block, run as written on arm64, installed every plugin.
       - Step 10's clean-up with the podman engine unreachable prints its message, and the

@@ -86,7 +86,7 @@ The container engine builds and runs the image. Pick one and run only its block.
 
 | You will | Pick |
 |---|---|
-| Build, run or push the image | podman. Or skip this section: `make deps` installs podman when it finds no engine (on Ubuntu or Debian it runs `sudo apt-get` and asks for your password; on macOS it needs Homebrew). |
+| Build, run or push the image | podman. Or skip this section: `make deps` installs podman when it finds no engine (on Ubuntu or Debian it runs `sudo apt-get` and asks for your password; on macOS it needs Homebrew). Not on Debian 12: its podman is too old to build the image, so install Docker there. |
 | Also use the local Kubernetes cluster (`make e2e`) or `make ci-run` | Docker. KinD needs Docker, even when you build images with podman. Docker builds images too, so it is the only engine you need. |
 
 On arm64 Linux (`uname -m` prints `aarch64`), pick Docker if you will push images: podman 4.x
@@ -133,9 +133,10 @@ Linux, podman:
 sudo apt-get update && sudo apt-get install -y podman
 ```
 
-Expect the install to end without an error. podman must be 4.9 or newer (Ubuntu 24.04,
-Debian 13 or later). On older releases, Debian 12 (podman 4.3) included, use Docker: there
-`make image-build` stops with `'podman buildx' is not available`.
+Expect the install to end without an error. podman 4.9 is the oldest version tested (Ubuntu
+24.04 has it; Debian 13 has 5.4). Debian 12 has podman 4.3, which does not work: there
+`make image-build` stops with `'podman buildx' is not available`. Use Docker on Debian 12 and
+on anything older.
 
 Linux, Docker. The first line reads whether you have Ubuntu or Debian:
 
@@ -550,6 +551,7 @@ If it stops:
 | `Push to ... failed.` | Check `OWNER` is yours (step 2), that the token has `write:packages` (step 1), and that you logged in with the same engine you push with (step 3). |
 | `This Docker uses the classic image store` | Follow the printed instructions to turn on the containerd image store, or push one platform: `make image-push PUSH_PLATFORMS=linux/amd64`. |
 | `podman older than 5 is refused` (arm64 Linux with podman 4.x) | Use Docker for both steps: `make registry-login CONTAINER_ENGINE=docker`, then `make image-push CONTAINER_ENGINE=docker`. Or upgrade to podman 5.8. |
+| `'podman buildx' is not available` (podman older than 4.9, such as Debian 12's 4.3) | Use Docker for both steps: `make registry-login CONTAINER_ENGINE=docker`, then `make image-push CONTAINER_ENGINE=docker`. |
 
 ### 5. Deploy the image you pushed
 
@@ -649,7 +651,7 @@ fills them from the pod.
 | Ubuntu 24.04.5 LTS | x86_64 | GNU Make 4.3, Git 2.43.0, podman 4.9.3, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
 | Ubuntu 26.04.1 LTS | x86_64 | GNU Make 4.4.1, Git 2.53.0, podman 5.7.0, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
 | Debian 12.15 | x86_64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section, with Docker only. podman 4.3.1 does not build the image; see [Install a container engine](#install-a-container-engine) |
-| Debian 13.7 | x86_64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section with Docker only, and again with both engines installed |
+| Debian 13.7 | x86_64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section with Docker only. On a second machine with podman and Docker both installed, every section again, with podman (the default there) building and pushing the image |
 | Ubuntu 24.04.4 LTS | arm64 | GNU Make 4.3, Git 2.43.0, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.9.3 | Every section, with Docker only. Three endpoint checks (`/healthz` after `make build`, `/metrics`, `/shutdown` off) passed but their logs were lost. With podman, `make image-push` refused as documented |
 | Ubuntu 26.04 LTS | arm64 | GNU Make 4.4.1, Git 2.53.0, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.7.0 | Every section, with Docker only. With podman, `make image-push` pushed both architectures |
 | Debian 12.15 | arm64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.3.1 | Every section, with Docker only. With podman, `make image-push` stops at `'podman buildx' is not available` |
@@ -657,8 +659,9 @@ fills them from the pod.
 | macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | Every section except the kubectl install block |
 | macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 via Colima 0.10.3, kubectl 1.36.2 and 1.37.1, kind 0.33.0 | Every section |
 
-The Debian rows and the arm64 rows are from 2026-10-06, each on a new virtual machine with
-nothing installed (the arm64 ones on an Apple silicon Mac), at commit `3509352`. In those
+The Debian rows and the arm64 rows are from 2026-10-06, each on a new virtual machine (the
+arm64 ones on an Apple silicon Mac; the Ubuntu images came with Git and curl, and Git was
+removed first), at commit `3509352`. In those
 walks sudo never asked for a password. The push section ran steps 2 to 4 against a registry on
 the same machine, not ghcr.io; steps 1 and 5 were not run, and the image for the other
 architecture was pushed but not run. `make release` was not run. Intel Macs are not tested.
