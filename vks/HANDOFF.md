@@ -42,7 +42,7 @@ file instead), `brew install jq` on a macOS that lacks jq, and the Broadcom port
   inferred). Whether a 9.1.1 `Darwin_AMD64` plugin bundle exists is unknown.
 - Docker Desktop or OrbStack installed beside Colima, and a failing `colima start`.
 - macOS older than 26: whether it ships `jq` is unverified.
-- podman 5.0 to 5.7 on arm64 Linux (4.9.3 fails and 5.8.7 works; see below).
+- podman 5.x on arm64 Linux other than 5.4.2, 5.7.0 (one push each, 2026-10-06) and 5.8.7; 4.9.3 fails (see below).
 - The Supervisor's own VCF CLI download when it works (this lab returns 503; see below).
 - `kubectl_install`'s new `sudo failed` message was not walked on the lab, only reproduced with
   a failing `sudo` on Linux and the Mac.

@@ -18,6 +18,9 @@ user:
   on the Mac (macOS 26.6.1) from a state with no clone and no mise, `make e2e` included. The
   Linux install blocks ran in clean `ubuntu:24.04`, `ubuntu:26.04`, `debian:12` and `debian:13`
   containers, amd64 here and arm64 under Colima. The push section ran against the lab's Harbor.
+  On 2026-10-06 every section was also walked, Docker only, on fresh Debian 12 and 13 x86_64
+  VMs and on Ubuntu 24.04, 26.04 and Debian 12, 13 arm64 VMs; see the README's Tested platforms
+  and the two 2026-10-06 entries in CLAUDE.md's backlog.
 - **`vks/README.md`:** steps 1 to 10 walked on the lab with Linux podman, Linux docker, and
   both macOS engines, including the app's LoadBalancer address reached from the Mac. Details
   are in `vks/HANDOFF.md`.

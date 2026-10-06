@@ -239,8 +239,9 @@ Linux (Debian/Ubuntu), podman:
 sudo apt-get update && sudo apt-get install -y podman
 ```
 
-**Expect:** the install ends without an error; the Check below confirms it. podman must be 4.0 or
-newer (Ubuntu 24.04, Debian 12 or later); on older releases, use docker.
+**Expect:** the install ends without an error; the Check below confirms it. podman 4.9 is the
+oldest version tested (Ubuntu 24.04 has it; Debian 13 has 5.4). Debian 12 has podman 4.3, which
+does not work: use docker there and on anything older.
 
 Linux (Debian/Ubuntu), docker. The first line reads which of the two you have:
 
@@ -1130,5 +1131,6 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | Pod crash-loops | `kubectl logs deploy/golang-web --previous`, and send the output to the app's owner. |
 | `blob upload invalid` on push | Harbor's storage is full: ask your administrator to run garbage collection or add space, then push again. |
 | `labelled the amd64 image variant 'v8'`, or `labelling the amd64 image with a variant`, in step 6 | podman older than 5 on an arm64 Linux machine: push with docker (`CONTAINER_ENGINE=docker` in the env file), or podman 5.8 (measured correct). Only if every node is arm64: `PUSH_PLATFORMS=linux/arm64`. |
+| `'podman buildx' is not available`, in step 6 | podman older than 4.9 (Debian 12 has 4.3): push with docker (`CONTAINER_ENGINE=docker` in the env file). |
 | `exec format error` in the pod | The image lacks the node's architecture: push again without `PUSH_PLATFORMS`, or include the node's (`linux/amd64`). |
 | Pod rejected at admission | The cluster enforces the `restricted` security policy, and `k8s/golang-web.yaml` complies. If you changed the file, keep it compliant; if not, send the message from `kubectl get events` to your administrator. |
