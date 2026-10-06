@@ -43,7 +43,10 @@ func getMetricValue(col prometheus.Collector) float64 {
 func newServeMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", handleHealth)
-	mux.HandleFunc("/shutdown", handleShutdown)
+	// /shutdown exits the process for anyone who can reach it, so it is off unless asked for.
+	if getenv("ENABLE_SHUTDOWN", "false") == "true" {
+		mux.HandleFunc("/shutdown", handleShutdown)
+	}
 	mux.Handle("/metrics", promhttp.Handler())
 
 	appContext := getenv("APP_CONTEXT", "/")

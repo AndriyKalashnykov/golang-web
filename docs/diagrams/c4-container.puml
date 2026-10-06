@@ -26,7 +26,7 @@ System_Ext(prometheus, "Prometheus (optional)", "Not part of this repo. Any Prom
 
 System_Boundary(cluster, "Kubernetes test cluster (KinD locally)") {
     Container(svc, "golang-web-service", "Service type=LoadBalancer", "Exposes port 8080; the external IP is allocated by cloud-provider-kind on KinD")
-    Container(app, "golang-web", "Go 1.27 · net/http · distroless nonroot", "Single static binary /manager. Serves the main page on /myhello/ (APP_CONTEXT), /healthz, /metrics and /shutdown. Prints the pod name, namespace, node, IP and service account that Kubernetes sets (Downward API). Runs as uid 65532 with a read-only rootfs and ALL capabilities dropped.")
+    Container(app, "golang-web", "Go 1.27 · net/http · distroless nonroot", "Single static binary /manager. Serves the main page on /myhello/ (APP_CONTEXT), /healthz and /metrics; /shutdown only when ENABLE_SHUTDOWN=true. Prints the pod name, namespace, node, IP and service account that Kubernetes sets (Downward API). Runs as uid 65532 with a read-only rootfs and ALL capabilities dropped.")
 }
 
 System_Ext(ghcr, "GHCR", "ghcr.io/andriykalashnykov/golang-web — multi-arch image, cosign keyless-signed on tag builds")

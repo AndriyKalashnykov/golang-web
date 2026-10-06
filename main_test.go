@@ -305,3 +305,30 @@ func TestNewServeMuxDefaultContext(t *testing.T) {
 		t.Errorf("GET / status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 }
+
+// shutdownPattern reports which mux pattern serves /shutdown, without calling the handler
+// (it exits the process).
+func shutdownPattern(t *testing.T) string {
+	t.Helper()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/shutdown", http.NoBody)
+	_, pattern := newServeMux().Handler(req)
+	return pattern
+}
+
+func TestShutdownRouteOffByDefault(t *testing.T) {
+	t.Setenv("APP_CONTEXT", "/app/") // so an unregistered /shutdown matches no pattern at all
+	for _, v := range []string{"", "false", "1", "TRUE", "yes"} {
+		t.Setenv("ENABLE_SHUTDOWN", v)
+		if got := shutdownPattern(t); got != "" {
+			t.Errorf("ENABLE_SHUTDOWN=%q: /shutdown served by pattern %q, want no route", v, got)
+		}
+	}
+}
+
+func TestShutdownRouteOnWhenEnabled(t *testing.T) {
+	t.Setenv("APP_CONTEXT", "/app/")
+	t.Setenv("ENABLE_SHUTDOWN", "true")
+	if got := shutdownPattern(t); got != "/shutdown" {
+		t.Errorf("ENABLE_SHUTDOWN=true: /shutdown served by pattern %q, want %q", got, "/shutdown")
+	}
+}

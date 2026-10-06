@@ -29,7 +29,7 @@ export REGISTRY_USERNAME
 # on from .env or the shell. Unset ones reach the app empty, which it treats as its default.
 # PORT is not listed: `make run` sets it from APP_PORT. `make check-env` keeps this list complete.
 # Keep it on one line: check-env reads it.
-APP_ENV_VARS := APP_CONTEXT MESSAGE_TO MY_NODE_NAME MY_POD_NAME MY_POD_NAMESPACE MY_POD_IP MY_POD_SERVICE_ACCOUNT
+APP_ENV_VARS := APP_CONTEXT MESSAGE_TO ENABLE_SHUTDOWN MY_NODE_NAME MY_POD_NAME MY_POD_NAMESPACE MY_POD_IP MY_POD_SERVICE_ACCOUNT
 export $(APP_ENV_VARS)
 OPV := $(IMAGE_REGISTRY)/$(OWNER)/$(PROJECT):$(VERSION)
 CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
