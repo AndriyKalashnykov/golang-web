@@ -78,32 +78,14 @@ make version        # Print current version tag
 
 ## Upgrade Backlog
 
-- [ ] **NEXT SESSION, first: reach the app's LoadBalancer address from the Mac** (vks guide,
-      step 9's first block). It is the one Expect of the 2026-10-05 macOS lab walk that did not
-      match: `kubectl wait` passed, the `curl` timed out, because the address is a private lab
-      IP with no tunnel. `/etc/hosts` cannot fix it (the block uses the raw IP). The lab assigns
-      the IP at deploy time (`.144` and `.146` that day), so its tunnel can only be opened after
-      step 8. About 15 minutes; needs the lab running and the owner at a terminal:
-      1. **Owner** opens the five-port tunnel on the lab host and leaves it running (the
-         session is not allowed to open tunnels or start the lab):
-         ```
-         ssh -N -o ExitOnForwardFailure=yes -R 127.0.0.1:18443:192.168.100.50:443 -R 127.0.0.1:18444:192.168.101.128:443 -R 127.0.0.1:18445:192.168.101.128:6443 -R 127.0.0.1:18446:192.168.101.130:443 -R 127.0.0.1:18447:192.168.101.132:6443 m1@62.210.166.48
-         ```
-      2. Session rebuilds the Mac side as in `vks/HANDOFF.md` (2026-10-05 note and round 9):
-         `lo0` aliases of the four lab IPs, a root `/usr/bin/python3` relay from each
-         `<lab ip>:<port>` to its tunnel port, two `/etc/hosts` lines for the vCenter and Harbor
-         names. Then runs the guide through step 8 on one engine and reports the IP assigned.
-      3. **Owner** opens one more tunnel in a second terminal, with that IP filled in:
-         ```
-         ssh -N -o ExitOnForwardFailure=yes -R 127.0.0.1:18448:<the IP>:8080 m1@62.210.166.48
-         ```
-      4. Session adds the alias and relay for that IP (`<the IP>:8080` to `18448`), runs step
-         9's address block (Expect: the URL, then `Hello, World`), then step 10 and removes the
-         scaffolding.
-      It puts the lab's vCenter SSO and Harbor admin passwords on the rented Mac for the
-      duration; remove the env file and the walk directory at the end. What it proves is small:
-      the same block passed from Linux on both engine paths that day. Done when the block's
-      Expect matches on the Mac and `vks/HANDOFF.md` says so.
+- [x] **The app's LoadBalancer address reached from the Mac, 2026-10-05** (vks guide, step 9's
+      first block). It was the one Expect of that day's macOS lab walk that had not matched:
+      the address is a private lab IP and had no tunnel. The guide was run again on the Mac
+      with podman, steps 1 to 8; the lab assigned `192.168.101.148`; the owner opened a sixth
+      tunnel to it, and the block printed the URL, then `Hello, World` from the pod deployed
+      in step 8. Step 10 ran and the scaffolding was removed. To repeat it: the lab assigns
+      the address at deploy time (`.144`, `.146` and `.148` that day), so its tunnel can only
+      be opened after step 8. The tunnel commands are in `vks/HANDOFF.md`.
 - [x] **README validated as a first-time user, 2026-10-04** (#247, #250 to #253). The rule to
       keep: **no comment on a command line in a fenced block.** macOS's default interactive zsh
       has `interactivecomments` off, so the comment is passed as arguments (`make deps # ...`

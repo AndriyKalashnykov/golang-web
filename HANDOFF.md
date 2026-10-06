@@ -45,9 +45,12 @@ second block printed `Homebrew 7.0.8`. More text follows that line, so both READ
 installer prints it "near its end". A session without that password cannot run the installer.
 
 The same day the owner started the lab and the vks guide's Linux podman path was walked on it,
-steps 1 to 10, and then its Linux docker path; details are in `vks/HANDOFF.md`. and then both macOS
-engines from the Mac, through tunnels the owner opened (the session may not open them or
-start the lab). The lab was left running.
+steps 1 to 10, then its Linux docker path, and then both macOS engines from the Mac, through
+tunnels the owner opened (the session may not open them or start the lab). Details are in
+`vks/HANDOFF.md`. The one Expect that did not match there, step 9's LoadBalancer address, was
+closed the same day: podman on the Mac again, steps 1 to 8, a sixth tunnel to the address the
+lab assigned (`192.168.101.148`), and the block printed the URL and `Hello, World`. The lab was
+left running.
 
 A rule that came out of it: **in a block, nothing may follow a line that can prompt.** A shell
 without bracketed paste (macOS `/bin/bash` 3.2) hands the rest of the paste to the prompt:
@@ -118,10 +121,8 @@ and tag); the fixed pod ran 2 h with 0 restarts; `make ci-run` passes on Linux a
 
 ## Next
 
-1. **First:** reach the app's LoadBalancer address from the Mac (vks guide, step 9). The steps
-   are the top item of CLAUDE.md's Upgrade Backlog; it needs the owner to open two tunnels.
-2. **After 2026-10-19:** read the first CI run that lands on Ubuntu 26 (`ubuntu-latest` moves).
-3. **At the next release:** check `/healthz` of the released image shows a build timestamp, not
+1. **After 2026-10-19:** read the first CI run that lands on Ubuntu 26 (`ubuntu-latest` moves).
+2. **At the next release:** check `/healthz` of the released image shows a build timestamp, not
    `now` (#247; it runs only on a tag, so a local build is the only proof so far).
 
 The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
@@ -136,17 +137,17 @@ The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
   relay. It is kept for vks-airgap-cicd. See vks/HANDOFF.md before deleting it.
 - **KinD:** no cluster on this host (the last one was created and deleted on 2026-10-04).
   `make e2e` creates one when needed.
-- **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`) is **stopped**:
-  this session started it on 2026-10-03 for the push test and stopped it on 2026-10-04
-  (`lab stopped`, `esxi01` shut off). Start it with `make -C ~/projects/nested-vsphere-lab
-  lab-start` (about 23 minutes). Harbor's `apps` project has no `golang-web` repository and no
-  robot; the guest cluster has no `golang-web` namespace. `make guest-login` there rewrote
-  `kubeconfig-guest` with a fresh token.
+- **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`) is **running**:
+  the owner started it on 2026-10-05 and it is his to stop (`make -C
+  ~/projects/nested-vsphere-lab lab-stop`; `lab-start` took about an hour that day). After the
+  last walk Harbor's `apps` project has no `golang-web` repository and no robot (checked
+  through its API), and the guest cluster's `golang-web` namespace was deleted by step 10.
 - **The Mac** was left as found after both walks: podman machine and Colima stopped, no clone, no
   mise, no Go caches, no registry login. Left by the walks: `~/.kube/config` (28 bytes, written
   by kind), an empty `~/.local/state`, and a `kind` network inside the Colima VM.
 - **This host** (checked 2026-10-04): no tunnels, KinD clusters, golang-web test containers or
-  worktrees. Not from this repo and left alone: podman's Harbor login as `robot$vks-cicd` (it
+  worktrees. On 2026-10-05 the owner's two `ssh -N -R` tunnels to the Mac were still running
+  when the session ended; they are his to stop. Not from this repo and left alone: podman's Harbor login as `robot$vks-cicd` (it
   belongs to vks-airgap-cicd), two `nodejswebapp-builder` containers from 2026-09-05, and the
   docker `multi-platform-builder` buildx container. `ghcr.io/andriykalashnykov/golang-web:latest`
   in both engines is now the 0.0.4 image (re-pulled 2026-10-03).
