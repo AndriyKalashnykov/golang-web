@@ -95,7 +95,9 @@ Copy the Darwin VCF CLI archives from the lab host's `~/Downloads/vcf` into the 
 ## The lab
 
 `~/projects/nested-vsphere-lab`. The owner started it on 2026-10-05 and it is his to stop
-(`make -C ~/projects/nested-vsphere-lab lab-stop`). Its `esxi01` VM was running on 2026-10-06.
+(`make -C ~/projects/nested-vsphere-lab lab-stop`). Its `esxi01` VM is shut off since 2026-10-06
+15:11: the kernel OOM killer killed it (a session filled `/tmp`, which is RAM on this host, with
+test-VM disks). It did not shut down cleanly.
 `lab-start` took about an hour on 2026-10-05 until Harbor answered: Harbor's pods sat in
 `FailedAttachVolume` for over 20 minutes and recovered without anyone deleting them.
 
