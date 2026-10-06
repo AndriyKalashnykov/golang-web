@@ -278,8 +278,11 @@ make version        # Print current version tag
 Owner decisions of 2026-10-06, after a three-way comparison of this README, `vks/README.md` and
 `~/projects/vks-airgap-cicd`. Do not "fix" these as inconsistencies:
 
-- **GNU Make on macOS:** vks-airgap-cicd needs GNU Make 3.82 or newer and uses Homebrew's `gmake`;
-  that stays. This Makefile runs on Apple's make 3.81 and on `gmake`, and the README says so.
+- **GNU Make on macOS:** all three guides start a Mac from Homebrew. vks-airgap-cicd also needs
+  GNU Make 3.82 or newer, so it uses Homebrew's `gmake`; that stays. This Makefile runs on the
+  make 3.81 that Homebrew's installer adds with Apple's command line tools, so it does not ask
+  for `brew install make`. The standalone `xcode-select --install` route was removed from the
+  README so that Homebrew is the one macOS path.
 - **Docker on Linux:** this README adds Docker's apt repository (`docker-ce`); vks-airgap-cicd
   installs the distro's `docker.io` because it never adds a third-party repo to a jump box.
 - **KinD LoadBalancers on macOS:** here cloud-provider-kind maps the Service port to the Mac's

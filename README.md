@@ -27,12 +27,12 @@ blocks for your system; the Linux blocks are for Ubuntu and Debian.
 | Tool | Needed for | Install it in |
 |------|------------|---------------|
 | [GNU Make](https://www.gnu.org/software/make/), [Git](https://git-scm.com/), [curl](https://curl.se/) | Every section. `make deps` cannot run without them. | [Install make, Git and curl](#install-make-git-and-curl) |
-| [Homebrew](https://brew.sh) (macOS only) | Installing podman or Docker on a Mac | [Install Homebrew](#install-homebrew-macos-only) |
+| [Homebrew](https://brew.sh) (macOS only) | Every section on a Mac: its installer adds make and Git, and the engine blocks use it | [Install Homebrew](#install-homebrew-macos-only) |
 | [podman](https://podman.io/) or [Docker](https://docs.docker.com/) | The image sections. The Kubernetes sections and `make ci-run` need Docker. | [Install a container engine](#install-a-container-engine) |
 | [kubectl](https://kubernetes.io/docs/reference/kubectl/) | The two Kubernetes sections and step 5 of the push section | [Install kubectl](#install-kubectl) |
 
-To only build, test and run the app, install make, Git and curl and go to
-[Run it locally](#run-it-locally).
+To only build, test and run the app, install make, Git and curl (on a Mac: Homebrew) and go
+to [Run it locally](#run-it-locally).
 
 ### Install make, Git and curl
 
@@ -44,24 +44,15 @@ sudo apt-get update && sudo apt-get install -y make git curl
 
 Expect the install to end without an error.
 
-macOS already has curl; make and Git come with Apple's command line tools. Skip this command
-if you install Homebrew in the next section: its installer adds them.
-
-```bash
-xcode-select --install
-```
-
-Expect a dialog asking to install the tools, or
-`xcode-select: note: Command line tools are already installed` if you have them.
-
-Homebrew's GNU Make is installed as `gmake`. You do not need it here: every `make` command
-in this README runs with Apple's make, and `gmake` works too if you already have it.
+macOS: install Homebrew in the next section instead. Its installer adds make and Git, and
+macOS already has curl. You do not need `brew install make`: that adds GNU Make as `gmake`,
+and every `make` command in this README runs with the make the installer adds.
 
 ### Install Homebrew (macOS only)
 
-Homebrew is the macOS package manager the engine blocks below use. Skip this block if
-`brew --version` already works. The installer asks for your password, installs Apple's command
-line tools too, and can take several minutes.
+On a Mac, install Homebrew first: its installer adds Apple's command line tools (make and
+Git), and the engine blocks below use it. Skip this block if `brew --version` already works.
+The installer asks for your password and can take several minutes.
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
