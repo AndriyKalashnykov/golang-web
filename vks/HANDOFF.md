@@ -50,16 +50,20 @@ in bash 5, zsh 5.9 and bash 3.2.
 | the same, bash 3.2 | the same | the four clean-up blocks, back to a bare lab; steps 1 to 3 separately |
 | the same, `zsh -il` and `bash -il` reading the block from stdin | the same | four blocks fed line by line on a second run: `unchanged`, and the same output |
 
-`ARGOCD-manual.md` (19 `sh` blocks, 17 screenshots in `vks/img/argocd/`) was walked once on
-2026-10-07 in Chrome on Linux against the same lab: the service removed and installed again in
-the vSphere Client, the Application created (once pre-filled through the page's address and synced, once by a
-simulated clipboard paste of the guide's 20 lines into the YAML editor, then SAVE and CREATE,
-not synced), synced and deleted in the ArgoCD page, and each
-`kubectl` block run in bash and zsh (the instance, role-binding, namespace and project blocks as
-second runs). Not run for it: macOS; the clean-up `kubectl` blocks as written; the browser's
-certificate viewer (step 5's wording is from Chrome's menus, the fingerprint comparison itself
-was not done in a browser). The screenshots are crops of that walk and must be retaken when the
-vSphere Client or ArgoCD page changes.
+`ARGOCD-manual.md` (19 `sh` blocks, 17 screenshots in `vks/img/argocd/`) was walked on 2026-10-07
+against the same lab:
+
+| path | where | result |
+|---|---|---|
+| the vSphere Client and the ArgoCD page | Chrome on Linux | the service removed and installed again; the Application created (once pre-filled through the page's address and synced, once by a simulated clipboard paste of the guide's 20 lines into the YAML editor, then SAVE and CREATE), synced, and deleted with Foreground |
+| the `kubectl` blocks, Linux | bash and zsh | each non-destructive block as written, several as second runs |
+| the `kubectl` blocks, macOS 26.6.1 (M2) | zsh for blocks 1 to 14 and the two instance clean-up blocks; bash 3.2 for the cluster registration, its removal, the by-name "is it gone" check and four second runs | every Expect matched, against a real instance and a real test guest cluster (Available in 5m16s); the three page actions were stood in for by `kubectl` on the Mac |
+
+Not run for it: the browser's certificate viewer (step 5's click path is from Chrome's menus; the
+fingerprint comparison itself was not done in a browser). The screenshots are crops of the Linux
+walk and must be retaken when the vSphere Client or ArgoCD page changes. On the Mac the "delete
+the Supervisor login, then log in again" remedy both guides give was needed for real (a stale
+`supervisor` context) and worked.
 
 Not covered: the main guide's kubeconfig pointer (end of step 7) on macOS, which had no tunnel
 to the new cluster's address; a terminal paste on a real pty; a real `sudo` password prompt; the vSphere Client alternative in step 4 (taken from Broadcom's 9.1 pages);
