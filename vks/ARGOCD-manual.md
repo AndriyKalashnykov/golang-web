@@ -48,7 +48,8 @@ The main guide's [terms](README.md#learn-the-terms) apply. New here:
 
 Your Supervisor login from the main guide lasts about 10 hours. When a `kubectl` command in this
 guide answers `error: You must be logged in to the server (Unauthorized)`, run the main guide's
-*Renew the Supervisor login* block (step 7), then the command again.
+*Renew the Supervisor login* block (step 7), then the command again. If you logged in with the
+certificate-checking alternative, use the renew block inside that alternative instead.
 
 ## 1. Download the service manifest
 
@@ -575,7 +576,7 @@ page is reloaded.
 
 | symptom | fix |
 |---|---|
-| `error: You must be logged in to the server (Unauthorized)` | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's *Renew the Supervisor login* block (step 7), then the command again. |
+| `error: You must be logged in to the server (Unauthorized)` | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's *Renew the Supervisor login* block (step 7), then the command again. If you logged in with the certificate-checking alternative, use the renew block inside that alternative instead. |
 | `error: stat …supervisor.kubeconfig: no such file or directory`, or an empty `--kubeconfig` error | The block's first line did not run, or the main guide's step 7 was never done on this machine. |
 | The browser refuses the ArgoCD page with no way to go on | Some company browsers forbid pages with a certificate they cannot check. Use [ARGOCD-auto.md](ARGOCD-auto.md), which needs no browser. |
 | The Application shows **OutOfSync** right after a sync | `kubernetesVersion` has a `-vkr.N` ending. Open the Application's **DETAILS** → **PARAMETERS**, remove the ending, save, and sync again. |

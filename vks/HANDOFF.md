@@ -5,15 +5,16 @@ current state, how to walk the guide again, and what is already measured. It is 
 replace what changes, and leave the history to git (the round-by-round record is in this file's
 history up to 2026-10-05).
 
-## Where it stands — 2026-10-06
+## Where it stands — 2026-10-07
 
 `vks/README.md` builds `golang-web`, pushes it to Harbor and deploys it to a VKS guest cluster.
 **All work is merged; nothing is in flight.** It is pinned to **VCF CLI 9.1.1.0**
 (`vcf version` prints `v9.1.1.0.25662425`; the plugin bundle is build 25665404). The README has
 54 `sh` blocks; all parse with `bash -n` and `zsh -n`.
 
-Walks of the current text (last changed at `97adb90`), all on 2026-10-05 against the lab, each
-block run as written and judged by its Expect line:
+Walks of the text as of `97adb90`, all on 2026-10-05 against the lab, each block run as written
+and judged by its Expect line (step 7's login, alternative and renew blocks changed on
+2026-10-07 and were run separately: see *kubectl and the VCF CLI* below):
 
 | path | where | result |
 |---|---|---|
@@ -288,8 +289,9 @@ Everything here was measured unless it says otherwise.
     `context supervisor not found`;
   - the certificate choice lives in the kubeconfig's cluster entry and refresh keeps it when
     given no flag; **refresh with `--insecure-skip-tls-verify` on a login made with a CA removes
-    the CA and writes the skip flag, silently** (seen on both machines). That is why the default
-    renew block and the alternative's renew block each carry their own flag;
+    the CA and writes the skip flag, silently** (seen on both machines). A renew line with no
+    flag would be safe on both paths; the owner wants the skip flag shown on the default path,
+    so each path has its own renew block and every pointer to the default one names the other;
   - a namespace granted after login does not appear while the token is valid (not run: read
     from the skip message), so the remedy for that is delete and log in again.
 - `vcf context create … --workload-cluster-name <cluster> --workload-cluster-namespace <ns>`
@@ -304,9 +306,9 @@ Everything here was measured unless it says otherwise.
   VMware's 9.1 pages give these two as the end-user ways and the `<cluster>-kubeconfig` Secret
   the guide reads as the administrator way. The guide keeps the Secret: it does not end after
   10 hours, and an Edit user is cluster-admin in the guest either way (READ, 9.0 page).
-- Not run: the changed blocks in a clean `ubuntu:24.04` container (they ran on the lab host
-  in an empty home with only `vcf` and `kubectl` on PATH); a login with `--auth-type basic` on
-  a Supervisor that has an external identity provider (READ, Broadcom KB 417617).
+- The changed blocks also ran in a clean `ubuntu:24.04` container (bash, non-root, only `vcf`
+  and `kubectl` added), every Expect matched. Not run: a login with `--auth-type basic` on a
+  Supervisor that has an external identity provider (READ, Broadcom KB 417617; the lab has none).
 
 - kubectl comes from dl.k8s.io through `kubectl_install`: newest stable in step 2 (v1.37.1 on
   2026-10-05), then the guest's version in step 7 (v1.36.2). The v1.37.1 client ran `version`,

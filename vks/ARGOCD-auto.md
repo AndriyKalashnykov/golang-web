@@ -59,9 +59,11 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE"
 
 **Expect:** no `MISSING` line, then your vSphere Namespace, `Active`.
 
-**If not:** do the main guide's step for each `MISSING` line. `Unauthorized`, or a kubeconfig
-that is not found: run the main guide's step 7, *Log in to the Supervisor*; if you logged in
-before, its *Renew the Supervisor login* block is enough (a login lasts about 10 hours).
+**If not:** do the main guide's step for each `MISSING` line. `Unauthorized`: run the main
+guide's *Renew the Supervisor login* block (step 7; a login lasts about 10 hours, and the
+certificate-checking alternative has its own renew block). A kubeconfig that is not found: run
+step 7's *Log in to the Supervisor* (if it answers `already exists`, run step 10's *Delete the
+Supervisor login* block first).
 
 Create this guide's two files. `~/.vks-argocd.env` holds its settings and is kept if it already
 exists; `~/.vks-argocd.functions` holds five helper commands and is rewritten every time.
@@ -706,7 +708,7 @@ if /usr/local/bin/argocd version --client 2>/dev/null | grep -q -e -vcf; then su
 
 | symptom | fix |
 |---|---|
-| `error: You must be logged in to the server (Unauthorized)`, or a helper says *the Supervisor login ended* | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's *Renew the Supervisor login* block (step 7), then the block again. |
+| `error: You must be logged in to the server (Unauthorized)`, or a helper says *the Supervisor login ended* | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's *Renew the Supervisor login* block (step 7), then the block again. If you logged in with the certificate-checking alternative, use the renew block inside that alternative instead. |
 | `vc: no vCenter session — run vc_login` | A step 4 block was run without the one before it, or after `vc_logout`. Run `vc_login`, then the block again. |
 | A step 4 block prints `unauthenticated` or `HTTP 401` | The vCenter session ended. Run `vc_login` (once), then the block again. |
 | `argocd_session: command not found`, or `vc_login: command not found` | Re-run step 1's second block; it rewrites `~/.vks-argocd.functions` and keeps your values. |

@@ -780,15 +780,15 @@ else
     vcf context create supervisor --type k8s \
       --endpoint "https://${SUPERVISOR_ENDPOINT}" \
       --username "$SSO_USERNAME" \
-      --ca-certificate "$SUPERVISOR_CA"
+      --ca-certificate "$SUPERVISOR_CA" --auth-type basic
   kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" config use-context supervisor
 fi
 ```
 
 **Expect:** the same three things as above.
 
-**If not:** a certificate error — check `SUPERVISOR_ENDPOINT` and step 2's vCenter CA. The other
-two lines above apply here too.
+**If not:** a certificate error — check `SUPERVISOR_ENDPOINT` and step 2's vCenter CA. The three
+lines under the block above apply here too.
 
 When this login ends, renew it with this block, NOT the one under *Renew the Supervisor login*
 (that one would switch this login to skipping the check, without saying so):
@@ -804,10 +804,11 @@ fi
 
 </details>
 
-This guide logs in with the SSO user and a password; `--auth-type basic` asks for exactly that,
-also on a Supervisor that offers a login through a web page (an external identity provider such
-as Okta or Entra ID). If your account exists only in that provider, the password login fails and
-is out of scope: ask your administrator for another way to get the guest cluster's kubeconfig, save it
+This guide logs in with the SSO user and a password; `--auth-type basic` asks for exactly that.
+Broadcom documents the flag for a Supervisor that otherwise opens a web-page login (KB 417617);
+this guide was not tested on one. If the password login fails because your account exists only
+in an external identity provider (such as Okta or Entra ID), that is out of scope: ask your
+administrator for another way to get the guest cluster's kubeconfig, save it
 with `source ~/.vks-golang-web.env; mkdir -p ~/.kube; cp <file> "$GUEST_KUBECONFIG"`, run
 `kubectl_install "$(kubectl version -o json | jq -r .serverVersion.gitVersion)"`,
 then continue at *Check the guest cluster* below.
@@ -822,16 +823,19 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE"
 **Expect:** your vSphere Namespace, `Active`.
 
 **If not:** `NotFound` — check `VKS_NAMESPACE`. `Forbidden` — ask your administrator for the
-**Edit** role on it. `Unauthorized` or a login prompt — the login above did not work; run it
-again.
+**Edit** role on it. `Unauthorized` or a login prompt — the login ended or did not work: run
+*Renew the Supervisor login* below, then this check again.
 
 ### Renew the Supervisor login
+
+Skip this the first time through. **If you logged in with the alternative (certificate
+checked), do NOT run this block: use the renew block inside that alternative.** This one would
+switch your login to skipping the check, without saying so.
 
 The login lasts about 10 hours. You need this block only when a `kubectl` command to the
 Supervisor answers `error: You must be logged in to the server (Unauthorized)`; while the login
 is still valid it changes nothing, so there is no reason to run it before or after other blocks.
-It logs in again with the password in the env file, so the lock-out rule above applies. If you
-logged in with the alternative (certificate checked), use the block inside that alternative.
+It logs in again with the password in the env file, so the lock-out rule above applies.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -843,13 +847,14 @@ fi
 ```
 
 **Expect:** `Successful re-authentication completed for context "supervisor"`, or `Token is still
-active. Skipped the token refresh for context "supervisor"` when the login had not ended.
+active. Skipped the token refresh for context "supervisor"` when the login had not ended. Then
+run the command that answered `Unauthorized` again. If you saw `Token is still active` and the
+command still answers `Unauthorized`, the login is not the cause: check that the command uses
+`--kubeconfig "$SUPERVISOR_KUBECONFIG"`.
 
 **If not:**
 - `context supervisor not found`: you have no saved login; log in with the block above.
 - A login error: check `SSO_USERNAME` and `VCF_CLI_VSPHERE_PASSWORD` (in single quotes).
-- A vSphere Namespace you were given after you logged in does not appear: run step 10's *Delete
-  the Supervisor login* block, then log in again.
 
 ### Get the guest cluster's kubeconfig
 
@@ -1201,7 +1206,8 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `vcf plugin list` pauses on `Refreshing plugin inventory cache` | Wait: it stops by itself after about 30 s (it cannot reach VMware's plugin server). The installed plugins do not need that server. |
 | Every `vcf` command first prints `The vcf cli essential plugins have not been installed …` and `Failed to install plugin 'telemetry:v9.0.2'` | Harmless: the command still runs. It happens on a machine that had another `vcf` before; a fresh install by step 2 does not print it. To silence it, run `export VCF_CLI_ESSENTIALS_PLUGIN_GROUP_VERSION=v9.1.1` (add the line to `~/.zshrc` or `~/.bashrc` to keep it). The setting was found by testing VCF CLI 9.1.1; Broadcom does not document it. |
 | `kubectl_install: command not found` | Re-run step 1's block; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
-| `kubectl_install: no version` in step 7 | The guest cluster did not answer: check the kubeconfig block's output, and re-run step 7's login. |
+| `kubectl_install: no version` in step 7 | The guest cluster did not answer: check the kubeconfig block's output; if it shows `Unauthorized`, run step 7's *Renew the Supervisor login* block, then the kubeconfig block again. |
+| `error: You must be logged in to the server (Unauthorized)` from a Supervisor command | Your Supervisor login ended (it lasts about 10 hours). Run step 7's *Renew the Supervisor login* block (the one inside the alternative if you logged in with the certificate checked), then the command again. |
 | `kubectl_install: cannot reach dl.k8s.io` | If a `sudo:` line is printed above it, sudo failed: run the block again and enter your password. Otherwise ask your administrator to allow dl.k8s.io (the real fix). Until then, run step 2's *Alternative: install the kubectl your Supervisor serves* block (under *Install kubectl*): Intel/AMD machines only, and the Supervisor's older version. |
 | `ImagePullBackOff` with `x509` in `kubectl describe pod` | The guest cluster does not trust Harbor's CA. Ask your administrator to add Harbor's CA certificate (your `$HARBOR_CA` file) to the trusted CAs of the guest cluster `$VKS_CLUSTER`. |
 | `ImagePullBackOff` with `pull access denied` or `no basic auth credentials` in `kubectl describe pod` | The project is private: run step 8's pull-secret block, then `kubectl rollout restart deploy/golang-web` (running pods keep their old pull settings). |
