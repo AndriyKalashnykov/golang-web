@@ -4,31 +4,27 @@ Resume point for work on this repo. Durable facts and the backlog are in [CLAUDE
 the VKS runbook has its own [vks/HANDOFF.md](vks/HANDOFF.md). Keep this file short: replace its
 content when the state changes, do not append history (git has it).
 
-## State — 2026-10-06
+## State — 2026-10-07
 
 `main` is green. No open PRs, worktrees or local branches.
 **v0.0.4 is released and signed** (`latest` points at it), and **`main` is protected**:
-`static-check`, `build` and `test` are required. A PR that touches only files CI ignores (this
-file, README.md) gets no checks; merge it with `gh pr merge <n> --squash --admin`.
+`static-check`, `build` and `test` are required and the branch must be up to date. A PR that
+touches only files CI ignores (this file, README.md) gets no checks; merge it with
+`gh pr merge <n> --squash --admin`.
 
-Nothing is in progress. The last work, 2026-10-03 to 05, validated both READMEs as a first-time
-user:
+Nothing is in progress. The last work, 2026-10-06:
 
-- **Root README:** every block run on Linux (Ubuntu 26.04.1) and pasted into an interactive zsh
-  on the Mac (macOS 26.6.1) from a state with no clone and no mise, `make e2e` included. The
-  Linux install blocks ran in clean `ubuntu:24.04`, `ubuntu:26.04`, `debian:12` and `debian:13`
-  containers, amd64 here and arm64 under Colima. The push section ran against the lab's Harbor.
-  On 2026-10-06 every section was also walked, Docker only, on fresh Debian 12 and 13 x86_64
-  VMs and on Ubuntu 24.04, 26.04 and Debian 12, 13 arm64 VMs; see the README's Tested platforms
-  and the two 2026-10-06 entries in CLAUDE.md's backlog.
-- **`vks/README.md`:** steps 1 to 10 walked on the lab with Linux podman, Linux docker, and
-  both macOS engines, including the app's LoadBalancer address reached from the Mac. Details
-  are in `vks/HANDOFF.md`.
-- **Not run:** the ghcr.io-specific lines of the push section (classic token, package private
-  until made public) come from GitHub's documentation.
-
-The two rules for fenced blocks that came out of it are in CLAUDE.md's backlog entry for the
-README validation.
+- **`/shutdown` is off unless `ENABLE_SHUTDOWN=true`** (#277). The published 0.0.4 image, which
+  `k8s/golang-web.yaml` pins, still serves it to anyone: that closes only with the next release.
+- **README:** sections run install, use, reference; Homebrew is the one macOS starting point;
+  Debian 12 needs Docker (its podman 4.3 cannot build the image).
+- **Tested platforms:** every section walked on eight platforms in one clean pass each; what was
+  and was not exercised is in the README table, its note, and CLAUDE.md's backlog entry.
+- **`vks/README.md`:** unchanged apart from the podman version sentence; its last full walk is
+  2026-10-05 (details in `vks/HANDOFF.md`).
+- **vks-airgap-cicd:** its KinD teardown and bring-up no longer remove or replace this project's
+  LoadBalancer controller. The deliberate differences between the two projects are listed in
+  CLAUDE.md.
 
 ## Next
 
@@ -48,24 +44,23 @@ The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
 
 ## Environment
 
-- **This host** (checked 2026-10-06): no tunnels, KinD clusters, worktrees or golang-web test
+- **This host** (checked 2026-10-07): no tunnels, KinD clusters, worktrees or golang-web test
   containers; `make e2e` creates a cluster when needed. Clean test containers need
   `--network host` here: on Docker's default network every DNS lookup took 5 s. Not from this
   repo and left alone: two `nodejswebapp-builder` containers in podman and the docker
   `multi-platform-builder` buildx container. Podman has no registry login. Local images:
   `golang-web:latest` in both engines and `v0.0.4-kind` in docker.
 - **The Mac:** an M2 with 16 GB at `ssh m1@62.210.166.48`, macOS 26.6.1 (it replaced the M1 on
-  2026-09-30). Checked 2026-10-06: podman machine and Colima stopped, no clone, no mise. Left
+  2026-09-30). Checked 2026-10-07: podman machine and Colima stopped, no clone, no mise, no Lima VM. Left
   on it as of 2026-10-05: Homebrew, podman, Colima, `vcf`, kubectl v1.36.2, passwordless sudo,
   `~/.kube/config` (28 bytes, written by kind), an empty `~/.local/state`, and a `kind` network
   inside the Colima VM. It is kept for vks-airgap-cicd. See vks/HANDOFF.md before deleting it.
-- **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`): the owner
-  started it on 2026-10-05 and it is his to stop (`make -C ~/projects/nested-vsphere-lab
-  lab-stop`; `lab-start` took about an hour that day). On 2026-10-06 at 15:11 the
-  kernel OOM killer killed its `esxi01` VM: a session had put about 76 GB of test-VM disks in
-  its scratchpad, and `/tmp` on this host is tmpfs (RAM). The owner restarted the lab the same
-  day (`esxi01` was running again by 17:00); nothing inside it was checked after the unclean
-  stop. **Keep VM disks and other large files on real disk (for example `~/.cache`), never in
-  the scratchpad.** After the last walk Harbor's `apps` project had no
-  `golang-web` repository and no robot, and the guest cluster's `golang-web` namespace was
-  deleted by step 10.
+- **The nested vSphere lab** (`~/projects/nested-vsphere-lab`, used by `vks/`): it is the owner's
+  to start and stop (`make -C ~/projects/nested-vsphere-lab lab-start` took about an hour on
+  2026-10-05). Its `esxi01` VM was running when last seen (2026-10-07 03:15 UTC); the owner
+  stopped and started it several times on 2026-10-06 and 07. On 2026-10-06 at 15:11 the kernel
+  OOM killer killed it, because a session had filled `/tmp` (RAM on this host) with test-VM
+  disks; nothing inside the lab was checked after that unclean stop. **Keep VM disks and other
+  large files on real disk (for example `~/.cache`), never in the scratchpad.** After the last
+  walk Harbor's `apps` project had no `golang-web` repository and no robot, and the guest
+  cluster's `golang-web` namespace was deleted by step 10.

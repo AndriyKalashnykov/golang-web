@@ -103,25 +103,27 @@ make version        # Print current version tag
       (a build ran out of space until `storage.conf` selected overlay), and its buildah 1.28.2
       does not set `BUILDPLATFORM`, so the two-platform build fails at `go mod download` with
       `Exec format error`. 4.4 to 4.8 are unmeasured. Use Docker on Debian 12.
-- [x] **README walked on fresh Debian and arm64 Linux VMs, 2026-10-06** (Tested platforms).
-      **Re-walked the same day as single clean passes at `29c7329`: 51 of 51 steps on each of the
-      six VMs.** The first x86 walks had been pieced together from several passes after the
-      session's own VM disks filled `/tmp` (RAM on this host) and the lab VM was OOM-killed; the
-      re-walk kept its disks under `~/.cache`. Logs: `~/.cache/gw-x86-walk`, `~/.cache/gw-arm64-walk2`.
-      Docker only, as the README prescribes for every section: Debian 12 and 13 on x86_64 (KVM),
-      Ubuntu 24.04 and 26.04 and Debian 12 and 13 on arm64 (Lima VMs on the Mac, deleted after).
-      A pty harness pasted each block and judged it by its Expect lines; it and its logs were in
-      the session scratchpad and are NOT in the repo. Not exercised: sudo password prompts,
-      ghcr.io (the push used a registry in the VM), push steps 1 and 5, `make release`. On arm64,
-      podman 5.4.2 and 5.7.0 each pushed a two-platform index once. On Debian 13, 5.4.2's first
-      build failed in runc (no user D-Bus socket) until the user's systemd session was
-      restarted; Lima keeps a session open, so a real log out and back in could not be tried.
-      Untested: Debian 13 with podman only, where the README asks for no re-login between the
-      podman block and the first build.
-      Steps outside the README that the walks needed: Git removed from the Ubuntu arm64 images
-      first; subuid/subgid ranges added for the Lima user before the podman pushes; on Debian 12
-      x86_64, `rm -rf ~/.cache/act` after a full host disk left act's cached jdx-mise-action
-      clone corrupt (`invalid git object`).
+- [x] **README walked on eight platforms, 2026-10-06** (README, Tested platforms). One clean pass
+      each, every step matching its Expect text: Debian 12 and 13 on x86_64 and Ubuntu 24.04, 26.04,
+      Debian 12, 13 on arm64 (new VMs, Docker only, 51 of 51 steps each), and macOS 26.6.1 with
+      podman (40 of 40) and with Docker through Colima (51 of 51). A pty harness pasted each block
+      into an interactive shell (the default login zsh on macOS) and judged it by its Expect lines.
+      The harness (four versions of `walk.py`) and its logs are one archive on the owner's
+      workstation, `~/.cache/gw-readme-walks-2026-10-06.tar.gz`; they are not in the repo.
+      Not exercised anywhere: a sudo password prompt, ghcr.io (the push ran against a registry on
+      the same machine), push steps 1 and 5, `make release`, running the other-architecture image.
+      Not exercised on macOS: a bare Mac (Homebrew, kubectl and both engine VMs existed), the
+      Homebrew installer, a fresh `go test` (the result was cached), any section in a terminal
+      without mise activated, podman building for a Docker-run KinD.
+      What the walks needed that the README does not contain: Git removed from the Ubuntu arm64
+      images first; subuid/subgid ranges for the Lima user before the podman pushes.
+      Seen: on macOS `make e2e` publishes port 8080 on every interface, and a second LoadBalancer
+      Service stays pending (the backlog entry below). On arm64, podman 5.4.2 and 5.7.0 each pushed
+      a two-platform index. On Debian 13, 5.4.2's first builds failed in runc (no systemd user
+      session) while a session from boot was still alive, which the test VM itself kept; a plain
+      log out and back in on a normal machine is untested, so the README gives no remedy.
+      One lesson for the next walk: `/tmp` on the workstation is RAM. VM disks put there filled it
+      and the lab VM was OOM-killed; keep them under `~/.cache`.
 - [ ] **`/shutdown` is gated in the source, not in any published image (2026-10-06).** `main.go`
       registers it only when `ENABLE_SHUTDOWN` is exactly `true`, and logs
       `shutdown endpoint: enabled|disabled` at start. The 0.0.4 image (`latest`) still serves it
@@ -137,13 +139,6 @@ make version        # Print current version tag
       and deleting the second Service's namespace then waits forever on its finalizer (measured:
       killed after 5 min; `make kind-delete` clears it). The README tells macOS readers to skip
       the namespace delete. Not fixed in the Makefile.
-- [x] **README walked on macOS 26.6.1 with each engine, 2026-10-06** (Tested platforms): podman
-      40 of 40 steps, Docker through Colima 51 of 51, each block pasted into the default login zsh
-      over `ssh -tt`. Not exercised: a bare Mac (Homebrew, both engine VMs and kubectl existed), the
-      Homebrew installer, a sudo password prompt, a fresh `go test` (the result was cached), any
-      section in a terminal without mise activated, podman building for a Docker-run KinD. Seen:
-      `make e2e` publishes port 8080 on every interface of the Mac; the second LoadBalancer
-      Service stays pending, as the backlog says. Logs: `~/.cache/gw-macos-walk/logs2`.
 - [ ] **One swallowed Ctrl-C on the Mac:** a Ctrl-C sent while `make run` was still starting did
       not stop it; a later one did. Seen once in the second walk, not reproduced. The 2026-10-06 walks
       sent 26 Ctrl-C to running foreground steps and each stopped on the first, but always a few
@@ -263,8 +258,6 @@ make version        # Print current version tag
       The token needs read access to the private config repo (fine-grained
       PAT with Contents:Read, or classic PAT with `repo`). Prefer a long
       expiry or a GitHub App token -- a 90-day PAT is what lapsed silently.
-- [ ] After Renovate is revived, expect a large first batch (automerge +
-      `prConcurrentLimit: 50`). Consider lowering the limit for the first run.
 - [ ] `munnerz/goautoneg` — bus factor of 1, no releases, last commit 2019.
       Transitive via `prometheus/common`; nothing actionable here. Monitor for
       a maintained fork if prometheus/common drops it.
@@ -304,9 +297,10 @@ Owner decisions of 2026-10-06, after a three-way comparison of this README, `vks
 - **Default engine on a Docker-only machine:** here Docker is used; vks-airgap-cicd's `make deps`
   installs podman anyway, by its engine policy.
 
-One thing was a defect, not a choice: vks-airgap-cicd's KinD teardown removed every
-`cloud-provider-kind` and `kindccm-*` container on the host, including this project's. Its fix
-is tracked in that repo.
+One thing was a defect, not a choice, and is fixed there (2026-10-06): its KinD teardown removed
+every `cloud-provider-kind` and `kindccm-*` container on the host, including this project's, and its
+bring-up replaced a running controller without a word (vks-airgap-cicd #1367 and #1369). Measured
+with both clusters up on Linux: this project keeps its LoadBalancer address through both.
 
 ## `vks/` — deploying this app to a VKS guest cluster
 
