@@ -9,7 +9,7 @@ offers choices, run only the one for your setup. Each block is followed by **Exp
 should see — and, where it can go wrong, **If not:** — what to do. A block you run twice either
 changes nothing or tells you what to do.
 
-A second guide, [Install ArgoCD on your Supervisor and create a VKS guest cluster with it](ARGOCD.md),
+A second guide, [Install ArgoCD onto Supervisor and create a VKS guest cluster with it](ARGOCD.md),
 continues from steps 1, 2 and 7 of this one.
 
 ## Learn the terms
