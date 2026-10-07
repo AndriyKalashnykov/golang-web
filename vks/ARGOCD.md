@@ -545,7 +545,7 @@ project block did not run.
 ### Sync, and wait for the cluster
 
 `argocd app sync` applies the description once. The loop then waits until VKS reports the cluster
-available: 4 to 6 minutes on the test system, longer on a busy one.
+available: 4 to 7 minutes on the test system, longer on a busy one.
 
 ```sh
 source ~/.vks-argocd.env

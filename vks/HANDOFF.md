@@ -45,10 +45,12 @@ in bash 5, zsh 5.9 and bash 3.2.
 | path | where | result |
 |---|---|---|
 | Linux, bash | clean `ubuntu:24.04` container, non-root user with sudo, bare lab (VCF 9.1.1, VKS 3.7.1, no Harbor) | all 21 blocks, twice; every Expect matched on the second walk, clean-up included; the install retry fired once for real (`attempt 2`); the name-collision `STOP` was forced once |
-| macOS 26.6.1 (M2), zsh 5.9 and bash 3.2 | over SSH, no route to the lab | step 1's file block, the checksum block and the `argocd` install (Rosetta) only |
+| macOS 26.6.1 (M2), zsh 5.9 | over SSH, the lab reached through the owner's tunnel | blocks 1 to 17, every Expect matched; cluster Available in under 7 minutes; the pinned `main` commit resolved |
+| the same, bash 3.2 | the same | the four clean-up blocks, back to a bare lab; steps 1 to 3 separately |
+| the same, `zsh -il` and `bash -il` reading the block from stdin | the same | four blocks fed line by line on a second run: `unchanged`, and the same output |
 
-Not covered: every lab-facing block on macOS; pasting into an interactive shell; a real `sudo`
-password prompt; the vSphere Client alternative in step 4 (taken from Broadcom's 9.1 pages);
+Not covered: the main guide's kubeconfig pointer (end of step 7) on macOS, which had no tunnel
+to the new cluster's address; a terminal paste on a real pty; a real `sudo` password prompt; the vSphere Client alternative in step 4 (taken from Broadcom's 9.1 pages);
 the standard (non-legacy) manifest; a vCenter with more than one Supervisor; a user with only
 the Edit role and no vCenter administrator rights; whether the guest-cluster destination's
 client certificate is renewed.
