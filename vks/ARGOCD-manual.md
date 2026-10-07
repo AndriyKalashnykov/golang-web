@@ -210,9 +210,9 @@ of its own. Anyone who can read your screen can now log in: clear the terminal a
 1. Open `https://<the address from step 4>` in your browser. It shows a warning such as *Your
    connection is not private*.
 2. Open the certificate the page presents (in Chrome: **Not secure** in the address bar →
-   **Certificate details**) and find the **SHA-256 fingerprint** of the **certificate** (not the
-   one of its public key). Compare its hex digits with
-   the fingerprint printed above, ignoring colons, spaces and upper/lower case.
+   **Certificate details**). Under **SHA-256 Fingerprints** read the **Certificate** row, not the
+   **Public Key** row. Chrome shows it in lower case without colons, so compare the hex digits
+   with the fingerprint printed above, ignoring colons, spaces and upper/lower case.
 3. Only if they are the same: go on to the page (in Chrome: **Advanced** → **Proceed to …**) and
    log in with user name `admin` and the printed password.
 
