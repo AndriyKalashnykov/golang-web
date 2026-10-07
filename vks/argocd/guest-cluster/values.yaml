@@ -1,0 +1,12 @@
+# Every value is set by vks/ARGOCD.md (step 7) with --helm-set. The cluster's namespace is the
+# Application's destination namespace: your vSphere Namespace.
+name: ""                 # the guest cluster's name
+kubernetesVersion: ""    # as the Supervisor stores it, e.g. v1.36.2+vmware.2 (no "-vkr.N" suffix)
+vmClass: ""              # a VM class bound to the vSphere Namespace
+storageClass: ""         # a storage class the vSphere Namespace may use
+clusterClass: builtin-generic-v3.7.0
+clusterClassNamespace: vmware-system-vks-public
+controlPlaneReplicas: 1
+workerReplicas: 2
+podsCidr: 172.20.0.0/16
+servicesCidr: 172.21.0.0/16
