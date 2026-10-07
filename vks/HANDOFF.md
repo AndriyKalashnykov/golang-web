@@ -35,9 +35,10 @@ Older than the current text:
 Never run by any walk: the editor block and the `REGISTRY_*` snippet (the harness edits the env
 file instead), `brew install jq` on a macOS that lacks jq, and the Broadcom portal download.
 
-## `ARGOCD.md` — 2026-10-07
+## `ARGOCD-auto.md` and `ARGOCD-manual.md` — 2026-10-07
 
-`vks/ARGOCD.md` installs ArgoCD Service 1.2.0 on the Supervisor, starts an instance in the
+`vks/ARGOCD-auto.md` (named `ARGOCD.md` until the manual guide was added; `ARGOCD.md` is now a
+two-row chooser) installs ArgoCD Service 1.2.0 on the Supervisor, starts an instance in the
 vSphere Namespace and creates a guest cluster through it from the chart `vks/argocd/guest-cluster`
 (pinned by commit; a change to the chart needs a new pin in the guide). 21 `sh` blocks; all parse
 in bash 5, zsh 5.9 and bash 3.2.
@@ -48,6 +49,17 @@ in bash 5, zsh 5.9 and bash 3.2.
 | macOS 26.6.1 (M2), zsh 5.9 | over SSH, the lab reached through the owner's tunnel | blocks 1 to 17, every Expect matched; cluster Available in under 7 minutes; the pinned `main` commit resolved |
 | the same, bash 3.2 | the same | the four clean-up blocks, back to a bare lab; steps 1 to 3 separately |
 | the same, `zsh -il` and `bash -il` reading the block from stdin | the same | four blocks fed line by line on a second run: `unchanged`, and the same output |
+
+`ARGOCD-manual.md` (19 `sh` blocks, 17 screenshots in `vks/img/argocd/`) was walked once on
+2026-10-07 in Chrome on Linux against the same lab: the service removed and installed again in
+the vSphere Client, the Application created (once pre-filled through the page's address and synced, once by a
+simulated clipboard paste of the guide's 20 lines into the YAML editor, then SAVE and CREATE,
+not synced), synced and deleted in the ArgoCD page, and each
+`kubectl` block run in bash and zsh (the instance, role-binding, namespace and project blocks as
+second runs). Not run for it: macOS; the clean-up `kubectl` blocks as written; the browser's
+certificate viewer (step 5's wording is from Chrome's menus, the fingerprint comparison itself
+was not done in a browser). The screenshots are crops of that walk and must be retaken when the
+vSphere Client or ArgoCD page changes.
 
 Not covered: the main guide's kubeconfig pointer (end of step 7) on macOS, which had no tunnel
 to the new cluster's address; a terminal paste on a real pty; a real `sudo` password prompt; the vSphere Client alternative in step 4 (taken from Broadcom's 9.1 pages);

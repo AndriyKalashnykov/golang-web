@@ -10,7 +10,8 @@ should see — and, where it can go wrong, **If not:** — what to do. A block y
 changes nothing or tells you what to do.
 
 A second guide, [Install ArgoCD onto Supervisor and create a VKS guest cluster with it](ARGOCD.md),
-continues from steps 1, 2 and 7 of this one.
+continues from steps 1, 2 and 7 of this one. It comes in two versions: [by hand](ARGOCD-manual.md),
+in the vSphere Client and the ArgoCD web page, and [with scripts](ARGOCD-auto.md).
 
 ## Learn the terms
 
