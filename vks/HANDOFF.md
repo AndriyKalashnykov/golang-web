@@ -35,6 +35,34 @@ Older than the current text:
 Never run by any walk: the editor block and the `REGISTRY_*` snippet (the harness edits the env
 file instead), `brew install jq` on a macOS that lacks jq, and the Broadcom portal download.
 
+## `ARGOCD.md` — 2026-10-07
+
+`vks/ARGOCD.md` installs ArgoCD Service 1.2.0 on the Supervisor, starts an instance in the
+vSphere Namespace and creates a guest cluster through it from the chart `vks/argocd/guest-cluster`
+(pinned by commit; a change to the chart needs a new pin in the guide). 21 `sh` blocks; all parse
+in bash 5, zsh 5.9 and bash 3.2.
+
+| path | where | result |
+|---|---|---|
+| Linux, bash | clean `ubuntu:24.04` container, non-root user with sudo, bare lab (VCF 9.1.1, VKS 3.7.1, no Harbor) | all 21 blocks, twice; every Expect matched on the second walk, clean-up included; the install retry fired once for real (`attempt 2`); the name-collision `STOP` was forced once |
+| macOS 26.6.1 (M2), zsh 5.9 and bash 3.2 | over SSH, no route to the lab | step 1's file block, the checksum block and the `argocd` install (Rosetta) only |
+
+Not covered: every lab-facing block on macOS; pasting into an interactive shell; a real `sudo`
+password prompt; the vSphere Client alternative in step 4 (taken from Broadcom's 9.1 pages);
+the standard (non-legacy) manifest; a vCenter with more than one Supervisor; a user with only
+the Edit role and no vCenter administrator rights; whether the guest-cluster destination's
+client certificate is renewed.
+
+Measured while writing it:
+- Installing right after registering returns `HTTP 500 … service account is not ready`; a
+  retry 10 s later is accepted. The service cannot be deleted while a version exists.
+- The Supervisor stores `v1.36.2+vmware.2` for a release named `…-vkr.3`; with the long form in
+  Git the Application never reads `Synced`. It adds two topology variables on admission; ArgoCD
+  still reports `Synced` and a second sync keeps them.
+- Deleting an instance leaves `argocd-initial-admin-secret` and `argocd-redis`; after one
+  cluster delete a cert-manager secret `<cluster>-extensions-ca` stayed (removed by hand).
+- Binding `admin` to `argocd-k8s-sa` is refused for an Edit user; `edit` is accepted.
+
 ## Not covered
 
 - Terminal.app: every Mac walk ran over SSH. Bracketed paste was simulated with its escape codes.
