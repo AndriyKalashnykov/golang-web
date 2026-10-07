@@ -140,8 +140,8 @@ manifest.
 
 **If not:** a failed check in **Validate** — the message beside it says why; an error must be
 fixed, a warning can be accepted. An error right after **FINISH** — wait a minute and do this
-step again. A status that stays **Configuring** for more than 10 minutes, or shows an error — the
-Supervisor cannot reach `projects.packages.broadcom.com`: tell your administrator.
+step again. A status that stays **Configuring** for more than 10 minutes, or shows an error —
+most often the Supervisor cannot reach `projects.packages.broadcom.com`: tell your administrator.
 
 ## 4. Create the ArgoCD instance
 
@@ -210,7 +210,8 @@ of its own. Anyone who can read your screen can now log in: clear the terminal a
 1. Open `https://<the address from step 4>` in your browser. It shows a warning such as *Your
    connection is not private*.
 2. Open the certificate the page presents (in Chrome: **Not secure** in the address bar →
-   **Certificate details**) and find its **SHA-256 fingerprint**. Compare its hex digits with
+   **Certificate details**) and find the **SHA-256 fingerprint** of the **certificate** (not the
+   one of its public key). Compare its hex digits with
    the fingerprint printed above, ignoring colons, spaces and upper/lower case.
 3. Only if they are the same: go on to the page (in Chrome: **Advanced** → **Proceed to …**) and
    log in with user name `admin` and the printed password.
@@ -332,7 +333,8 @@ class with its CPU and memory; the Supervisor's storage classes.
 
 Put your choices into this terminal. Keep using **this terminal** until the end of step 8.
 
-- `NEW_CLUSTER`: a name no cluster in your namespace has. Start it with a letter.
+- `NEW_CLUSTER`: a name no cluster in your namespace has. Lower-case letters, digits and `-`;
+  start it with a letter; not one of the words `true`, `false`, `yes`, `no`, `on`, `off`, `null`.
 - `K8S_VERSION`: the `VERSION` of a release whose `READY` and `COMPATIBLE` are both `True`,
   **without its `-vkr.N` ending**: for `v1.36.2+vmware.2-vkr.3` write `v1.36.2+vmware.2`. The
   Supervisor stores it that way; with the ending ArgoCD would report a difference forever.
@@ -356,7 +358,8 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get cluster "$
 
 **Expect:** `Error from server (NotFound): clusters.cluster.x-k8s.io "<name>" not found`.
 
-**If not:** a line describing a cluster — choose another `NEW_CLUSTER`.
+**If not:** a line describing a cluster — choose another `NEW_CLUSTER`. `resource name may not be
+empty` — the block above did not run in this terminal.
 
 ### Create the Application
 
@@ -392,11 +395,13 @@ EOF
 no empty `""`.
 
 1. In the ArgoCD page click **+ NEW APP**, then **EDIT AS YAML** (top right).
-2. Select everything in the editor, delete it, and paste the 20 lines.
+2. Click in the editor, select everything in it (Ctrl+A, or ⌘A on a Mac), delete it, and paste
+   the 20 lines.
 
-   ![The ArgoCD new application editor with the pasted YAML](img/argocd/09-argocd-new-app-yaml.jpg)
+   ![The ArgoCD new application editor holding the 20 pasted lines](img/argocd/09-argocd-new-app-yaml.jpg)
 
-3. Click **SAVE**, then **CREATE** (top left). Leave **SYNC POLICY** at **Manual**.
+3. Click **SAVE**: the page goes back to the form, now filled in. Leave **SYNC POLICY** at
+   **Manual** and click **CREATE** (top left).
 
 **Expect:** a tile named after your cluster, with status **Missing** and **OutOfSync**: ArgoCD
 knows what to create and has not created it yet.
@@ -470,8 +475,11 @@ lists two destinations: your namespace, and `<cluster>-<namespace>` at
 
 ![ArgoCD Settings, Clusters: the namespace and the new guest cluster](img/argocd/14-argocd-clusters.jpg)
 
-**If not:** `metadata.name: Required value` — this is not the terminal where you set
-`NEW_CLUSTER` in step 7: set it again and run the block again.
+**If not:** `resource name may not be empty` — this is not the terminal where you set
+`NEW_CLUSTER` in step 7: set it again and run the block again. `created`, but the cluster does
+not appear under **Settings** → **Clusters** — the name is not a cluster's:
+`kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" describe managedentity "$NEW_CLUSTER"`
+says what it is waiting for; delete it with the first block of step 9 and correct the name.
 
 The service keeps this destination's login in a secret it owns. That login is the cluster's own
 client certificate; whether the service renews it before it expires was not tested for this
@@ -492,7 +500,8 @@ source ~/.vks-golang-web.env
 kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" delete managedentity "$NEW_CLUSTER"
 ```
 
-**Expect:** `managedentity… "<name>" deleted`.
+**Expect:** `managedentity… "<name>" deleted`. `resource name may not be empty` means
+`NEW_CLUSTER` is not set in this terminal.
 
 Then, in the ArgoCD page, open the Application, click **DELETE**, type the Application's name,
 leave **Foreground** selected, and click **OK**. **Non-cascading** would remove only the
@@ -500,15 +509,20 @@ Application and leave the cluster and its virtual machines running.
 
 ![The Delete application window with the name field and the Foreground, Background and Non-cascading choices](img/argocd/15-argocd-delete.jpg)
 
-Check that the cluster is gone before you go on. Run this again until it prints nothing: a few
-minutes at most.
+Check that the cluster is gone before you go on. Run this again until both lines say `NotFound`:
+a few minutes at most.
 
 ```sh
 source ~/.vks-golang-web.env
-kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get cluster,applications.argoproj.io
+kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get cluster "$NEW_CLUSTER"
+kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get applications.argoproj.io "$NEW_CLUSTER"
 ```
 
-**Expect:** `No resources found in <your namespace> namespace.`
+**Expect:** two `Error from server (NotFound): …` lines, one for the cluster and one for the
+Application.
+
+**If not:** `resource name may not be empty` — `NEW_CLUSTER` is not set in this terminal: set it
+and run the block again.
 
 ### Delete the ArgoCD instance
 

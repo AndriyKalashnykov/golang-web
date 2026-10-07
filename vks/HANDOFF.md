@@ -52,7 +52,9 @@ in bash 5, zsh 5.9 and bash 3.2.
 
 `ARGOCD-manual.md` (19 `sh` blocks, 17 screenshots in `vks/img/argocd/`) was walked once on
 2026-10-07 in Chrome on Linux against the same lab: the service removed and installed again in
-the vSphere Client, the Application created, synced and deleted in the ArgoCD page, and each
+the vSphere Client, the Application created (once pre-filled through the page's address and synced, once by a
+simulated clipboard paste of the guide's 20 lines into the YAML editor, then SAVE and CREATE,
+not synced), synced and deleted in the ArgoCD page, and each
 `kubectl` block run in bash and zsh (the instance, role-binding, namespace and project blocks as
 second runs). Not run for it: macOS; the clean-up `kubectl` blocks as written; the browser's
 certificate viewer (step 5's wording is from Chrome's menus, the fingerprint comparison itself
