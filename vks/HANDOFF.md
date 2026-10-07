@@ -10,7 +10,7 @@ history up to 2026-10-05).
 `vks/README.md` builds `golang-web`, pushes it to Harbor and deploys it to a VKS guest cluster.
 **All work is merged; nothing is in flight.** It is pinned to **VCF CLI 9.1.1.0**
 (`vcf version` prints `v9.1.1.0.25662425`; the plugin bundle is build 25665404). The README has
-51 `sh` blocks; all parse with `bash -n` and `zsh -n`.
+54 `sh` blocks; all parse with `bash -n` and `zsh -n`.
 
 Walks of the current text (last changed at `97adb90`), all on 2026-10-05 against the lab, each
 block run as written and judged by its Expect line:
@@ -197,6 +197,11 @@ The owner restarted the lab the same day; nothing inside it was checked after th
 - **The Supervisor-kubectl alternative downloads with `curl -k`**, so the block needs no CA
   file. The cost, stated once: the kubectl installed with `sudo` is not verified to come from
   the Supervisor, and the download has no checksum.
+- **The Supervisor login skips the certificate check by default** (`--insecure-skip-tls-verify
+  --auth-type basic`, 2026-10-07); the `--ca-certificate` login is the collapsed alternative, with
+  its own renew block. A review asked to keep the CA login as the default and was declined. The
+  cost is stated once above the block: the SSO password, and every later `kubectl` call to the
+  Supervisor (the read of the guest cluster's kubeconfig included), go to an unchecked server.
 - **The VCF CLI plugin bundle is installed** (offline, `vcf plugin install all
   --local-source`), although `vcf context create` was measured to work with zero plugins.
 - **The pull secret is optional**, behind the public/private check. A review's suggestion to
@@ -273,6 +278,35 @@ Everything here was measured unless it says otherwise.
   inferred to behave the same.
 
 ### kubectl and the VCF CLI
+
+- `vcf context refresh`, measured 2026-10-07 on Linux (Ubuntu 26.04, bash and zsh) and on the M2
+  (zsh and bash 3.2), vcf v9.1.1.0, each block run as printed in a clean home with a closed stdin:
+  - while the login is valid it does nothing (`Token is still active. Skipped the token
+    refresh`), sends no login and needs no password; the token lasts 10 hours (read from it);
+  - after it ends it is a full password login from `VCF_CLI_VSPHERE_PASSWORD` (it prompts when
+    the variable is unset) and saves the namespace contexts again; with no saved login it says
+    `context supervisor not found`;
+  - the certificate choice lives in the kubeconfig's cluster entry and refresh keeps it when
+    given no flag; **refresh with `--insecure-skip-tls-verify` on a login made with a CA removes
+    the CA and writes the skip flag, silently** (seen on both machines). That is why the default
+    renew block and the alternative's renew block each carry their own flag;
+  - a namespace granted after login does not appear while the token is valid (not run: read
+    from the skip message), so the remedy for that is delete and log in again.
+- `vcf context create … --workload-cluster-name <cluster> --workload-cluster-namespace <ns>`
+  (not used by the guide), measured 2026-10-07 on Linux against a 3-minute-old guest cluster:
+  it writes a second context `<name>:<cluster>` at the guest's API address with the guest's CA
+  and a 10-hour token for the SSO user (`sso:Administrator@vsphere.local`; `can-i '*' '*'`
+  yes). Right after the cluster is created it prints `Following contexts may not be ready` and
+  kubectl is refused until the guest's `guest-cluster-auth-svc` pod runs (about 3 minutes
+  here); the `vcf context refresh` it recommends does nothing then. After the guest token
+  ends, `vcf context refresh <name>:<cluster>` renews it; refreshing the parent does not.
+  `vcf cluster kubeconfig get` needs the cluster plugin (`unknown command "cluster"` without).
+  VMware's 9.1 pages give these two as the end-user ways and the `<cluster>-kubeconfig` Secret
+  the guide reads as the administrator way. The guide keeps the Secret: it does not end after
+  10 hours, and an Edit user is cluster-admin in the guest either way (READ, 9.0 page).
+- Not run: the changed blocks in a clean `ubuntu:24.04` container (they ran on the lab host
+  in an empty home with only `vcf` and `kubectl` on PATH); a login with `--auth-type basic` on
+  a Supervisor that has an external identity provider (READ, Broadcom KB 417617).
 
 - kubectl comes from dl.k8s.io through `kubectl_install`: newest stable in step 2 (v1.37.1 on
   2026-10-05), then the guest's version in step 7 (v1.36.2). The v1.37.1 client ran `version`,

@@ -310,8 +310,9 @@ sudo apt-get install -y jq git make unzip curl openssl
 ### Download and check the vCenter CA
 
 The Supervisor's HTTPS certificate is issued by vCenter's own CA, which your machine does not
-trust yet. This block downloads that CA from vCenter and saves it as `$SUPERVISOR_CA`; step 7 uses
-it so `vcf` can confirm it is talking to your real Supervisor. The download itself cannot be
+trust yet. This block downloads that CA from vCenter and saves it as `$SUPERVISOR_CA`; step 7's
+alternative login uses it so `vcf` can confirm it is talking to your real Supervisor, and the
+ArgoCD guide uses it for vCenter. The download itself cannot be
 verified yet (hence `curl -k`), so you compare its fingerprint with your administrator's.
 
 ```sh
@@ -736,6 +737,40 @@ manages).
 Check the password in the env file first: **five failed logins within 3 minutes lock the SSO
 user for 5 minutes** (vCenter's default policy; yours may be stricter).
 
+This login does not check the Supervisor's certificate (`--insecure-skip-tls-verify`), and `vcf`
+saves that choice for every later `kubectl` call to the Supervisor. On a network you do not
+control, someone between you and the Supervisor could capture your SSO password; VMware's own
+documentation does not recommend the flag. To have the certificate checked, use the alternative
+below instead of this block.
+
+```sh
+source ~/.vks-golang-web.env
+if [ -z "$VCF_CLI_VSPHERE_PASSWORD" ] || [ "${VCF_CLI_VSPHERE_PASSWORD#<}" != "$VCF_CLI_VSPHERE_PASSWORD" ]; then
+  echo "Set VCF_CLI_VSPHERE_PASSWORD in ~/.vks-golang-web.env first (vcf reads the password from it)"
+else
+  KUBECONFIG="$SUPERVISOR_KUBECONFIG" \
+    vcf context create supervisor --type k8s \
+      --endpoint "https://${SUPERVISOR_ENDPOINT}" \
+      --username "$SSO_USERNAME" \
+      --insecure-skip-tls-verify --auth-type basic
+  kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" config use-context supervisor
+fi
+```
+
+**Expect:** `Logged in successfully`, a list of saved contexts, then `Switched to context "supervisor"`.
+
+**If not:**
+- `context "supervisor" already exists`: run step 10's *Delete the Supervisor login* block, then
+  this one again.
+- A connection error: check `SUPERVISOR_ENDPOINT`.
+- A login error: check `SSO_USERNAME` and `VCF_CLI_VSPHERE_PASSWORD` (in single quotes).
+
+<details>
+<summary><b>Alternative: log in and check the Supervisor's certificate</b> (uses step 2's vCenter CA)</summary>
+
+Run this INSTEAD of the block above. `vcf` checks the Supervisor's certificate against the CA you
+downloaded and compared in step 2, and refuses to send your password to anything else.
+
 ```sh
 source ~/.vks-golang-web.env
 if [ -z "$VCF_CLI_VSPHERE_PASSWORD" ] || [ "${VCF_CLI_VSPHERE_PASSWORD#<}" != "$VCF_CLI_VSPHERE_PASSWORD" ]; then
@@ -750,17 +785,29 @@ else
 fi
 ```
 
-**Expect:** `Logged in successfully`, a list of saved contexts, then `Switched to context "supervisor"`.
+**Expect:** the same three things as above.
 
-**If not:**
-- `context "supervisor" already exists`: run step 10's *Delete the Supervisor login* block, then
-  this one again.
-- A certificate error: check `SUPERVISOR_ENDPOINT` and step 2's vCenter CA.
-- A login error: check `SSO_USERNAME` and `VCF_CLI_VSPHERE_PASSWORD` (in single quotes).
+**If not:** a certificate error — check `SUPERVISOR_ENDPOINT` and step 2's vCenter CA. The other
+two lines above apply here too.
 
-This guide logs in with the SSO user and a password. A Supervisor where you log in through a web
-page (an external identity provider such as Okta or Entra ID) is out of scope: the password login
-fails there. Ask your administrator for another way to get the guest cluster's kubeconfig, save it
+When this login ends, renew it with this block, NOT the one under *Renew the Supervisor login*
+(that one would switch this login to skipping the check, without saying so):
+
+```sh
+source ~/.vks-golang-web.env
+if [ -z "$VCF_CLI_VSPHERE_PASSWORD" ] || [ "${VCF_CLI_VSPHERE_PASSWORD#<}" != "$VCF_CLI_VSPHERE_PASSWORD" ]; then
+  echo "Set VCF_CLI_VSPHERE_PASSWORD in ~/.vks-golang-web.env first (vcf reads the password from it)"
+else
+  KUBECONFIG="$SUPERVISOR_KUBECONFIG" vcf context refresh supervisor --ca-certificate "$SUPERVISOR_CA"
+fi
+```
+
+</details>
+
+This guide logs in with the SSO user and a password; `--auth-type basic` asks for exactly that,
+also on a Supervisor that offers a login through a web page (an external identity provider such
+as Okta or Entra ID). If your account exists only in that provider, the password login fails and
+is out of scope: ask your administrator for another way to get the guest cluster's kubeconfig, save it
 with `source ~/.vks-golang-web.env; mkdir -p ~/.kube; cp <file> "$GUEST_KUBECONFIG"`, run
 `kubectl_install "$(kubectl version -o json | jq -r .serverVersion.gitVersion)"`,
 then continue at *Check the guest cluster* below.
@@ -777,6 +824,32 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE"
 **If not:** `NotFound` — check `VKS_NAMESPACE`. `Forbidden` — ask your administrator for the
 **Edit** role on it. `Unauthorized` or a login prompt — the login above did not work; run it
 again.
+
+### Renew the Supervisor login
+
+The login lasts about 10 hours. You need this block only when a `kubectl` command to the
+Supervisor answers `error: You must be logged in to the server (Unauthorized)`; while the login
+is still valid it changes nothing, so there is no reason to run it before or after other blocks.
+It logs in again with the password in the env file, so the lock-out rule above applies. If you
+logged in with the alternative (certificate checked), use the block inside that alternative.
+
+```sh
+source ~/.vks-golang-web.env
+if [ -z "$VCF_CLI_VSPHERE_PASSWORD" ] || [ "${VCF_CLI_VSPHERE_PASSWORD#<}" != "$VCF_CLI_VSPHERE_PASSWORD" ]; then
+  echo "Set VCF_CLI_VSPHERE_PASSWORD in ~/.vks-golang-web.env first (vcf reads the password from it)"
+else
+  KUBECONFIG="$SUPERVISOR_KUBECONFIG" vcf context refresh supervisor --insecure-skip-tls-verify
+fi
+```
+
+**Expect:** `Successful re-authentication completed for context "supervisor"`, or `Token is still
+active. Skipped the token refresh for context "supervisor"` when the login had not ended.
+
+**If not:**
+- `context supervisor not found`: you have no saved login; log in with the block above.
+- A login error: check `SSO_USERNAME` and `VCF_CLI_VSPHERE_PASSWORD` (in single quotes).
+- A vSphere Namespace you were given after you logged in does not appear: run step 10's *Delete
+  the Supervisor login* block, then log in again.
 
 ### Get the guest cluster's kubeconfig
 
@@ -1030,7 +1103,8 @@ engine. If the block hangs, an engine is half-started: press Ctrl-C, start it fu
 
 ### Delete the Supervisor login
 
-This removes the Supervisor login `vcf` saved in step 7, and `vcf`'s log files.
+This removes the Supervisor login `vcf` saved in step 7, and `vcf`'s log files (they hold a
+copy of the login token, which stays valid until its 10 hours are over).
 
 ```sh
 for c in $(vcf context list 2>/dev/null | awk '$1 ~ /^supervisor:/{print $1}'); do
