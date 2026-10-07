@@ -1,0 +1,5 @@
+apiVersion: v2
+name: guest-cluster
+description: One VKS guest cluster (a Cluster API Cluster) for a vSphere Namespace. Used by vks/ARGOCD.md.
+type: application
+version: 0.1.0
