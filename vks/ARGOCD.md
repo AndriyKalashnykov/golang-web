@@ -1,4 +1,4 @@
-# Install ArgoCD on your Supervisor and create a VKS guest cluster with it
+# Install ArgoCD onto Supervisor and create a VKS guest cluster with it
 
 This guide installs the ArgoCD Supervisor Service on a vSphere Supervisor, starts an ArgoCD
 *instance* in your vSphere Namespace, and uses that ArgoCD to create a Kubernetes cluster (a *VKS
