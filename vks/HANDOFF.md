@@ -59,8 +59,9 @@ against the same lab:
 | the `kubectl` blocks, Linux | bash and zsh | each non-destructive block as written, several as second runs |
 | the `kubectl` blocks, macOS 26.6.1 (M2) | zsh for blocks 1 to 14 and the two instance clean-up blocks; bash 3.2 for the cluster registration, its removal, the by-name "is it gone" check and four second runs | every Expect matched, against a real instance and a real test guest cluster (Available in 5m16s); the three page actions were stood in for by `kubectl` on the Mac |
 
-Not run for it: the browser's certificate viewer (step 5's click path is from Chrome's menus; the
-fingerprint comparison itself was not done in a browser). The screenshots are crops of the Linux
+Step 5's browser check was done by the owner in Chrome on Linux (2026-10-07): the viewer's
+**SHA-256 Fingerprints** / **Certificate** row equalled the printed fingerprint; other browsers
+were not tried. The screenshots are crops of the Linux
 walk and must be retaken when the vSphere Client or ArgoCD page changes. On the Mac the "delete
 the Supervisor login, then log in again" remedy both guides give was needed for real (a stale
 `supervisor` context) and worked.
