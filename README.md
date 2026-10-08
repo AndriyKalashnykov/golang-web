@@ -651,21 +651,7 @@ fills them from the pod.
 | macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | Every section except the kubectl install block |
 | macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 with engine 29.5.2 in Colima 0.10.3 (buildx 0.37.2), kubectl 1.37.1 (1.36.2 before the install block), kind 0.33.0 | Every section with Docker, except the Homebrew installer and, as this README says for macOS, the LoadBalancer block and the namespace delete (`make kind-delete` instead). With podman and Colima stopped: the run, image, push and contributor sections; `make e2e` and `make ci-run` stopped at `docker is installed but not running` |
 
-The Debian rows and the arm64 rows are from 2026-10-06: each is one pass on a new virtual
-machine (the arm64 ones on an Apple silicon Mac; the Ubuntu images came with Git and curl, and
-Git was removed first), at commit `29c7329`, with every step matching its Expect text. In those
-walks sudo never asked for a password. The push section ran steps 2 to 4 against a registry on
-the same machine, not ghcr.io; steps 1 and 5 were not run, and the image for the other
-architecture was pushed but not run. `make release` was not run.
-
-The macOS 26.6.1 row is from 2026-10-06: one pass per engine, each block pasted into the default
-login zsh, at commits `29c7329` (podman) and `5de2e22` (Docker). The Mac already had Homebrew,
-kubectl and both engines with their virtual machines created (one running at a time), so the
-install blocks were re-runs; sudo did not ask for a password, and `make test` printed Go's
-cached result. The push section ran steps 2 to 4 against a registry on the same Mac; steps 1
-and 5 and `make release` were not run, and the amd64 image was pushed but not run. Every section
-after the mise line ran in a terminal with mise activated. The macOS 26.6.2 row is an earlier
-Mac that no longer exists. Intel Macs are not tested.
+Intel Macs are not tested.
 
 ## For contributors
 

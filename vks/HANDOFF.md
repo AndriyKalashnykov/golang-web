@@ -316,7 +316,9 @@ cluster v1.36.2), from Linux and from the M2 (the Intel build under Rosetta):
   login (on a terminal, answers typed by the harness), add, check, add again, remove and logout
   blocks; the scripted guide's add, check, add again and the new removal lines, with
   `argocd_session` replaced by a token file because this lab's first admin password secret no
-  longer exists. Every Expect matched.
+  longer exists. Every Expect matched. The same blocks were then walked on the M2 (zsh; the
+  expiry check also in bash 3.2), every Expect matched; there the login warning reads
+  `certificate signed by unknown authority` where Linux says the certificate has no IP SANs.
 
 ### kubectl and the VCF CLI
 

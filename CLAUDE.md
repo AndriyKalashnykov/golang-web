@@ -124,6 +124,24 @@ make version        # Print current version tag
       log out and back in on a normal machine is untested, so the README gives no remedy.
       One lesson for the next walk: `/tmp` on the workstation is RAM. VM disks put there filled it
       and the lab VM was OOM-killed; keep them under `~/.cache`.
+      How the rows of the README's *Tested platforms* table were produced (this text stood in
+      the README until 2026-10-08; the owner wants no test log in user-facing docs):
+
+      The Debian rows and the arm64 rows are from 2026-10-06: each is one pass on a new virtual
+      machine (the arm64 ones on an Apple silicon Mac; the Ubuntu images came with Git and curl, and
+      Git was removed first), at commit `29c7329`, with every step matching its Expect text. In those
+      walks sudo never asked for a password. The push section ran steps 2 to 4 against a registry on
+      the same machine, not ghcr.io; steps 1 and 5 were not run, and the image for the other
+      architecture was pushed but not run. `make release` was not run.
+
+      The macOS 26.6.1 row is from 2026-10-06: one pass per engine, each block pasted into the default
+      login zsh, at commits `29c7329` (podman) and `5de2e22` (Docker). The Mac already had Homebrew,
+      kubectl and both engines with their virtual machines created (one running at a time), so the
+      install blocks were re-runs; sudo did not ask for a password, and `make test` printed Go's
+      cached result. The push section ran steps 2 to 4 against a registry on the same Mac; steps 1
+      and 5 and `make release` were not run, and the amd64 image was pushed but not run. Every section
+      after the mise line ran in a terminal with mise activated. The macOS 26.6.2 row is an earlier
+      Mac that no longer exists.
 - [ ] **`/shutdown` is gated in the source, not in any published image (2026-10-06).** `main.go`
       registers it only when `ENABLE_SHUTDOWN` is exactly `true`, and logs
       `shutdown endpoint: enabled|disabled` at start. The 0.0.4 image (`latest`) still serves it

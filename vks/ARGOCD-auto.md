@@ -604,7 +604,8 @@ fi
 **Expect:** the login line, four lines about `argocd-manager` on the new cluster (`created`;
 `already exists` or `updated` when you run it again), `Cluster 'https://<an address>:6443'
 added`, then two destinations: your vSphere Namespace, and
-`<cluster>-admin@<cluster>` with `Successful`.
+`<cluster>-admin@<cluster>` with `Successful` (`Unknown` for a few seconds when you run it
+again).
 
 **If not:** `No kubeconfig for …` — wait for step 7's cluster, or renew the Supervisor login
 (main guide, step 7), then run the block again.
@@ -641,8 +642,8 @@ Oct  8 02:07:25 2027 GMT`. Your namespace's line says `token, no end date`.
 
 To renew before that date, run the first block of this step again: the cluster has made a newer
 certificate by then, and `--upsert` replaces the stored login. Keep `--upsert`: without it, an
-`argocd cluster add` whose login differs from the stored one made the ArgoCD server restart
-(seen twice on v3.4.4) instead of printing an error.
+`argocd cluster add` whose login differs from the stored one makes the ArgoCD server (v3.4.4)
+restart instead of printing an error.
 
 <details>
 <summary><b>Alternative: add the cluster without the argocd program</b> (a ManagedEntity)</summary>

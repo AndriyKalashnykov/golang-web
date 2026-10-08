@@ -63,8 +63,9 @@ download icon does nothing.
 | `supervisor-service-argocd-legacy-1.2.0-25642124.yml` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → search **vSphere Supervisor Services** → **ArgoCD Service** → 1.2.0 → *Installation Package Manifest (VCF 9.0 or older and disconnected/airgapped VCF 9.1)* | [ArgoCD Service 1.2.0](https://support.broadcom.com/group/ecx/productfiles?subFamily=vSphere%20Supervisor%20Services&displayGroup=ArgoCD%20Service&release=1.2.0&os=&servicePk=546088&language=EN) |
 | `argocd-cli-linux-amd64-v3.4.4-vcf.gz` (Linux) or `argocd-cli-darwin-amd64-v3.4.4-vcf.gz` (macOS) | the same page → *ArgoCD Linux CLI* or *ArgoCD Mac CLI* | the same link |
 
-1.2.0 is the newest ArgoCD Service on that page (checked 2026-10-08). The program must match the
-service you install, so take both files from the same release.
+The program must match the service you install, so take both files from the same release. If
+the page lists a release newer than 1.2.0, this guide's file names and checksums do not apply
+to it.
 
 Take the manifest with **legacy** in its name. The page offers a second one without it, labelled
 *Internet Connected VCF 9.1 and newer*. The two differ in one line: the legacy file downloads
@@ -546,7 +547,8 @@ argocd cluster list
 **Expect:** four lines about `argocd-manager` on the new cluster (`created`; `already exists` or
 `updated` when you run it again), then `Cluster 'https://<an address>:6443' added`, then two
 destinations: your namespace, and
-`<cluster>-admin@<cluster>` with **Successful**. In the ArgoCD page they are under **Settings** →
+`<cluster>-admin@<cluster>` with **Successful** (**Unknown** for a few seconds when you run it
+again). In the ArgoCD page they are under **Settings** →
 **Clusters**.
 
 **If not:** `Argo CD server address unspecified` — the login block did not succeed: run it, then
@@ -585,8 +587,8 @@ Oct  8 02:07:25 2027 GMT`. Your namespace's line says `token, no end date`.
 To renew before that date: run the first block of this step again (the cluster has made a newer
 certificate by then), then the login block, then the block that adds the cluster. Keep `--upsert`
 in it: it is what replaces the stored login. Without it, an `argocd cluster add` whose login
-differs from the stored one made the ArgoCD server restart (seen twice on v3.4.4) instead of
-printing an error.
+differs from the stored one makes the ArgoCD server (v3.4.4) restart instead of printing an
+error.
 
 <details>
 <summary><b>Alternative: add the cluster without the argocd program</b> (a ManagedEntity)</summary>
