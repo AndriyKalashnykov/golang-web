@@ -91,6 +91,7 @@ export SUPERVISOR_KUBECONFIG="$HOME/.kube/supervisor.kubeconfig"
 export GUEST_KUBECONFIG="$HOME/.kube/${VKS_CLUSTER}.kubeconfig"
 
 export KUBECONFIG="$GUEST_KUBECONFIG"
+export VCF_CLI_ESSENTIALS_PLUGIN_GROUP_VERSION="v9.1.1"   # keeps vcf from trying to fetch a plugin Broadcom has not published
 
 . "$HOME/.vks-golang-web.functions"
 EOF
@@ -430,8 +431,8 @@ greyed out until you open both Terms links — or the download icon does nothing
 
 | file | where to click | direct link |
 |---|---|---|
-| `VCF-Consumption-CLI-<platform>-9.1.1.0.25662425.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI** | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545612&viewGroup=true) |
-| `VCF-Consumption-CLI-PluginBundle-<platform>-9.1.1.0.25665404.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0 → **VCF Consumption CLI Plugins** | [VCF CLI plugins](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0&os=&servicePk=545804&language=EN&groupId=545621&viewGroup=true) |
+| `VCF-Consumption-CLI-<platform>-9.1.1.0100.25746586.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0100 → **VCF Consumption CLI** | [VCF CLI](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0100&os=&servicePk=547810&language=EN&groupId=545612&viewGroup=true) |
+| `VCF-Consumption-CLI-PluginBundle-<platform>-9.1.1.0100.25793136.tar.gz` | [My Downloads](https://support.broadcom.com/group/ecx/downloads) → VMware vSphere Foundation → VMware vSphere Foundation 9 → 9.1.1.0100 → **VCF Consumption CLI Plugins** | [VCF CLI plugins](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20Foundation%209&release=9.1.1.0100&os=&servicePk=548172&language=EN&groupId=545621&viewGroup=true) |
 
 - Pick the release first — until you do, the page reads "No data found". The direct link skips this.
 - Take the row for your platform, not the multi-GB platform-less bundles beside it.
@@ -449,8 +450,8 @@ case "$(uname -s)/$(uname -m)" in
   Darwin/x86_64) P=Darwin_AMD64 ;;
   *)             P=unsupported ;;
 esac
-CLI_TGZ="$HOME/Downloads/VCF-Consumption-CLI-${P}-9.1.1.0.25662425.tar.gz"
-PLUGINS_TGZ="$HOME/Downloads/VCF-Consumption-CLI-PluginBundle-${P}-9.1.1.0.25665404.tar.gz"
+CLI_TGZ="$HOME/Downloads/VCF-Consumption-CLI-${P}-9.1.1.0100.25746586.tar.gz"
+PLUGINS_TGZ="$HOME/Downloads/VCF-Consumption-CLI-PluginBundle-${P}-9.1.1.0100.25793136.tar.gz"
 
 if [ -f "$CLI_TGZ" ] && [ -f "$PLUGINS_TGZ" ]; then
   (sha256sum "$CLI_TGZ" "$PLUGINS_TGZ" 2>/dev/null || shasum -a 256 "$CLI_TGZ" "$PLUGINS_TGZ") \
@@ -475,7 +476,7 @@ fi
 
 **Expect:** two `SHA-256:` lines, each equal to the SHA-256 value the download page shows for that
 file (labelled **SHA2**),
-then `version: v9.1.1.0.25662425` (or the release you downloaded), then the plugins, each
+then `version: v9.1.1.0100.25746586` (or the release you downloaded), then the plugins, each
 `installed`, and no `WARNING` line.
 
 **If not:**
@@ -1189,7 +1190,7 @@ rm -f ~/.vks-golang-web.env ~/.vks-golang-web.functions
 unset HARBOR_FQDN HARBOR_PROJECT SUPERVISOR_ENDPOINT VCENTER_FQDN VKS_CLUSTER VKS_NAMESPACE \
       SSO_USERNAME VCF_CLI_VSPHERE_PASSWORD HARBOR_ADMIN_PASSWORD REGISTRY_USERNAME \
       REGISTRY_TOKEN HARBOR_CA SUPERVISOR_CA SUPERVISOR_KUBECONFIG GUEST_KUBECONFIG \
-      IMAGE KUBECONFIG APP_IP CONTAINER_ENGINE
+      IMAGE KUBECONFIG APP_IP CONTAINER_ENGINE VCF_CLI_ESSENTIALS_PLUGIN_GROUP_VERSION
 unset -f harbor_cfg kubectl_install 2>/dev/null || true
 ```
 
@@ -1206,7 +1207,7 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `dial unix /var/run/docker.sock` (macOS) | `colima start`. If it prints `already running`, `docker` is pointed at another engine: `docker context use colima`. |
 | `bad CPU type in executable` (macOS) | An Intel-only program (such as the Supervisor's kubectl, from step 2's alternative under *Install kubectl*) needs Rosetta: `softwareupdate --install-rosetta --agree-to-license` |
 | `vcf plugin list` pauses on `Refreshing plugin inventory cache` | Wait: it stops by itself after about 30 s (it cannot reach VMware's plugin server). The installed plugins do not need that server. |
-| Every `vcf` command first prints `The vcf cli essential plugins have not been installed …` and `Failed to install plugin 'telemetry:v9.0.2'` | Harmless: the command still runs. It happens on a machine that had another `vcf` before; a fresh install by step 2 does not print it. To silence it, run `export VCF_CLI_ESSENTIALS_PLUGIN_GROUP_VERSION=v9.1.1` (add the line to `~/.zshrc` or `~/.bashrc` to keep it). The setting was found by testing VCF CLI 9.1.1; Broadcom does not document it. |
+| Every `vcf` command first prints `The vcf cli essential plugins have not been installed …` and `Failed to install plugin 'telemetry:v9.0.2'` | Harmless: the command still runs. `vcf` looks online for a plugin version that Broadcom has not published; it happens on a machine where `vcf` has been used before. The env file from step 1 sets `VCF_CLI_ESSENTIALS_PLUGIN_GROUP_VERSION=v9.1.1`, which stops it: run `source ~/.vks-golang-web.env` first. If your env file is older and lacks that line, add `export VCF_CLI_ESSENTIALS_PLUGIN_GROUP_VERSION=v9.1.1` to it. Broadcom does not document this setting. |
 | `kubectl_install: command not found` | Re-run step 1's block; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | `kubectl_install: no version` in step 7 | The guest cluster did not answer: check the kubeconfig block's output; if it shows `Unauthorized`, run step 7's *Renew the Supervisor login* block, then the kubeconfig block again. |
 | `error: You must be logged in to the server (Unauthorized)` from a Supervisor command | Your Supervisor login ended (it lasts about 10 hours). Run step 7's *Renew the Supervisor login* block (the one inside the alternative if you logged in with the certificate checked), then the command again. |
