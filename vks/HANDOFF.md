@@ -8,8 +8,9 @@ history up to 2026-10-05).
 ## Where it stands — 2026-10-07
 
 `vks/README.md` builds `golang-web`, pushes it to Harbor and deploys it to a VKS guest cluster.
-**All work is merged; nothing is in flight.** It is pinned to **VCF CLI 9.1.1.0**
-(`vcf version` prints `v9.1.1.0.25662425`; the plugin bundle is build 25665404). The README has
+**All work is merged; nothing is in flight.** It is pinned to **VCF CLI 9.1.1.0100**
+(`vcf version` prints `v9.1.1.0100.25746586`; the plugin bundle is build 25793136; both
+published 2026-10-08, re-pinned from 9.1.1.0 the same day). The README has
 54 `sh` blocks; all parse with `bash -n` and `zsh -n`.
 
 Walks of the text as of `97adb90`, all on 2026-10-05 against the lab, each block run as written
@@ -321,6 +322,19 @@ cluster v1.36.2), from Linux and from the M2 (the Intel build under Rosetta):
   `certificate signed by unknown authority` where Linux says the certificate has no IP SANs.
 
 ### kubectl and the VCF CLI
+
+- VCF CLI 9.1.1.0100, measured 2026-10-08. Walked as printed in a clean `ubuntu:24.04`
+  container (bash) and on the M2 (zsh; the namespace check in bash 3.2): step 1's env file,
+  the install block, the default login, the namespace check, renew on a valid login, and step
+  10's delete. The Linux bundle installs 14 plugins, the Darwin_ARM64 bundle 13 (no
+  `objectstore`); the VKS plugins are v3.7.2. The four files' SHA-256 matched the portal.
+- `Failed to install plugin 'telemetry:v9.0.2'`: on a machine where `vcf` was used before, every
+  command first tries to install the plugin group `vmware-vcfcli/essentials` at the newest
+  version Broadcom's online catalogue lists, v9.0.2 (it lists v1.0.0, v8.0.3, v9.0.0 to v9.0.2;
+  no 9.1), and that `telemetry` version is not in the registry (`MANIFEST_UNKNOWN`). 9.1.1.0100
+  does it too. `VCF_CLI_ESSENTIALS_PLUGIN_GROUP_VERSION=v9.1.1` stops it on both releases; the
+  name is in the binary and in no Broadcom page found. Step 1's env file now sets it. A home
+  that never ran `vcf` does not print the message.
 
 - `vcf context refresh`, measured 2026-10-07 on Linux (Ubuntu 26.04, bash and zsh) and on the M2
   (zsh and bash 3.2), vcf v9.1.1.0, each block run as printed in a clean home with a closed stdin:
