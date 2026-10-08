@@ -126,6 +126,13 @@ make version        # Print current version tag
       and the lab VM was OOM-killed; keep them under `~/.cache`.
       How the rows of the README's *Tested platforms* table were produced (this text stood in
       the README until 2026-10-08; the owner wants no test log in user-facing docs):
+      The table's last column was cut to plain facts the same day. What it said per row and no
+      longer does: Debian 13.7 x86_64 was two machines (Docker only; then podman as the default
+      with Docker also installed). Ubuntu 24.04.4 arm64: `make image-push` with podman refused
+      as documented. Debian 12.15 arm64: it stopped at `'podman buildx' is not available`.
+      Debian 13.6 arm64: it failed twice in runc and pushed once every session of the user had
+      ended. macOS 26.6.1: the Homebrew installer was not run; with Colima stopped `make e2e`
+      and `make ci-run` stopped at `docker is installed but not running`.
 
       The Debian rows and the arm64 rows are from 2026-10-06: each is one pass on a new virtual
       machine (the arm64 ones on an Apple silicon Mac; the Ubuntu images came with Git and curl, and
