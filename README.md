@@ -638,18 +638,18 @@ fills them from the pod.
 
 ## Tested platforms
 
-| OS | Architecture | Tested with | What ran |
+| OS | Architecture | Tested with | Covered |
 |----|--------------|-------------|----------|
 | Ubuntu 24.04.5 LTS | x86_64 | GNU Make 4.3, Git 2.43.0, podman 4.9.3, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
 | Ubuntu 26.04.1 LTS | x86_64 | GNU Make 4.4.1, Git 2.53.0, podman 5.7.0, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
-| Debian 12.15 | x86_64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section, with Docker only. podman 4.3.1 does not build the image; see [Install a container engine](#install-a-container-engine) |
-| Debian 13.7 | x86_64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section with Docker only. On a second machine with podman and Docker both installed, every section again, with podman (the default there) building and pushing the image |
-| Ubuntu 24.04.4 LTS | arm64 | GNU Make 4.3, Git 2.43.0, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.9.3 | Every section, with Docker only. With podman, `make image-push` refused as documented |
-| Ubuntu 26.04 LTS | arm64 | GNU Make 4.4.1, Git 2.53.0, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.7.0 | Every section, with Docker only. With podman, `make image-push` pushed both architectures |
-| Debian 12.15 | arm64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.3.1 | Every section, with Docker only. With podman, `make image-push` stops at `'podman buildx' is not available` |
-| Debian 13.6 | arm64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section, with Docker only. With podman, `make image-push` failed twice in runc (no systemd user session) and pushed both architectures once every session of the user had ended; a plain log out and back in on a normal machine was not tested |
+| Debian 12.15 | x86_64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section, with Docker. podman 4.3.1 does not build the image; see [Install a container engine](#install-a-container-engine) |
+| Debian 13.7 | x86_64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section, with Docker or with podman |
+| Ubuntu 24.04.4 LTS | arm64 | GNU Make 4.3, Git 2.43.0, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.9.3 | Every section, with Docker. podman 4.9.3 does not push the image |
+| Ubuntu 26.04 LTS | arm64 | GNU Make 4.4.1, Git 2.53.0, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.7.0 | Every section, with Docker. `make image-push` also works with podman |
+| Debian 12.15 | arm64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.3.1 | Every section, with Docker. podman 4.3.1 does not push the image |
+| Debian 13.6 | arm64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section, with Docker. `make image-push` also works with podman |
 | macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | Every section except the kubectl install block |
-| macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 with engine 29.5.2 in Colima 0.10.3 (buildx 0.37.2), kubectl 1.37.1 (1.36.2 before the install block), kind 0.33.0 | Every section with Docker, except the Homebrew installer and, as this README says for macOS, the LoadBalancer block and the namespace delete (`make kind-delete` instead). With podman and Colima stopped: the run, image, push and contributor sections; `make e2e` and `make ci-run` stopped at `docker is installed but not running` |
+| macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 with engine 29.5.2 in Colima 0.10.3 (buildx 0.37.2), kubectl 1.37.1 (1.36.2 before the install block), kind 0.33.0 | Every section, with Docker, except the LoadBalancer block and the namespace delete (use `make kind-delete`). With podman: the run, image, push and contributor sections; `make e2e` and `make ci-run` need Docker |
 
 Intel Macs are not covered.
 
