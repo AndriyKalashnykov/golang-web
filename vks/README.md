@@ -201,7 +201,7 @@ work; if unsure, pick podman — **except on an arm64 Linux machine** (run `unam
 24.04 has 4.9) builds an image the cluster cannot pull, and step 6 refuses it. Pick docker there
 (podman 5.8 also works, if you already have it).
 
-macOS, podman:
+**macOS, podman:**
 
 ```sh
 brew install podman
@@ -212,7 +212,7 @@ podman info >/dev/null 2>&1 || podman machine start
 **Expect:** the last lines say the machine `started successfully`, or nothing if it was already
 running.
 
-macOS, docker (Colima — runs the docker engine in a small VM):
+**macOS, docker** (Colima — runs the docker engine in a small VM):
 
 ```sh
 brew install colima docker docker-buildx
@@ -237,17 +237,17 @@ another engine (Docker Desktop, for example).
 overrides the active context` appears — a variable in your shell points `docker` at another
 engine: run `unset DOCKER_HOST DOCKER_CONTEXT`, then the block again.
 
-Linux (Debian/Ubuntu), podman:
+**Linux (Debian/Ubuntu), podman:**
 
 ```sh
 sudo apt-get update && sudo apt-get install -y podman
 ```
 
-**Expect:** the install ends without an error; the Check below confirms it. podman 4.9 is the
-oldest version tested (Ubuntu 24.04 has it; Debian 13 has 5.4). Debian 12 has podman 4.3, which
+**Expect:** the install ends without an error; the Check below confirms it. podman 4.9 or newer
+is needed (Ubuntu 24.04 has it; Debian 13 has 5.4). Debian 12 has podman 4.3, which
 does not work: use docker there and on anything older.
 
-Linux (Debian/Ubuntu), docker. The first line reads which of the two you have:
+**Linux (Debian/Ubuntu), docker.** The first line reads which of the two you have:
 
 ```sh
 D="$(. /etc/os-release && echo "$ID")"
@@ -293,13 +293,13 @@ edit that line yourself.
 `jq` reads JSON; Linux also needs `git`, `make`, `unzip`, `curl` and `openssl`, which macOS
 already has.
 
-macOS (skip this if `jq --version` already works; macOS 26 has `jq` built in):
+**macOS** (skip this if `jq --version` already works; macOS 26 has `jq` built in):
 
 ```sh
 brew install jq
 ```
 
-Linux (Debian/Ubuntu):
+**Linux (Debian/Ubuntu):**
 
 ```sh
 sudo apt-get install -y jq git make unzip curl openssl
@@ -363,10 +363,10 @@ if [ -n "$V" ]; then kubectl_install "$V"; else echo "kubectl_install: cannot re
   alternative below.
 
 <details>
-<summary><b>Alternative: install the kubectl your Supervisor serves</b> (only if dl.k8s.io is blocked)</summary>
+<summary><b>Alternative: download kubectl from your Supervisor</b> (only if dl.k8s.io is blocked)</summary>
 
-Run this only if the block above printed `cannot reach dl.k8s.io`. Your Supervisor serves its own
-kubectl, for Intel/AMD (amd64) Linux and macOS only. This block picks the one for this machine,
+Run this only if the block above printed `cannot reach dl.k8s.io`. Your Supervisor offers a
+kubectl download of its own, for Intel/AMD (amd64) Linux and macOS only. This block picks the one for this machine,
 downloads it from the Supervisor and installs it into `/usr/local/bin`; its `sudo` asks for your
 password. The download does not check the Supervisor's certificate (`curl -k`), so it needs no CA
 file. On any other machine the block installs nothing and says so. This kubectl is the Supervisor's version, which can be several versions older than
@@ -425,7 +425,7 @@ you will want for day-to-day work with VKS; this guide itself does not use them.
 installs them from the downloaded file, without internet access.
 
 Download the files for your platform (`Linux_AMD64`, `Linux_ARM64`, `Darwin_ARM64` or
-`Darwin_AMD64`) from Broadcom (`Darwin_AMD64`, for Intel Macs, is untested here). Tick **"I agree to the Terms and Conditions"** — the checkbox stays
+`Darwin_AMD64`) from Broadcom (`Darwin_AMD64` is the one for Intel Macs). Tick **"I agree to the Terms and Conditions"** — the checkbox stays
 greyed out until you open both Terms links — or the download icon does nothing.
 
 | file | where to click | direct link |
@@ -436,7 +436,7 @@ greyed out until you open both Terms links — or the download icon does nothing
 - Pick the release first — until you do, the page reads "No data found". The direct link skips this.
 - Take the row for your platform, not the multi-GB platform-less bundles beside it.
 - Your Supervisor's home page may also offer the CLI, or answer "VCF CLI is currently unavailable
-  for download". This guide uses the Broadcom download; the Supervisor's file is untested here.
+  for download". This guide uses the Broadcom download.
 
 This block finds this machine's two files in `~/Downloads`, prints their checksums and installs
 them. If you saved them elsewhere, change that folder. Other platforms are not supported.
@@ -544,7 +544,7 @@ your administrator's, ignoring colons and upper/lower case.
 
 Run only the block for the engine you chose in step 2.
 
-podman, Linux and macOS:
+**podman, Linux and macOS:**
 
 ```sh
 source ~/.vks-golang-web.env
@@ -552,14 +552,14 @@ mkdir -p "$HOME/.config/containers/certs.d/${HARBOR_FQDN}"
 cp "$HARBOR_CA" "$HOME/.config/containers/certs.d/${HARBOR_FQDN}/ca.crt"
 ```
 
-Linux, docker:
+**Linux, docker:**
 
 ```sh
 source ~/.vks-golang-web.env
 sudo install -D -m0644 "$HARBOR_CA" "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt"
 ```
 
-macOS, docker (Colima). The CA goes inside Colima's VM, so the first line starts Colima if it is
+**macOS, docker (Colima).** The CA goes inside Colima's VM, so the first line starts Colima if it is
 stopped (after a restart of the Mac, for example). `</dev/null` keeps `colima ssh` from reading
 the lines you pasted after it. If you ever run `colima delete`, run this again:
 
@@ -806,7 +806,7 @@ fi
 
 This guide logs in with the SSO user and a password; `--auth-type basic` asks for exactly that.
 Broadcom documents the flag for a Supervisor that otherwise opens a web-page login (KB 417617);
-this guide was not tested on one. If the password login fails because your account exists only
+this guide does not cover such a Supervisor. If the password login fails because your account exists only
 in an external identity provider (such as Okta or Entra ID), that is out of scope: ask your
 administrator for another way to get the guest cluster's kubeconfig, save it
 with `source ~/.vks-golang-web.env; mkdir -p ~/.kube; cp <file> "$GUEST_KUBECONFIG"`, run
@@ -1127,21 +1127,23 @@ gone is harmless.
 
 Skip this if you use this Harbor for other work: those tools need the CA too. Run only the block
 for your engine; each prints nothing (the Colima block starts Colima first if it is stopped, and
-then prints its start-up lines). podman, Linux and macOS:
+then prints its start-up lines).
+
+**podman, Linux and macOS:**
 
 ```sh
 source ~/.vks-golang-web.env
 rm -rf "$HOME/.config/containers/certs.d/${HARBOR_FQDN:?}"
 ```
 
-Linux, docker:
+**Linux, docker:**
 
 ```sh
 source ~/.vks-golang-web.env
 sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
 ```
 
-macOS, docker (Colima):
+**macOS, docker (Colima):**
 
 ```sh
 source ~/.vks-golang-web.env
@@ -1208,7 +1210,7 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `kubectl_install: command not found` | Re-run step 1's block; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | `kubectl_install: no version` in step 7 | The guest cluster did not answer: check the kubeconfig block's output; if it shows `Unauthorized`, run step 7's *Renew the Supervisor login* block, then the kubeconfig block again. |
 | `error: You must be logged in to the server (Unauthorized)` from a Supervisor command | Your Supervisor login ended (it lasts about 10 hours). Run step 7's *Renew the Supervisor login* block (the one inside the alternative if you logged in with the certificate checked), then the command again. |
-| `kubectl_install: cannot reach dl.k8s.io` | If a `sudo:` line is printed above it, sudo failed: run the block again and enter your password. Otherwise ask your administrator to allow dl.k8s.io (the real fix). Until then, run step 2's *Alternative: install the kubectl your Supervisor serves* block (under *Install kubectl*): Intel/AMD machines only, and the Supervisor's older version. |
+| `kubectl_install: cannot reach dl.k8s.io` | If a `sudo:` line is printed above it, sudo failed: run the block again and enter your password. Otherwise ask your administrator to allow dl.k8s.io (the real fix). Until then, run step 2's *Alternative: download kubectl from your Supervisor* block (under *Install kubectl*): Intel/AMD machines only, and the Supervisor's older version. |
 | `ImagePullBackOff` with `x509` in `kubectl describe pod` | The guest cluster does not trust Harbor's CA. Ask your administrator to add Harbor's CA certificate (your `$HARBOR_CA` file) to the trusted CAs of the guest cluster `$VKS_CLUSTER`. |
 | `ImagePullBackOff` with `pull access denied` or `no basic auth credentials` in `kubectl describe pod` | The project is private: run step 8's pull-secret block, then `kubectl rollout restart deploy/golang-web` (running pods keep their old pull settings). |
 | `403` on the step 6 or 8 lookup | The robot needs `artifact` read and list; create it with step 5. |

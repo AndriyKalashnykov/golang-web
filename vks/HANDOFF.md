@@ -41,7 +41,7 @@ file instead), `brew install jq` on a macOS that lacks jq, and the Broadcom port
 `vks/ARGOCD-auto.md` (named `ARGOCD.md` until the manual guide was added; `ARGOCD.md` is now a
 two-row chooser) installs ArgoCD Service 1.2.0 on the Supervisor, starts an instance in the
 vSphere Namespace and creates a guest cluster through it from the chart `vks/argocd/guest-cluster`
-(pinned by commit; a change to the chart needs a new pin in the guide). 21 `sh` blocks; all parse
+(pinned by commit; a change to the chart needs a new pin in the guide). 23 `sh` blocks; all parse
 in bash 5, zsh 5.9 and bash 3.2.
 
 | path | where | result |
@@ -51,7 +51,7 @@ in bash 5, zsh 5.9 and bash 3.2.
 | the same, bash 3.2 | the same | the four clean-up blocks, back to a bare lab; steps 1 to 3 separately |
 | the same, `zsh -il` and `bash -il` reading the block from stdin | the same | four blocks fed line by line on a second run: `unchanged`, and the same output |
 
-`ARGOCD-manual.md` (19 `sh` blocks, 17 screenshots in `vks/img/argocd/`) was walked on 2026-10-07
+`ARGOCD-manual.md` (28 `sh` blocks, 17 screenshots in `vks/img/argocd/`) was walked on 2026-10-07
 against the same lab:
 
 | path | where | result |
@@ -203,6 +203,11 @@ The owner restarted the lab the same day; nothing inside it was checked after th
   its own renew block. A review asked to keep the CA login as the default and was declined. The
   cost is stated once above the block: the SSO password, and every later `kubectl` call to the
   Supervisor (the read of the guest cluster's kubeconfig included), go to an unchecked server.
+- **Step 8 of both ArgoCD guides adds the new cluster with Broadcom's `argocd` program**
+  (`argocd cluster add … --upsert -y`, 2026-10-08); the `ManagedEntity` is the collapsed
+  alternative. Both store the cluster's one-year administrator certificate; the guides say so,
+  print the end date and say how to renew. The token form (below) was not chosen for the guides:
+  it needs three more blocks.
 - **The VCF CLI plugin bundle is installed** (offline, `vcf plugin install all
   --local-source`), although `vcf context create` was measured to work with zero plugins.
 - **The pull secret is optional**, behind the public/private check. A review's suggestion to
@@ -277,6 +282,43 @@ Everything here was measured unless it says otherwise.
   `Notarized Developer ID` (VMware, EG7KH642X6). SSH does enforce Gatekeeper: a quarantined
   ad-hoc-signed binary was killed (`rc=137`) and ran once unquarantined. Terminal.app is
   inferred to behave the same.
+
+### How ArgoCD logs in to a guest cluster, and for how long
+
+Measured 2026-10-08 on the lab (argocd `v3.4.4+696352d56-vcf`, ArgoCD Service 1.2.0, guest
+cluster v1.36.2), from Linux and from the M2 (the Intel build under Rosetta):
+- `argocd cluster add <context> --kubeconfig <the cluster's kubeconfig>` works, and stores what
+  the kubeconfig signs in with. The cluster's own kubeconfig holds the `kubernetes-admin`
+  certificate (`O=system:masters`, valid one year from when the cluster issued it), so ArgoCD
+  stores that certificate; the `argocd-manager` token the program creates is not used. That is
+  upstream's rule (READ: argo-cd `cmd/util/cluster.go`, the token is set "only if the key/cert
+  data is absent"). Given a kubeconfig that signs in with a token and has no certificate, it
+  stores the `argocd-manager` token, which has no end date.
+- A `ManagedEntity` stores the same certificate (same serial). After the cluster issued a new
+  one, the service kept the old for 9 minutes of watching (its log: one pass per entity, none
+  after in 5 h); a change to the entity's spec made it copy the new one in 25 s.
+- Re-adding: the identical `cluster add` again is fine; with `--upsert` a different login
+  REPLACES the stored one; a different login WITHOUT `--upsert` made the ArgoCD server exit
+  (`bufio.Scanner: token too long`, exit 141) and restart 10 s later, twice out of two. Both
+  guides therefore always pass `--upsert`.
+- `argocd cluster rm <name>` removes the ArgoCD entry, then looks for a kubeconfig context of
+  that same name to delete the account on the cluster. Added under the context's own name (no
+  `--name`) and with `KUBECONFIG` set, it removed the account, role and binding; with a custom
+  `--name` it failed after removing the entry and left them.
+- With no ArgoCD login, `cluster add` created the account on the cluster and then failed.
+- Interactive `argocd login <address> --username admin --grpc-web` asks `Proceed insecurely
+  (y/n)?` (the certificate names no address) and then the password; `argocd logout <address>`
+  asks the same question and answers `token successfully invalidated on server`.
+- Nothing in the ArgoCD page shows which login a destination holds; the guides' *How long this
+  login lasts* block reads it from the cluster Secret and prints the kind and end date only.
+- Walked 2026-10-08 in a clean `ubuntu:24.04` container (bash, non-root with sudo) against a
+  guest cluster made outside ArgoCD: the manual guide's checksum, install, save-kubeconfig,
+  login (on a terminal, answers typed by the harness), add, check, add again, remove and logout
+  blocks; the scripted guide's add, check, add again and the new removal lines, with
+  `argocd_session` replaced by a token file because this lab's first admin password secret no
+  longer exists. Every Expect matched. The same blocks were then walked on the M2 (zsh; the
+  expiry check also in bash 3.2), every Expect matched; there the login warning reads
+  `certificate signed by unknown authority` where Linux says the certificate has no IP SANs.
 
 ### kubectl and the VCF CLI
 

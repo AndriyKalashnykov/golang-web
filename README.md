@@ -10,9 +10,9 @@ packaged as a multi-arch image with a KinD end-to-end harness.
 
 | Component | Technology |
 |-----------|-----------|
-| Language | Go 1.27.1 (pinned in `.mise.toml`, `go.mod`, `Dockerfile`) |
+| Language | Go (version pinned in `.mise.toml`, `go.mod`, `Dockerfile`) |
 | HTTP | net/http (standard library) |
-| Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) v1.24.1 |
+| Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) (version pinned in `go.mod`) |
 | Container | Built with podman or Docker; published multi-arch (linux/amd64, linux/arm64) |
 | Toolchain | [mise](https://mise.jdx.dev/) (all tool versions pinned in `.mise.toml`) |
 | Local Kubernetes | KinD + [cloud-provider-kind](https://github.com/kubernetes-sigs/cloud-provider-kind) |
@@ -36,7 +36,7 @@ to [Run it locally](#run-it-locally).
 
 ### Install make, Git and curl
 
-Ubuntu or Debian (curl is not preinstalled on Ubuntu):
+**Ubuntu or Debian (curl is not preinstalled on Ubuntu):**
 
 ```bash
 sudo apt-get update && sudo apt-get install -y make git curl
@@ -82,9 +82,9 @@ The container engine builds and runs the image. Pick one and run only its block.
 
 On arm64 Linux (`uname -m` prints `aarch64`), pick Docker if you will push images: podman 4.x
 (Ubuntu 24.04 has 4.9) cannot push the two-architecture image, and `make image-push` refuses
-it. podman 5.8 works; 5.4 and 5.7 each pushed it in one test; other 5.x versions are untested.
+it. Use podman 5.8 or newer there.
 
-macOS, podman:
+**macOS, podman:**
 
 ```bash
 brew install podman
@@ -95,7 +95,7 @@ podman info >/dev/null 2>&1 || podman machine start
 Expect the last lines to say the machine `started successfully`, or nothing if it was already
 running.
 
-macOS, Docker, with [Colima](https://github.com/abiosoft/colima), which runs the Docker engine
+**macOS, Docker,** with [Colima](https://github.com/abiosoft/colima), which runs the Docker engine
 in a small virtual machine:
 
 ```bash
@@ -118,18 +118,18 @@ If the line does not start with `colima:`, or a
 your shell points `docker` at another engine: run `unset DOCKER_HOST DOCKER_CONTEXT`, then the
 block again.
 
-Linux, podman:
+**Linux, podman:**
 
 ```bash
 sudo apt-get update && sudo apt-get install -y podman
 ```
 
-Expect the install to end without an error. podman 4.9 is the oldest version tested (Ubuntu
+Expect the install to end without an error. podman 4.9 or newer is needed (Ubuntu
 24.04 has it; Debian 13 has 5.4). Debian 12 has podman 4.3, which does not work: there
 `make image-build` stops with `'podman buildx' is not available`. Use Docker on Debian 12 and
 on anything older.
 
-Linux, Docker. The first line reads whether you have Ubuntu or Debian:
+**Linux, Docker.** The first line reads whether you have Ubuntu or Debian:
 
 ```bash
 D="$(. /etc/os-release && echo "$ID")"
@@ -276,13 +276,13 @@ Optional, and only after `make deps` has run: the `make` commands find the pinne
 themselves. To also use them (`go`, `kind` and the rest) at your own prompt, run the line for
 your shell once, then open a new terminal.
 
-zsh (the macOS default):
+**zsh (the macOS default):**
 
 ```bash
 echo 'eval "$(~/.local/bin/mise activate zsh)"' >> ~/.zshrc
 ```
 
-bash:
+**bash:**
 
 ```bash
 echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
@@ -651,21 +651,7 @@ fills them from the pod.
 | macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | Every section except the kubectl install block |
 | macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 with engine 29.5.2 in Colima 0.10.3 (buildx 0.37.2), kubectl 1.37.1 (1.36.2 before the install block), kind 0.33.0 | Every section with Docker, except the Homebrew installer and, as this README says for macOS, the LoadBalancer block and the namespace delete (`make kind-delete` instead). With podman and Colima stopped: the run, image, push and contributor sections; `make e2e` and `make ci-run` stopped at `docker is installed but not running` |
 
-The Debian rows and the arm64 rows are from 2026-10-06: each is one pass on a new virtual
-machine (the arm64 ones on an Apple silicon Mac; the Ubuntu images came with Git and curl, and
-Git was removed first), at commit `29c7329`, with every step matching its Expect text. In those
-walks sudo never asked for a password. The push section ran steps 2 to 4 against a registry on
-the same machine, not ghcr.io; steps 1 and 5 were not run, and the image for the other
-architecture was pushed but not run. `make release` was not run.
-
-The macOS 26.6.1 row is from 2026-10-06: one pass per engine, each block pasted into the default
-login zsh, at commits `29c7329` (podman) and `5de2e22` (Docker). The Mac already had Homebrew,
-kubectl and both engines with their virtual machines created (one running at a time), so the
-install blocks were re-runs; sudo did not ask for a password, and `make test` printed Go's
-cached result. The push section ran steps 2 to 4 against a registry on the same Mac; steps 1
-and 5 and `make release` were not run, and the amd64 image was pushed but not run. Every section
-after the mise line ran in a terminal with mise activated. The macOS 26.6.2 row is an earlier
-Mac that no longer exists. Intel Macs are not tested.
+Intel Macs are not covered.
 
 ## For contributors
 
