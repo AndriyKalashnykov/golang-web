@@ -515,13 +515,13 @@ login inside it (its *context*). If this is a new terminal, set the name again f
 
 ```sh
 source ~/.vks-golang-web.env
-( umask 077; kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get secret "${NEW_CLUSTER}-kubeconfig" -o jsonpath='{.data.value}' | base64 -d > "$HOME/.kube/${NEW_CLUSTER}.kubeconfig" )
+( umask 077; kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get secret "${NEW_CLUSTER:?set NEW_CLUSTER first}-kubeconfig" -o jsonpath='{.data.value}' | base64 -d > "$HOME/.kube/${NEW_CLUSTER}.kubeconfig" )
 kubectl --kubeconfig "$HOME/.kube/${NEW_CLUSTER}.kubeconfig" config current-context
 ```
 
 **Expect:** `<cluster>-admin@<cluster>`.
 
-**If not:** `secrets "-kubeconfig" not found` — `NEW_CLUSTER` is not set in this terminal.
+**If not:** `set NEW_CLUSTER first` — set it as shown above, then run the block again.
 `secrets "<name>-kubeconfig" not found` — the cluster from step 7 is not ready yet, or the name
 is wrong.
 
