@@ -53,7 +53,7 @@ env:
   # With a version, it is part of the cache key and the cached binary verifies.
   # Renovate bumps it (custom manager in renovate.json, "Tool versions" group).
   # renovate: datasource=github-releases depName=jdx/mise extractVersion=^v(?<version>.*)$
-  MISE_VERSION: "2026.10.2"
+  MISE_VERSION: "2026.10.3"
 
 jobs:
 
