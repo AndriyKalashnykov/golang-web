@@ -585,7 +585,72 @@ again changes the cluster.
 ## 8. Add the new cluster to ArgoCD
 
 This makes the guest cluster a destination too, so ArgoCD can deploy applications into it. The
-**Edit** binding from step 6 already covers it.
+block saves the new cluster's kubeconfig to a file only you can read, logs `argocd` in, and has
+it add the cluster. (To do it without the `argocd` program, use the alternative at the end of
+this step instead.)
+
+```sh
+source ~/.vks-argocd.env
+NEW_KC="$HOME/.kube/${NEW_CLUSTER}.kubeconfig"
+( umask 077; sk get secret "${NEW_CLUSTER}-kubeconfig" -o jsonpath='{.data.value}' | base64 -d > "$NEW_KC" )
+NEW_CTX="$(kubectl --kubeconfig "$NEW_KC" config current-context)"
+if [ -z "$NEW_CTX" ]; then
+  echo "No kubeconfig for '$NEW_CLUSTER' yet: is the cluster from step 7 ready, and is the Supervisor login still valid?"
+elif argocd_session; then
+  argocd cluster add "$NEW_CTX" --kubeconfig "$NEW_KC" --upsert -y && argocd cluster list
+fi
+```
+
+**Expect:** the login line, four lines about `argocd-manager` on the new cluster (`created`;
+`already exists` or `updated` when you run it again), `Cluster 'https://<an address>:6443'
+added`, then two destinations: your vSphere Namespace, and
+`<cluster>-admin@<cluster>` with `Successful`.
+
+**If not:** `No kubeconfig for …` — wait for step 7's cluster, or renew the Supervisor login
+(main guide, step 7), then run the block again.
+
+### How long this login lasts
+
+ArgoCD keeps a login for each destination. Which one it keeps depends on the kubeconfig it was
+given: this kubeconfig holds the cluster's administrator **certificate**, so that is what ArgoCD
+stored, and a certificate has an end date (one year after the cluster made it). After that date
+ArgoCD cannot reach the cluster until you renew the login; your applications keep running.
+
+This prints, for every destination, what ArgoCD holds and until when. It shows no secret.
+
+```sh
+source ~/.vks-argocd.env
+sk get secret -l argocd.argoproj.io/secret-type=cluster -o json \
+  | jq -r '.items[] | (.data.config | @base64d | fromjson) as $c
+      | ($c.bearerToken // "") as $t
+      | (if ($t | test("^[^.]+[.][^.]+[.][^.]+$")) then ($t | split(".")[1] | gsub("-"; "+") | gsub("_"; "/") | . + ("===" | .[0:((4 - (length % 4)) % 4)]) | @base64d | fromjson | .exp // 0) else 0 end) as $exp
+      | [(.data.name | @base64d),
+         (if $t != "" then "token" elif ($c.tlsClientConfig.certData // "") != "" then "certificate" else "other" end),
+         (if $t != "" then (if $exp > 0 then ($exp | todate) else "none" end) else ($c.tlsClientConfig.certData // "none") end)] | @tsv' \
+  | while IFS="$(printf '\t')" read -r name kind detail; do
+      case "$kind" in
+        token)       if [ "$detail" = none ]; then echo "$name: token, no end date"; else echo "$name: token, valid until $detail"; fi ;;
+        certificate) echo "$name: certificate, valid until $(printf '%s' "$detail" | base64 -d | openssl x509 -noout -enddate | cut -d= -f2)" ;;
+        *)           echo "$name: no stored login" ;;
+      esac
+    done
+```
+
+**Expect:** one line per destination, such as `<cluster>-admin@<cluster>: certificate, valid until
+Oct  8 02:07:25 2027 GMT`. Your namespace's line says `token, no end date`.
+
+To renew before that date, run the first block of this step again: the cluster has made a newer
+certificate by then, and `--upsert` replaces the stored login. Keep `--upsert`: without it, an
+`argocd cluster add` whose login differs from the stored one made the ArgoCD server restart
+(seen twice on v3.4.4) instead of printing an error.
+
+<details>
+<summary><b>Alternative: add the cluster without the argocd program</b> (a ManagedEntity)</summary>
+
+Run this INSTEAD of the first block above. The ArgoCD Service adds the cluster for you; the
+**Edit** binding from step 6 already covers it. The service stores the same administrator
+certificate, with the same end date, and does not replace it by itself: to renew, run
+`sk delete managedentity "$NEW_CLUSTER"` and then this block again.
 
 ```sh
 source ~/.vks-argocd.env
@@ -602,9 +667,7 @@ argocd_session && argocd cluster list
 Namespace, and `<cluster>-<namespace>` at `https://<an address>:6443`. The new one shows no status, or
 `Unknown`, until an Application uses it; that is normal.
 
-The service keeps this destination's login in a secret it owns. That login is the cluster's own
-client certificate; whether the service renews it before it expires was not tested for this
-guide.
+</details>
 
 ## 9. Clean up (optional)
 
@@ -620,6 +683,11 @@ the cluster and its virtual machines.
 ```sh
 source ~/.vks-argocd.env
 if argocd_session; then
+  NEW_KC="$HOME/.kube/${NEW_CLUSTER}.kubeconfig"
+  if [ -s "$NEW_KC" ]; then
+    ( export KUBECONFIG="$NEW_KC"; argocd cluster rm "$(kubectl config current-context)" -y )
+    rm -f "$NEW_KC"
+  fi
   sk delete managedentity "$NEW_CLUSTER" --ignore-not-found
   argocd app delete "$NEW_CLUSTER" --yes
   n=0
@@ -630,8 +698,9 @@ if argocd_session; then
 fi
 ```
 
-**Expect:** the login line, `managedentity… deleted`, `application '<name>' deleted`, and within
-a few minutes `left (nothing after the colon means gone):` with nothing after it.
+**Expect:** the login line, `Cluster '<cluster>-admin@<cluster>' removed` with three lines about
+`argocd-manager` being deleted (or `managedentity… deleted` if you used step 8's alternative),
+`application '<name>' deleted`, and within a few minutes `left (nothing after the colon means gone):` with nothing after it.
 
 **If not:** a name, or `unknown`, after the colon: the cluster is still being deleted, or the
 Supervisor login ended (main guide, step 7). Run the block again before you go on.
@@ -714,6 +783,7 @@ if /usr/local/bin/argocd version --client 2>/dev/null | grep -q -e -vcf; then su
 | `argocd_session: command not found`, or `vc_login: command not found` | Re-run step 1's second block; it rewrites `~/.vks-argocd.functions` and keeps your values. |
 | `argocd` asks `Proceed insecurely (y/n)?` or says it is not logged in | This terminal has no ArgoCD login: answer `n`, then run `argocd_session` first, as the blocks do. |
 | `bad CPU type in executable` (macOS) | `softwareupdate --install-rosetta --agree-to-license` |
+| A destination that worked now fails, about a year after its cluster was created | The certificate ArgoCD holds for it has ended. Step 8's *How long this login lasts* block shows the date; renew as described under it. |
 | The Application shows `OutOfSync` right after a sync | `K8S_VERSION` has a `-vkr.N` ending: remove it in the env file, run step 7's *Create the Application* block again, then sync. |
 | Step 7's listing has lines starting with `<` or `>` that you did not expect | A sync would change the cluster that way. If you do not want that, do not sync. `argocd app delete "$NEW_CLUSTER" --cascade=false --yes` removes only the Application and keeps the cluster. |
 | `argocd app delete` returns but the cluster stays for many minutes | Normal: VKS deletes the virtual machines first. Step 9's block waits up to 30 minutes. |

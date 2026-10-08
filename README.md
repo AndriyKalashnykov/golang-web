@@ -10,9 +10,9 @@ packaged as a multi-arch image with a KinD end-to-end harness.
 
 | Component | Technology |
 |-----------|-----------|
-| Language | Go 1.27.1 (pinned in `.mise.toml`, `go.mod`, `Dockerfile`) |
+| Language | Go (version pinned in `.mise.toml`, `go.mod`, `Dockerfile`) |
 | HTTP | net/http (standard library) |
-| Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) v1.24.1 |
+| Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) (version pinned in `go.mod`) |
 | Container | Built with podman or Docker; published multi-arch (linux/amd64, linux/arm64) |
 | Toolchain | [mise](https://mise.jdx.dev/) (all tool versions pinned in `.mise.toml`) |
 | Local Kubernetes | KinD + [cloud-provider-kind](https://github.com/kubernetes-sigs/cloud-provider-kind) |
@@ -36,7 +36,7 @@ to [Run it locally](#run-it-locally).
 
 ### Install make, Git and curl
 
-Ubuntu or Debian (curl is not preinstalled on Ubuntu):
+**Ubuntu or Debian (curl is not preinstalled on Ubuntu):**
 
 ```bash
 sudo apt-get update && sudo apt-get install -y make git curl
@@ -84,7 +84,7 @@ On arm64 Linux (`uname -m` prints `aarch64`), pick Docker if you will push image
 (Ubuntu 24.04 has 4.9) cannot push the two-architecture image, and `make image-push` refuses
 it. podman 5.8 works; 5.4 and 5.7 each pushed it in one test; other 5.x versions are untested.
 
-macOS, podman:
+**macOS, podman:**
 
 ```bash
 brew install podman
@@ -95,7 +95,7 @@ podman info >/dev/null 2>&1 || podman machine start
 Expect the last lines to say the machine `started successfully`, or nothing if it was already
 running.
 
-macOS, Docker, with [Colima](https://github.com/abiosoft/colima), which runs the Docker engine
+**macOS, Docker,** with [Colima](https://github.com/abiosoft/colima), which runs the Docker engine
 in a small virtual machine:
 
 ```bash
@@ -118,7 +118,7 @@ If the line does not start with `colima:`, or a
 your shell points `docker` at another engine: run `unset DOCKER_HOST DOCKER_CONTEXT`, then the
 block again.
 
-Linux, podman:
+**Linux, podman:**
 
 ```bash
 sudo apt-get update && sudo apt-get install -y podman
@@ -129,7 +129,7 @@ Expect the install to end without an error. podman 4.9 is the oldest version tes
 `make image-build` stops with `'podman buildx' is not available`. Use Docker on Debian 12 and
 on anything older.
 
-Linux, Docker. The first line reads whether you have Ubuntu or Debian:
+**Linux, Docker.** The first line reads whether you have Ubuntu or Debian:
 
 ```bash
 D="$(. /etc/os-release && echo "$ID")"
@@ -276,13 +276,13 @@ Optional, and only after `make deps` has run: the `make` commands find the pinne
 themselves. To also use them (`go`, `kind` and the rest) at your own prompt, run the line for
 your shell once, then open a new terminal.
 
-zsh (the macOS default):
+**zsh (the macOS default):**
 
 ```bash
 echo 'eval "$(~/.local/bin/mise activate zsh)"' >> ~/.zshrc
 ```
 
-bash:
+**bash:**
 
 ```bash
 echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
