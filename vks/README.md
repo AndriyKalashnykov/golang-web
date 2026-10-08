@@ -243,8 +243,8 @@ engine: run `unset DOCKER_HOST DOCKER_CONTEXT`, then the block again.
 sudo apt-get update && sudo apt-get install -y podman
 ```
 
-**Expect:** the install ends without an error; the Check below confirms it. podman 4.9 is the
-oldest version tested (Ubuntu 24.04 has it; Debian 13 has 5.4). Debian 12 has podman 4.3, which
+**Expect:** the install ends without an error; the Check below confirms it. podman 4.9 or newer
+is needed (Ubuntu 24.04 has it; Debian 13 has 5.4). Debian 12 has podman 4.3, which
 does not work: use docker there and on anything older.
 
 **Linux (Debian/Ubuntu), docker.** The first line reads which of the two you have:
@@ -425,7 +425,7 @@ you will want for day-to-day work with VKS; this guide itself does not use them.
 installs them from the downloaded file, without internet access.
 
 Download the files for your platform (`Linux_AMD64`, `Linux_ARM64`, `Darwin_ARM64` or
-`Darwin_AMD64`) from Broadcom (`Darwin_AMD64`, for Intel Macs, is untested here). Tick **"I agree to the Terms and Conditions"** — the checkbox stays
+`Darwin_AMD64`) from Broadcom (`Darwin_AMD64` is the one for Intel Macs). Tick **"I agree to the Terms and Conditions"** — the checkbox stays
 greyed out until you open both Terms links — or the download icon does nothing.
 
 | file | where to click | direct link |
@@ -436,7 +436,7 @@ greyed out until you open both Terms links — or the download icon does nothing
 - Pick the release first — until you do, the page reads "No data found". The direct link skips this.
 - Take the row for your platform, not the multi-GB platform-less bundles beside it.
 - Your Supervisor's home page may also offer the CLI, or answer "VCF CLI is currently unavailable
-  for download". This guide uses the Broadcom download; the Supervisor's file is untested here.
+  for download". This guide uses the Broadcom download.
 
 This block finds this machine's two files in `~/Downloads`, prints their checksums and installs
 them. If you saved them elsewhere, change that folder. Other platforms are not supported.
@@ -806,7 +806,7 @@ fi
 
 This guide logs in with the SSO user and a password; `--auth-type basic` asks for exactly that.
 Broadcom documents the flag for a Supervisor that otherwise opens a web-page login (KB 417617);
-this guide was not tested on one. If the password login fails because your account exists only
+this guide does not cover such a Supervisor. If the password login fails because your account exists only
 in an external identity provider (such as Okta or Entra ID), that is out of scope: ask your
 administrator for another way to get the guest cluster's kubeconfig, save it
 with `source ~/.vks-golang-web.env; mkdir -p ~/.kube; cp <file> "$GUEST_KUBECONFIG"`, run
@@ -1127,7 +1127,9 @@ gone is harmless.
 
 Skip this if you use this Harbor for other work: those tools need the CA too. Run only the block
 for your engine; each prints nothing (the Colima block starts Colima first if it is stopped, and
-then prints its start-up lines). podman, Linux and macOS:
+then prints its start-up lines).
+
+**podman, Linux and macOS:**
 
 ```sh
 source ~/.vks-golang-web.env

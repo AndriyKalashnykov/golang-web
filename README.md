@@ -82,7 +82,7 @@ The container engine builds and runs the image. Pick one and run only its block.
 
 On arm64 Linux (`uname -m` prints `aarch64`), pick Docker if you will push images: podman 4.x
 (Ubuntu 24.04 has 4.9) cannot push the two-architecture image, and `make image-push` refuses
-it. podman 5.8 works; 5.4 and 5.7 each pushed it in one test; other 5.x versions are untested.
+it. Use podman 5.8 or newer there.
 
 **macOS, podman:**
 
@@ -124,7 +124,7 @@ block again.
 sudo apt-get update && sudo apt-get install -y podman
 ```
 
-Expect the install to end without an error. podman 4.9 is the oldest version tested (Ubuntu
+Expect the install to end without an error. podman 4.9 or newer is needed (Ubuntu
 24.04 has it; Debian 13 has 5.4). Debian 12 has podman 4.3, which does not work: there
 `make image-build` stops with `'podman buildx' is not available`. Use Docker on Debian 12 and
 on anything older.
@@ -651,7 +651,7 @@ fills them from the pod.
 | macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | Every section except the kubectl install block |
 | macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 with engine 29.5.2 in Colima 0.10.3 (buildx 0.37.2), kubectl 1.37.1 (1.36.2 before the install block), kind 0.33.0 | Every section with Docker, except the Homebrew installer and, as this README says for macOS, the LoadBalancer block and the namespace delete (`make kind-delete` instead). With podman and Colima stopped: the run, image, push and contributor sections; `make e2e` and `make ci-run` stopped at `docker is installed but not running` |
 
-Intel Macs are not tested.
+Intel Macs are not covered.
 
 ## For contributors
 

@@ -51,7 +51,7 @@ in bash 5, zsh 5.9 and bash 3.2.
 | the same, bash 3.2 | the same | the four clean-up blocks, back to a bare lab; steps 1 to 3 separately |
 | the same, `zsh -il` and `bash -il` reading the block from stdin | the same | four blocks fed line by line on a second run: `unchanged`, and the same output |
 
-`ARGOCD-manual.md` (27 `sh` blocks, 17 screenshots in `vks/img/argocd/`) was walked on 2026-10-07
+`ARGOCD-manual.md` (28 `sh` blocks, 17 screenshots in `vks/img/argocd/`) was walked on 2026-10-07
 against the same lab:
 
 | path | where | result |
