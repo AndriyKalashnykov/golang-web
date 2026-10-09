@@ -149,7 +149,8 @@
       ],
       "matchDepNames": [
         "go",
-        "golang"
+        "golang",
+        "docker.io/library/golang"
       ],
       "groupName": "Go toolchain"
     }
