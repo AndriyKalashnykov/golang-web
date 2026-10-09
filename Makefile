@@ -241,6 +241,7 @@ help:
 	@echo "Resolved now (override any of them on the command line):"
 	@printf "\033[32m%-28s\033[0m - %s\n" "CONTAINER_ENGINE" "$(CONTAINER_ENGINE)  <- builds and runs YOUR image (make engines explains)"
 	@printf "\033[32m%-28s\033[0m - %s\n" "KIND_ENGINE" "$(KIND_ENGINE)  <- kind's own containers; not yours to change"
+	@printf "\033[32m%-28s\033[0m - %s\n" "KIND_KUBECONFIG" "$(KIND_KUBECONFIG)  <- the KinD cluster's own kubeconfig; yours is never written"
 	@printf "\033[32m%-28s\033[0m - %s\n" "Image (image-push target)" "$(OPV)  <- set OWNER / IMAGE_REGISTRY for your own"
 	@echo ""
 	@echo "  one command : make image-build CONTAINER_ENGINE=docker"
@@ -515,13 +516,19 @@ scripts-test: deps
 	@shellcheck .github/scripts/*.sh
 	@bash .github/scripts/ghcr-prune-untagged_test.sh
 	@bash .github/scripts/check-env_test.sh
+	@bash .github/scripts/check-kind-kubeconfig_test.sh
+	@bash .github/scripts/k8s-context-guard_test.sh
+
+#check-kind-kubeconfig: @ Verify the KinD and e2e targets use only KinD's own kubeconfig file
+check-kind-kubeconfig:
+	@bash .github/scripts/check-kind-kubeconfig.sh
 
 #check-env: @ Verify .env.example documents every setting the Makefile and the Go code read
 check-env:
 	@bash .github/scripts/check-env.sh
 
 #static-check: @ Run all quality and security checks
-static-check: check-env check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config diagrams-check scripts-test
+static-check: check-env check-kind-kubeconfig check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config diagrams-check scripts-test
 	@echo "Static check passed."
 
 #format: @ Auto-format Go source files
@@ -702,22 +709,49 @@ image-push: deps-buildx
 		echo "  Not logged in to $(IMAGE_REGISTRY)?  Set REGISTRY_TOKEN, then: make registry-login"; \
 		exit 1; }
 
-# $(call kube_target,<verb>): name the cluster and namespace a kubectl target is about to touch.
+# k8s-apply and k8s-delete act on kubectl's CURRENT context, which may be a real cluster.
+# K8S_CONTEXT=<name>: refuse unless that IS the current context. Without it, any context whose
+# name does not start with `kind-` needs CONFIRM=yes typed on the make command line.
+K8S_CONTEXT ?=
+export K8S_CONTEXT
+# Only a CONFIRM given on THIS command line counts: one left exported in the shell, or set in
+# .env, would otherwise approve every later run.
+k8s_confirmed := $(if $(findstring command line,$(origin CONFIRM)),$(CONFIRM))
+
+# $(call kube_target,<verb>,<target>): name the cluster and namespace a kubectl target is about
+# to touch, and stop unless it is the one the user asked for (see K8S_CONTEXT above). Never asks.
 # k8s/golang-web.yaml sets no namespace, so the CONTEXT's namespace applies (default: "default").
 define kube_target
-ctx=$$(kubectl config current-context 2>/dev/null) || { echo "No kubectl context is set. Pick a cluster: kubectl config use-context <name>  (or: make kind-deploy)"; exit 1; }; \
+ctx=$$(kubectl config current-context 2>/dev/null) || { echo "No kubectl context is set. Pick a cluster: kubectl config use-context <name>  (the local KinD cluster: make kind-create, then run the export line it prints)"; exit 1; }; \
 ns=$$(kubectl config view --minify -o jsonpath='{..namespace}' 2>/dev/null); \
+if [ -n "$$K8S_CONTEXT" ]; then \
+	if [ "$$K8S_CONTEXT" != "$$ctx" ]; then \
+		echo "Stopped, nothing changed: K8S_CONTEXT is '$$K8S_CONTEXT' but kubectl's current context is '$$ctx'."; \
+		echo "  To use '$$ctx' (namespace '$${ns:-default}'):  make $(2) K8S_CONTEXT='$$ctx'"; \
+		echo "  To use '$$K8S_CONTEXT': point kubectl at it first, then re-run the same command."; \
+		exit 1; fi; \
+else case "$$ctx" in \
+	kind-*) ;; \
+	*) if [ "$(k8s_confirmed)" != yes ]; then \
+		echo "Stopped, nothing changed: kubectl's current context is '$$ctx' (namespace '$${ns:-default}'), which is not a local KinD cluster."; \
+		echo "  If that is the cluster you mean, re-run with either of:"; \
+		echo "    make $(2) K8S_CONTEXT='$$ctx'"; \
+		echo "    make $(2) CONFIRM=yes"; \
+		echo "  For the local KinD cluster instead:  export KUBECONFIG=\"$(KIND_KUBECONFIG)\""; \
+		exit 1; fi;; \
+	esac; \
+fi; \
 echo "$(1) context '$$ctx', namespace '$${ns:-default}'."
 endef
 
-#k8s-apply: @ Deploy the pushed image to the CURRENT kubectl context
+#k8s-apply: @ Deploy the pushed image to the CURRENT kubectl context (not KinD: needs K8S_CONTEXT=<name> or CONFIRM=yes)
 k8s-apply:
-	@$(call kube_target,Deploying $(OPV) to); \
+	@$(call kube_target,Deploying $(OPV) to,k8s-apply); \
 	sed -e 's|image: .*/$(PROJECT):.*|image: $(OPV)|' k8s/golang-web.yaml | kubectl apply -f -
 
-#k8s-delete: @ Delete the app from the CURRENT kubectl context
+#k8s-delete: @ Delete the app from the CURRENT kubectl context (not KinD: needs K8S_CONTEXT=<name> or CONFIRM=yes)
 k8s-delete:
-	@$(call kube_target,Deleting golang-web from); \
+	@$(call kube_target,Deleting golang-web from,k8s-delete); \
 	kubectl delete -f k8s/golang-web.yaml --ignore-not-found=true
 
 #deps-kind: @ Verify KinD, kubectl and a KinD-capable engine are available
@@ -832,7 +866,38 @@ kind-cloud-provider-stop:
 # used the context's namespace -- MEASURED on a box where kind-golang-web carried a
 # namespace that did not exist, so apply, lookups and undeploy all missed the app.
 KIND_NAMESPACE ?= default
-KCTX := --context kind-$(KIND_CLUSTER_NAME) --namespace $(KIND_NAMESPACE)
+# KinD gets its OWN kubeconfig file. Without --kubeconfig, `kind create cluster` merges the
+# cluster into the ambient one ($$KUBECONFIG, else ~/.kube/config) and makes it the
+# current-context there, and `kind delete cluster` later leaves that current-context
+# dangling. A developer whose KUBECONFIG names a real cluster's file got the KinD context
+# written into THAT file. So every `kind` call that reads or writes a kubeconfig (create
+# cluster, delete cluster, export kubeconfig) and every kubectl call below names this file;
+# none of them reads $$KUBECONFIG or ~/.kube/config. `make check-kind-kubeconfig` enforces it.
+# The k8s-apply / k8s-delete targets are the opposite on purpose: they act on YOUR current context.
+KIND_KUBECONFIG ?= $(HOME)/.kube/kind-$(KIND_CLUSTER_NAME).yaml
+# It must be a non-empty ABSOLUTE path. `?=` keeps a variable that is set but EMPTY
+# (`KIND_KUBECONFIG= make e2e`, or an empty line in .env), and kind and kubectl both read
+# `--kubeconfig ""` as "no file given" -- which is the ambient kubeconfig again. A value that
+# starts with `~` is not expanded inside the quotes below, and a relative one would put the
+# cluster's client key in whatever directory make runs in.
+kind_kubeconfig_error := $(strip \
+  $(if $(strip $(KIND_KUBECONFIG)),,KIND_KUBECONFIG is set but empty) \
+  $(if $(filter ~%,$(firstword $(KIND_KUBECONFIG))),KIND_KUBECONFIG starts with ~ ('$(KIND_KUBECONFIG)'); make does not expand it) \
+  $(if $(filter-out /% ~%,$(firstword $(KIND_KUBECONFIG))),KIND_KUBECONFIG is a relative path ('$(KIND_KUBECONFIG)')))
+kind_kubeconfig_refuse = $(error $(kind_kubeconfig_error). The KinD targets would then use YOUR kubeconfig or write the cluster's keys to the wrong place. Give an absolute path, such as KIND_KUBECONFIG=$(HOME)/.kube/kind-$(KIND_CLUSTER_NAME).yaml, or leave it unset (in the shell: unset KIND_KUBECONFIG; in .env: remove the line))
+# Refuse before anything runs, but only for the targets that use the file: a bad value must
+# not break `make build` or `make help`.
+ifneq ($(kind_kubeconfig_error),)
+ifneq ($(filter kind-% e2e% deps-kind,$(MAKECMDGOALS)),)
+$(kind_kubeconfig_refuse)
+endif
+endif
+# For `kind` (file only) and for kubectl (file, context AND namespace). Expanding it with a bad
+# KIND_KUBECONFIG is an error, so no command can be built without the file, whatever the target.
+KIND_KCFG = $(if $(kind_kubeconfig_error),$(kind_kubeconfig_refuse))--kubeconfig "$(KIND_KUBECONFIG)"
+KCTX = $(KIND_KCFG) --context kind-$(KIND_CLUSTER_NAME) --namespace $(KIND_NAMESPACE)
+# The one line that points a terminal at the KinD cluster (printed by kind-create).
+kind_use_hint = echo "To use the cluster by hand, in this terminal:"; echo "  export KUBECONFIG=\"$(KIND_KUBECONFIG)\""; echo "That changes this terminal only. Your own kubeconfig file was not read or changed."
 # The label cloud-provider-kind puts on THIS Service's sidecar (one sidecar per Service).
 KIND_LB_LABEL := io.x-k8s.cloud-provider-kind.loadbalancer.name=$(KIND_CLUSTER_NAME)/$(KIND_NAMESPACE)/golang-web-service
 
@@ -863,11 +928,11 @@ kind-create: deps-kind
 	echo "Building $(KIND_IMAGE) for the KinD node ($$plat)..."; \
 	$(MAKE) --no-print-directory image-build PLATFORM=$$plat OPV=$(KIND_IMAGE)
 	@if kind get clusters 2>/dev/null | grep -qx "$(KIND_CLUSTER_NAME)"; then \
-		echo "KinD cluster '$(KIND_CLUSTER_NAME)' already exists, switching context..."; \
-		kubectl config use-context kind-$(KIND_CLUSTER_NAME); \
+		echo "KinD cluster '$(KIND_CLUSTER_NAME)' already exists; writing its kubeconfig to $(KIND_KUBECONFIG)..."; \
+		kind export kubeconfig --name $(KIND_CLUSTER_NAME) $(KIND_KCFG); \
 	else \
-		echo "Creating KinD cluster '$(KIND_CLUSTER_NAME)'..."; \
-		kind create cluster --config=k8s/kind-config.yaml --name $(KIND_CLUSTER_NAME) --wait 60s; \
+		echo "Creating KinD cluster '$(KIND_CLUSTER_NAME)' (kubeconfig: $(KIND_KUBECONFIG))..."; \
+		kind create cluster --config=k8s/kind-config.yaml --name $(KIND_CLUSTER_NAME) --wait 60s $(KIND_KCFG); \
 	fi
 	@$(MAKE) --no-print-directory kind-cloud-provider-start
 	@echo "Loading image $(KIND_IMAGE) into cluster (built with $(DOCKERCMD))..."
@@ -886,6 +951,7 @@ kind-create: deps-kind
 		kind load image-archive "$$archive" --name $(KIND_CLUSTER_NAME); \
 	fi
 	@echo "KinD cluster ready (LoadBalancer via cloud-provider-kind)."
+	@$(kind_use_hint)
 
 #kind-deploy: @ Deploy application to KinD cluster and wait for rollout + routable LB
 kind-deploy: kind-create
@@ -951,6 +1017,7 @@ kind-deploy: kind-create
 #kind-undeploy: @ Remove application from KinD cluster
 kind-undeploy: deps-kind
 	@kind get clusters 2>/dev/null | grep -qx "$(KIND_CLUSTER_NAME)" || { echo "No KinD cluster '$(KIND_CLUSTER_NAME)'; nothing to undeploy."; exit 0; }; \
+	kind export kubeconfig --name $(KIND_CLUSTER_NAME) $(KIND_KCFG) >/dev/null 2>&1 || { echo "Cannot write the kubeconfig of KinD cluster '$(KIND_CLUSTER_NAME)' to $(KIND_KUBECONFIG). See: kind export kubeconfig --name $(KIND_CLUSTER_NAME) --kubeconfig \"$(KIND_KUBECONFIG)\""; exit 1; }; \
 	out=$$(kubectl $(KCTX) delete -f k8s/golang-web.yaml --ignore-not-found=true 2>&1) || { printf '%s\n' "$$out"; exit 1; }; \
 	if [ -n "$$out" ]; then printf '%s\n' "$$out"; else echo "golang-web was not deployed in '$(KIND_CLUSTER_NAME)'; nothing to remove."; fi
 
@@ -959,7 +1026,7 @@ kind-delete: deps-kind
 	@# Delete the cluster FIRST: kind-cloud-provider-stop refuses while it exists, and
 	@# the sidecars it prunes survive the delete (they carry the cluster label).
 	@if kind get clusters 2>/dev/null | grep -qx "$(KIND_CLUSTER_NAME)"; then \
-		kind delete cluster --name $(KIND_CLUSTER_NAME) >/dev/null 2>&1 || { echo "kind delete cluster --name $(KIND_CLUSTER_NAME) failed."; exit 1; }; \
+		kind delete cluster --name $(KIND_CLUSTER_NAME) $(KIND_KCFG) >/dev/null 2>&1 || { echo "kind delete cluster --name $(KIND_CLUSTER_NAME) --kubeconfig \"$(KIND_KUBECONFIG)\" failed."; exit 1; }; \
 		echo "KinD cluster '$(KIND_CLUSTER_NAME)' deleted."; \
 	else echo "No KinD cluster '$(KIND_CLUSTER_NAME)' to delete."; fi
 	@$(MAKE) --no-print-directory kind-cloud-provider-stop
@@ -1017,6 +1084,7 @@ e2e: kind-deploy
 	echo ""; \
 	echo "=== Results: $$PASS passed, $$FAIL failed ==="; \
 	if [ $$FAIL -gt 0 ]; then exit 1; fi
+	@$(kind_use_hint)
 
 #ci: @ Run full local CI pipeline
 ci: deps deps-verify format deps-prune-check static-check coverage-check build
@@ -1116,6 +1184,7 @@ deps-prune-check: deps
 	fi
 
 .PHONY: help engines deps deps-engine deps-buildx registry-login deps-verify deps-kind check-toolchain-alignment \
+	check-env check-kind-kubeconfig scripts-test \
 	diagrams diagrams-check \
 	test build lint lint-ci sec vulncheck secrets \
 	trivy-fs trivy-config static-check format run coverage-check \

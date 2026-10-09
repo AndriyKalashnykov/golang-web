@@ -371,8 +371,8 @@ make e2e
 ```
 
 This builds the image, creates a [KinD](https://kind.sigs.k8s.io/) cluster named `golang-web`,
-points kubectl at it (context `kind-golang-web`), deploys the app into the `default` namespace
-and runs five checks against it. Expect near the end (your address differs):
+deploys the app into the `default` namespace and runs five checks against it. Expect near the
+end (your address differs):
 
 ```text
 Service reachable at http://172.18.0.4:8080/myhello/
@@ -380,14 +380,40 @@ Service reachable at http://172.18.0.4:8080/myhello/
 === Results: 5 passed, 0 failed ===
 ```
 
-Open the printed address. The cluster keeps running until you delete it; the next section can
-use it. To delete it:
+Open the printed address.
+
+The cluster has its own kubeconfig file, `~/.kube/kind-golang-web.yaml`. Your own kubeconfig
+(`~/.kube/config`, or the file `KUBECONFIG` names) is not read or changed, so a plain `kubectl`
+still talks to whatever cluster it talked to before. To use the local cluster by hand, point
+this terminal at its file (`make kind-create` and `make e2e` print this line):
+
+```bash
+export KUBECONFIG="$HOME/.kube/kind-golang-web.yaml"
+kubectl get pods
+```
+
+Expect one `golang-web-…` pod with `1/1` and `Running`. The `export` changes this terminal
+only; to go back, `unset KUBECONFIG` (or set it to the value it had). For another file, set `KIND_KUBECONFIG` (see [`.env.example`](.env.example)).
+
+The cluster keeps running until you delete it; the next section can use it. To delete it:
 
 ```bash
 make kind-delete
 ```
 
 Expect `KinD cluster 'golang-web' deleted.`
+
+If you created this cluster with a version of this repo that wrote it into your own kubeconfig,
+its entries stay there after the delete. In a terminal where `KUBECONFIG` is not set to the
+file above, remove them:
+
+```bash
+kubectl config delete-context kind-golang-web; kubectl config delete-cluster kind-golang-web; kubectl config delete-user kind-golang-web
+```
+
+Each prints `deleted …`, or `error: cannot delete …, not in …` when the entry was not there.
+If `kubectl config current-context` still prints `kind-golang-web`, also run
+`kubectl config unset current-context`.
 
 ## Deploy the published image to a cluster
 
@@ -398,14 +424,20 @@ Do not use a cluster that others can reach: the 0.0.4 image always serves `/shut
 anyone who can open the app's address can stop it. The first release after 0.0.4 will serve
 it only with `ENABLE_SHUTDOWN=true`.
 
-Check which cluster kubectl points at:
+Check which cluster kubectl points at. For the local cluster, first point this terminal at its
+kubeconfig file (skip this line for any other cluster):
+
+```bash
+export KUBECONFIG="$HOME/.kube/kind-golang-web.yaml"
+```
 
 ```bash
 kubectl config current-context
 ```
 
 Expect the name of your test cluster (`kind-golang-web` for the local one). If it prints
-`current-context is not set`, there is no cluster; create the local one with `make e2e`.
+`current-context is not set`, kubectl has no cluster: for the local one, create it with
+`make e2e` and run the `export` line above.
 
 Run the rest of this section in one terminal, from the repo directory; the blocks share the
 `NS` variable.
@@ -547,15 +579,26 @@ If it stops:
 
 ### 5. Deploy the image you pushed
 
-Optional. Needs kubectl pointed at a test cluster that can pull the image; on ghcr.io, make
-the package public first. `make k8s-apply` deploys into kubectl's current context and current
-namespace, and prints both before it changes anything. Run it in the same terminal, so `OWNER`
-is still set:
+Optional. Needs a test cluster that can pull the image; on ghcr.io, make the package public
+first. `make k8s-apply` deploys into kubectl's current context and current namespace, and
+prints both before it changes anything. `make e2e` does not change which cluster kubectl points
+at, so the block below starts by pointing this terminal at the local cluster. Its first line is
+for the local cluster only: leave it out for any other cluster. Run the block in the same
+terminal, so `OWNER` is still set:
 
 ```bash
+export KUBECONFIG="$HOME/.kube/kind-golang-web.yaml"
+kubectl config current-context
 make k8s-apply
 kubectl rollout status deployment/golang-web --timeout=180s
 ```
+
+The second line must print `kind-golang-web` for the local cluster, or the name of the cluster
+you mean. `make k8s-apply` and `make k8s-delete` go ahead by themselves only when that name
+starts with `kind-`. For any other cluster they stop, change nothing, and print the context, the
+namespace and the two commands that go on: `make k8s-apply K8S_CONTEXT=<that name>`, which also
+stops if kubectl points somewhere else by the time you run it, or `make k8s-apply CONFIRM=yes`.
+`CONFIRM=yes` counts only when typed on that command line, not from the environment or `.env`.
 
 Expect (your image, context and namespace differ; `configured` replaces `created` when the app
 is already in that namespace, as it is in the local cluster after `make e2e`):
@@ -591,6 +634,7 @@ When you are done, remove the token from this terminal with `unset REGISTRY_TOKE
 | `REGISTRY_USERNAME` | value of `OWNER` | Login user, when it differs from `OWNER` |
 | `REGISTRY_TOKEN` | none | Token or password for the registry |
 | `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms built and pushed as one tag; comma-separated, no spaces |
+| `K8S_CONTEXT` | none | The kubectl context `make k8s-apply` and `make k8s-delete` may act on; they stop when the current context is another one |
 
 ## Deploy to VMware VKS
 
@@ -661,6 +705,7 @@ Intel Macs are not covered.
 | `make static-check` | Runs the linters and security scanners only |
 | `make ci-run` | Runs the GitHub Actions workflow on this machine with [act](https://github.com/nektos/act) (needs Docker) |
 | `make check-env` | Fails if `.env.example` misses a setting the Makefile or the Go code reads |
+| `make check-kind-kubeconfig` | Fails if a KinD or e2e command could read or write your own kubeconfig instead of the cluster's own file, or if the default of `KIND_KUBECONFIG` is not an absolute path. Starts no cluster. |
 | `make release` | Asks for a new `vX.Y.Z` tag, writes it to `version.txt`, commits, tags and pushes. The tag starts the CI job that publishes and signs the image. |
 
 Where versions are pinned:
