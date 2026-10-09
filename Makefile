@@ -63,6 +63,12 @@ PLANTUML_VERSION    := 1.2026.8
 # release -- `master` changes upstream without warning and breaks rendering.
 # renovate: datasource=github-releases depName=plantuml-stdlib/C4-PlantUML
 C4_PLANTUML_VERSION := v2.14.0
+# gosec is built from an UNRELEASED upstream commit (see .mise.toml): its last release, the one
+# below, cannot read what Go 1.27.2 compiles. Nothing uses this variable; it exists so the bot
+# proposes the next gosec RELEASE here. When it does: put that release back in .mise.toml as
+# "aqua:securego/gosec", then delete this variable and its comment.
+# renovate: datasource=github-releases depName=securego/gosec extractVersion=^v(?<version>.*)$
+GOSEC_LAST_RELEASE_THAT_FAILS := 2.29.0
 
 # Ensure mise-managed binaries are on PATH for every recipe, regardless of
 # whether the invoking shell has `mise activate` wired up (and inside the act
