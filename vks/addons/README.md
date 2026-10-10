@@ -45,7 +45,7 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n vmware-system-vks-public get ad
 
 | add-on | what it is | ways to get it | chapter |
 |---|---|---|---|
-| Headlamp | a web page that shows what runs on the cluster | the desktop program on your machine (nothing installed on the cluster); the project's helm chart; the VKS add-on | [HEADLAMP.md](HEADLAMP.md) |
+| Headlamp | a web page that shows what runs on the cluster | the desktop program on your machine (nothing installed on the cluster); the project's helm chart | [HEADLAMP.md](HEADLAMP.md) |
 | Istio | a service mesh, and a gateway that brings traffic from outside to your app | the VKS add-on | [ISTIO.md](ISTIO.md) |
 
 ## What an add-on changes in the other chapters

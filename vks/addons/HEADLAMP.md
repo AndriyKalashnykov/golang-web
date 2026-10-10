@@ -5,13 +5,12 @@ pods, their logs and events. This chapter is optional and comes after the main g
 guest cluster*. You need [the main guide](../README.md)'s env file and the guest cluster's
 kubeconfig (`$GUEST_KUBECONFIG`).
 
-There are three ways to use it. Take the first that fits you:
+There are two ways to use it. Take the first that fits you:
 
 | your situation | go to | what it puts on the cluster |
 |---|---|---|
 | You want to look at the cluster from your own machine | [Headlamp on your machine](#headlamp-on-your-machine) | nothing |
 | Several people should open one page, with read-only rights | [Headlamp in the cluster, with helm](#headlamp-in-the-cluster-with-helm) | one namespace, one pod, a read-only account |
-| Your team manages cluster software as VKS add-ons | [As a VKS add-on](#as-a-vks-add-on) | the same, installed by VKS |
 
 Run the blocks by copy and paste, in `bash` or `zsh`, on Linux or macOS, from inside your
 `golang-web` clone. Each block is followed by **Expect:** — what you should see — and, where it
@@ -20,7 +19,7 @@ what to do.
 
 ## Add Headlamp's settings
 
-This adds Headlamp's seven settings to your env file, each only if it is not there yet. Values
+This adds Headlamp's five settings to your env file, each only if it is not there yet. Values
 you already set are kept.
 
 ```sh
@@ -30,18 +29,16 @@ if [ -f ~/.vks-golang-web.env ]; then
   grep -qs '^export HEADLAMP_NAMESPACE=' ~/.vks-golang-web.env || printf '%s\n' 'export HEADLAMP_NAMESPACE="headlamp"' >> ~/.vks-golang-web.env
   grep -qs '^export HEADLAMP_TOKEN_HOURS=' ~/.vks-golang-web.env || printf '%s\n' 'export HEADLAMP_TOKEN_HOURS="8"' >> ~/.vks-golang-web.env
   grep -qs '^export HEADLAMP_LOCAL_PORT=' ~/.vks-golang-web.env || printf '%s\n' 'export HEADLAMP_LOCAL_PORT="8081"' >> ~/.vks-golang-web.env
-  grep -qs '^export HEADLAMP_ADDON_RELEASE=' ~/.vks-golang-web.env || printf '%s\n' 'export HEADLAMP_ADDON_RELEASE=""' >> ~/.vks-golang-web.env
-  grep -qs '^export ADDON_CATALOG_NAMESPACE=' ~/.vks-golang-web.env || printf '%s\n' 'export ADDON_CATALOG_NAMESPACE="vmware-system-vks-public"' >> ~/.vks-golang-web.env
-  grep -c -E '^export (HEADLAMP_VERSION|HEADLAMP_CHART_VERSION|HEADLAMP_NAMESPACE|HEADLAMP_TOKEN_HOURS|HEADLAMP_LOCAL_PORT|HEADLAMP_ADDON_RELEASE|ADDON_CATALOG_NAMESPACE)=' ~/.vks-golang-web.env
+  grep -c -E '^export (HEADLAMP_VERSION|HEADLAMP_CHART_VERSION|HEADLAMP_NAMESPACE|HEADLAMP_TOKEN_HOURS|HEADLAMP_LOCAL_PORT)=' ~/.vks-golang-web.env
 else
   echo "No env file: do the main guide's first step, then run this block again"
 fi
 ```
 
-**Expect:** `7`.
+**Expect:** `5`.
 
 **If not:** `No env file: …` — the main guide's first step has not been done on this machine. A
-number above 7 means a setting is in the file twice: open the file and delete the line you do
+number above 5 means a setting is in the file twice: open the file and delete the line you do
 not want (the last one wins).
 
 | setting | meaning |
@@ -51,8 +48,6 @@ not want (the last one wins).
 | `HEADLAMP_NAMESPACE` | the namespace on the guest cluster that Headlamp runs in |
 | `HEADLAMP_TOKEN_HOURS` | how long a login token is valid |
 | `HEADLAMP_LOCAL_PORT` | the port on your machine the page is served on |
-| `HEADLAMP_ADDON_RELEASE` | only for *As a VKS add-on*: the release you choose there |
-| `ADDON_CATALOG_NAMESPACE` | only for *As a VKS add-on*: where the Supervisor keeps its add-on catalogue |
 
 The newest versions are listed on [Headlamp's releases page](https://github.com/kubernetes-sigs/headlamp/releases)
 (the program is `v0.45.0`, the chart `headlamp-helm-0.45.0`). To use another one, change the
@@ -389,165 +384,12 @@ earlier stop working: their account is gone.
 - `Not removed: helm refused`: the line above says why; `Kubernetes cluster unreachable` means
   this machine cannot reach the cluster.
 
-## As a VKS add-on
+## As a VKS add-on: not covered
 
-**Not yet walked on a lab.** VKS 3.7.2 offers Headlamp 0.45.0 in its add-on catalogue. The
-blocks below install it the way [the Istio chapter](ISTIO.md) installs Istio. For Headlamp
-they have not been run, and what the add-on names its namespace, account and Service is not
-confirmed. Use *Headlamp in the cluster, with helm* unless you want to try it.
-
-Broadcom's announcement of the add-on names the cert-manager add-on as a prerequisite.
-
-### Choose the release
-
-This lists the Headlamp releases your Supervisor offers, and whether the cluster has
-cert-manager as an add-on.
-
-```sh
-source ~/.vks-golang-web.env
-kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$ADDON_CATALOG_NAMESPACE" get addonrelease -o name | sed -n 's|^.*/||p' | grep -i headlamp
-echo "cert-manager add-on on ${VKS_CLUSTER}: $(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusteraddon "${VKS_CLUSTER}-cert-manager" --ignore-not-found -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' || echo unknown)"
-```
-
-**Expect:** at least one release name that holds `headlamp` and a version, then
-`cert-manager add-on on <your cluster>: True`. Set `HEADLAMP_ADDON_RELEASE` in the env file to
-one release name, exactly as printed.
-
-**If not:** no release line — this Supervisor's VKS does not offer Headlamp (3.7 does): use the
-helm chart. Nothing after the colon on the last line — the cluster has no cert-manager add-on;
-install that first, with the blocks below and `cert-manager` in place of `headlamp`.
-
-### Install the add-on
-
-This fills [`templates/addoninstall.yaml`](templates/addoninstall.yaml), applies it on the
-Supervisor, and waits up to ten minutes until VKS reports the add-on ready on your cluster. It
-refuses when the release does not exist (the Supervisor would accept it and then never install
-anything), and when the cluster already has Headlamp from another `AddonInstall`.
-
-```sh
-source ~/.vks-golang-web.env
-export ADDON_NAME="headlamp" ADDON_INSTALL="${VKS_CLUSTER}-headlamp-addon" ADDON_RELEASE="$HEADLAMP_ADDON_RELEASE"
-OUT="$HOME/.config/vks-golang-web/headlamp-addoninstall.yaml"
-REL=""
-[ -z "$ADDON_RELEASE" ] || REL="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$ADDON_CATALOG_NAMESPACE" get addonrelease "$ADDON_RELEASE" --ignore-not-found -o name)" || REL=unknown
-MINE="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get addoninstall "$ADDON_INSTALL" --ignore-not-found -o jsonpath='{.metadata.name}{"/"}{.metadata.labels.vks-golang-web/created-by}')" || MINE=unknown
-CA="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusteraddon "${VKS_CLUSTER}-${ADDON_NAME}" --ignore-not-found -o name)" || CA=unknown
-if [ -z "$VKS_CLUSTER" ] || [ -z "$VKS_NAMESPACE" ] || [ -z "$ADDON_CATALOG_NAMESPACE" ]; then
-  echo "Not installed: VKS_CLUSTER, VKS_NAMESPACE or ADDON_CATALOG_NAMESPACE is empty"
-elif [ -z "$REL" ]; then
-  echo "Not installed: the Supervisor offers no release named '${ADDON_RELEASE}'. Set HEADLAMP_ADDON_RELEASE to a name from 'Choose the release'."
-elif [ "$REL" = unknown ] || [ "$MINE" = unknown ] || [ "$CA" = unknown ]; then
-  echo "Not installed: the Supervisor did not answer (see the error above)"
-elif [ -n "$MINE" ] && [ "$MINE" != "${ADDON_INSTALL}/addons-guide" ]; then
-  echo "Not installed: an AddonInstall '${ADDON_INSTALL}' exists and this guide did not make it. Nothing was changed."
-elif [ -z "$MINE" ] && [ -n "$CA" ]; then
-  echo "Not installed: '${VKS_CLUSTER}' already has this add-on from another AddonInstall. Nothing was changed."
-elif [ ! -f vks/addons/templates/addoninstall.yaml ]; then
-  echo "Not installed: run this block from inside your golang-web clone"
-elif ! command -v envsubst >/dev/null 2>&1; then
-  echo "Not installed: envsubst is missing (CLUSTER.md, 'Install envsubst')"
-else
-  mkdir -p "$(dirname "$OUT")"
-  ( umask 077; envsubst '${ADDON_INSTALL} ${VKS_NAMESPACE} ${ADDON_NAME} ${ADDON_CATALOG_NAMESPACE} ${VKS_CLUSTER} ${ADDON_RELEASE}' \
-      < vks/addons/templates/addoninstall.yaml > "$OUT" )
-  if kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" apply -f "$OUT"; then
-    n=0; R=""
-    until [ "$R" = True ] || [ "$n" -ge 40 ]; do
-      sleep 15; n=$((n + 1))
-      R="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusteraddon "${VKS_CLUSTER}-${ADDON_NAME}" --ignore-not-found -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)"
-      echo "$((n * 15)) s: Ready=${R:-not yet}"
-    done
-    [ "$R" = True ] || echo "NOT READY after $((n * 15)) seconds: read 'If not' below"
-  else
-    echo "Not installed: the Supervisor refused (see the error above), so nothing is waited for."
-  fi
-fi
-```
-
-**Expect:** `addoninstall.addons.kubernetes.vmware.com/<your cluster>-headlamp-addon created`
-(`unchanged` when you run it again), then a line every 15 seconds, the last one with
-`Ready=True`.
-
-**If not:**
-- `Not installed: …`: the line says what is missing; nothing was changed.
-- `NOT READY after 600 seconds`: this shows what VKS waits for:
-  `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusteraddon "${VKS_CLUSTER}-headlamp" -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.message}{"\n"}{end}'`.
-
-### Find it on the guest cluster and give its account read-only rights
-
-This lists what the add-on created on the guest cluster.
-
-```sh
-source ~/.vks-golang-web.env
-kubectl --kubeconfig "$GUEST_KUBECONFIG" get deployments,services,serviceaccounts --all-namespaces | grep -i headlamp
-```
-
-**Expect:** a deployment, a service and a service account with `headlamp` in their names, all
-in one namespace (the first column). Set `HEADLAMP_NAMESPACE` in the env file to that namespace.
-
-**If not:** no output — the add-on is not ready yet (the block above), or it uses other names:
-`kubectl --kubeconfig "$GUEST_KUBECONFIG" get pods --all-namespaces` shows what is new.
-
-This binds the account to the read-only role `view`, in a binding marked as made by this guide.
-Broadcom's announcement binds it to `cluster-admin`; do that only if everyone who gets a token
-may administer the cluster.
-
-```sh
-source ~/.vks-golang-web.env
-if kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$HEADLAMP_NAMESPACE" get serviceaccount headlamp -o name; then
-  printf 'apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRoleBinding\nmetadata:\n  name: headlamp-view-guide\n  labels:\n    vks-golang-web/created-by: headlamp-guide\nroleRef:\n  apiGroup: rbac.authorization.k8s.io\n  kind: ClusterRole\n  name: view\nsubjects:\n  - kind: ServiceAccount\n    name: headlamp\n    namespace: %s\n' "$HEADLAMP_NAMESPACE" \
-    | kubectl --kubeconfig "$GUEST_KUBECONFIG" apply -f -
-else
-  echo "Not bound: no service account 'headlamp' in '${HEADLAMP_NAMESPACE}' (see the list above)"
-fi
-```
-
-**Expect:** `serviceaccount/headlamp`, then
-`clusterrolebinding.rbac.authorization.k8s.io/headlamp-view-guide created`. Then go on with
-[Check that Headlamp's account can only read](#check-that-headlamps-account-can-only-read),
-[Make a login token](#make-a-login-token) and [Open the page](#open-the-page).
-
-**If not:** `Not bound: …` — the add-on names its account differently, or `HEADLAMP_NAMESPACE`
-is not the namespace the list showed.
-
-### Remove the add-on
-
-This deletes the `AddonInstall` on the Supervisor, only if this guide made it; VKS then removes
-Headlamp from the guest cluster. Only if the Supervisor accepted the delete does it wait (up to
-five minutes) and remove this guide's read-only binding.
-
-```sh
-source ~/.vks-golang-web.env
-AI="${VKS_CLUSTER}-headlamp-addon"
-MINE="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get addoninstall "$AI" --ignore-not-found -o jsonpath='{.metadata.name}{"/"}{.metadata.labels.vks-golang-web/created-by}')" || MINE=unknown
-if [ -z "$VKS_CLUSTER" ]; then
-  echo "Not removing: VKS_CLUSTER is empty"
-elif [ -z "$MINE" ]; then
-  echo "Nothing to remove: no AddonInstall '${AI}' in '${VKS_NAMESPACE}'"
-elif [ "$MINE" != "${AI}/addons-guide" ]; then
-  echo "Not removing '${AI}': this guide did not make it, or it could not be read. Nothing was changed."
-elif kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" delete addoninstall "$AI" --wait=false; then
-  n=0; LEFT=unknown
-  until [ -z "$LEFT" ] || [ "$n" -ge 20 ]; do
-    [ "$n" -eq 0 ] || sleep 15
-    n=$((n + 1))
-    LEFT="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get "addoninstall/${AI}" "clusteraddon/${VKS_CLUSTER}-headlamp" --ignore-not-found -o name || echo unknown)"
-  done
-  echo "left (nothing after the colon means gone): ${LEFT}"
-  if [ -z "$LEFT" ]; then kubectl --kubeconfig "$GUEST_KUBECONFIG" delete clusterrolebinding -l vks-golang-web/created-by=headlamp-guide --ignore-not-found; fi
-else
-  echo "Not removed: the Supervisor refused (see the error above), so nothing is waited for."
-fi
-```
-
-**Expect:** `addoninstall.addons.kubernetes.vmware.com "<your cluster>-headlamp-addon" deleted`,
-then `left (nothing after the colon means gone):` with nothing after it, then
-`clusterrolebinding.rbac.authorization.k8s.io "headlamp-view-guide" deleted`.
-
-**If not:**
-- `Not removing … this guide did not make it`: the object does not carry this guide's mark.
-- A name, or `unknown`, after the colon: VKS is still removing the add-on, or the Supervisor
-  login ended. Run the block again.
+VKS also offers Headlamp in its add-on catalogue. This chapter does not use it: installed by
+itself the add-on does not start, because it needs the cert-manager add-on on the guest cluster
+first (`Expected to find kind 'cert-manager.io/v1/Issuer', but did not`). Use one of the two ways
+above.
 
 ## Fix common problems
 
