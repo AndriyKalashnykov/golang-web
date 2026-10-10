@@ -42,9 +42,10 @@ The four areas have one shape (owner, 2026-10-10; `PLAN.md`, D12): a chooser `X.
 "If you are not a vCenter administrator"), `X-manual.md` (the vSphere Client, a screenshot per
 window under `img/<area>/`, where the client keeps each value) and `X-auto.md` (command blocks
 that print each value). No request letter is a section anywhere. `NAMESPACE-manual.md` steps 1
-to 7 were clicked in the lab's client on 2026-10-10 (its remove step was not);
-`CLUSTER-manual.md` is written only as far as the client was seen, and its steps 4 and 5 say in
-bold where they stop. A step nobody has seen ends with an HTML comment `unverified`
+to 7 and its remove step were clicked in the lab's client on 2026-10-10;
+`CLUSTER-manual.md` was clicked the same day from the create page to the delete window. The
+create page sets no default storage class and makes one worker node unless the reader changes
+it. A step nobody has seen ends with an HTML comment `unverified`
 (`PLAN.md`, "The four areas in one shape"). In the 9.1.1 client the namespace roles are named
 **Namespaces View / Edit / Owner**, permissions are a TAB, not a card, and a vCenter
 administrator is already listed there.

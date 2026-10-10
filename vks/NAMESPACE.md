@@ -87,8 +87,8 @@ chapter.
 - `Kubernetes releases ready to use: 0`: the Supervisor has no usable Kubernetes release. On a
   Supervisor that was switched on minutes ago, wait ten minutes and run the block again. If it
   stays 0, the Supervisor's content library has no release it can use:
-  [Find the Kubernetes releases](CLUSTER-manual.md#find-the-kubernetes-releases) shows where
-  that library is.
+  [List the Kubernetes releases](CLUSTER-auto.md#list-the-kubernetes-releases) prints the ones
+  that are ready.
 - `Cluster classes: 0`: the VKS service on this Supervisor is not running. Its row, **Kubernetes
   Service**, is in the list of the Supervisor's services: the Supervisor's **Configure** tab →
   **Supervisor Services** → **Overview**.

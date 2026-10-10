@@ -272,16 +272,22 @@ Then, in the vSphere Client:
 1. From the menu (☰) choose **Supervisor Management**, then the **Namespaces** tab.
 2. Find the namespace's row and read its **Description** column: it must be the text you typed
    in step 3. If it is not, or the column is empty, this is not the namespace you created: stop.
-3. Select the row and click **REMOVE**, above the list. <!-- unverified -->
+3. Select the row with the round button at its left (the row is then highlighted) and click
+   **REMOVE**, above the list.
 
-   ![The Namespaces tab with one namespace selected and the Remove button](img/namespace/12-remove.jpg)
+   ![The Namespaces tab with one namespace selected by its round button, its Description readable, and the REMOVE button above the list](img/namespace/12-remove.jpg)
 
-4. Read the name in the confirmation window, then confirm. <!-- unverified -->
+4. A window titled **Delete | <your namespace>** opens with a warning: *Before you remove a
+   vSphere Namespace, you should delete any VKS clusters, vSphere Pods, VMs provisioned there.
+   Do not attempt to delete a VKS cluster using the vSphere Client or the vCenter Server CLI.*
+   The guides delete a guest cluster on the namespace's **Kubernetes service** page or with
+   `kubectl`, never by removing its virtual machines. Read the namespace's name in the title,
+   then click the red **DELETE** (**CANCEL** changes nothing).
 
-   ![The confirmation window that names the namespace to remove](img/namespace/13-remove-confirm.jpg)
+   ![The window Delete | namespace, with its warning and the buttons CANCEL and DELETE](img/namespace/13-remove-confirm.jpg)
 
-**Expect:** the namespace's status changes to **Removing** and, within a minute or two, its row
-is gone from the list. <!-- unverified -->
+**Expect:** the row's **Config Status** shows **Removing**, and the row then disappears from the
+list.
 
 **If not:** the row stays in **Removing** for more than 15 minutes — something in the namespace
 does not end. Do not create a namespace of the same name meanwhile.

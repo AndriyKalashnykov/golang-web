@@ -123,8 +123,10 @@ talks to the guest cluster; the Supervisor is reached only with
 - `default storage class: NONE`: the cluster was created without a default storage class, so an
   app that asks for a disk without naming a storage class waits forever. A cluster from
   [CLUSTER-auto.md](CLUSTER-auto.md): fill the description from the unchanged
-  [`templates/cluster.yaml`](templates/cluster.yaml) and apply it again. A cluster made another
-  way: name the storage class in every disk request, or create the cluster with that guide.
+  [`templates/cluster.yaml`](templates/cluster.yaml) and apply it again. A cluster made by
+  hand: **Default Storage Class** was left empty in the create page
+  ([Fill in the create page](CLUSTER-manual.md#4-fill-in-the-create-page)); name the storage
+  class in every disk request, or create a new cluster with it set.
 
 ## Install Harbor before you create clusters
 
