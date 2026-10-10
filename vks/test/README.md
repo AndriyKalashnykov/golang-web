@@ -9,7 +9,7 @@ Two things run without a lab and are part of `make static-check`:
 - `make check-vks-docs` reads the guides (`.github/scripts/check-vks-docs.sh`): every block
   parses in bash and zsh, has an Expect, sources its env file, holds no comment and nothing after
   a line that can prompt; links resolve. It prints `checked N block(s) in M file(s)`.
-- `make scripts-test` runs `walk_test.sh` and the gate's own tests.
+- `make scripts-test` runs `walk_test.sh`, `mac-route_test.sh` and the gate's own tests.
 
 ## Walk a guide
 
@@ -93,7 +93,89 @@ It copies the blocks and `walk.sh` to `~/walk-<outdir name>` on the Mac (`WALK_R
 them there and copies the results back to `<outdir>/results-remote`. `--env-file` names a path
 ON THE MAC; the harness copies no env file and passes no secret over ssh. The directory on the
 Mac holds the same outputs and is left in place: delete it there after the walk. The lab's addresses
-need the owner's tunnels: `vks/HANDOFF.md`, "The Mac's route to the lab".
+need the owner's tunnels and `mac-route.sh`: the next section.
+
+## The Mac's route to the lab: `mac-route.sh`
+
+The lab's addresses live on the lab host's bridges; a Mac elsewhere cannot reach them. The owner
+opens reverse ssh tunnels from the lab host, and each lab `<ip>:<port>` then ends on the Mac as
+a port on `127.0.0.1`. `mac-route.sh`, run ON THE MAC, makes the lab's own addresses and names
+answer there, so every name, IP and port in the guides stays as written. It never opens a
+tunnel.
+
+Write the list once, one forward `<lab ip>:<port>:<tunnel port>` or one name `<name>=<lab ip>`
+per line (`#` starts a comment). The addresses are the lab's (`make creds` in the lab's
+repository prints them); the tunnel ports are free choices from 1024 up:
+
+```
+192.168.100.50:443:18443       # vCenter
+192.168.101.128:443:18444      # Supervisor
+192.168.101.128:6443:18445
+192.168.101.130:443:18446      # Harbor
+192.168.101.132:6443:18447     # the guest cluster's API
+vcsa.env1.lab.test=192.168.100.50
+harbor.env1.lab.test=192.168.101.130
+```
+
+The three commands, with the list in `~/lab.forwards` on the Mac:
+
+```
+vks/test/mac-route.sh up --file ~/lab.forwards
+vks/test/mac-route.sh status
+vks/test/mac-route.sh down
+```
+
+`--forward <lab ip>:<port>:<tunnel port>` and `--host <name>=<lab ip>` give the same on the
+command line. `up` can be run again with a longer list: what is up stays up and keeps its
+connections, only the new forward is added. The app's address exists only after the guide's
+deploy step, so it is added that way:
+
+```
+vks/test/mac-route.sh up --file ~/lab.forwards --forward <the app's address>:8080:18448
+```
+
+**What the owner does, on the lab host.** `print-tunnel` prints his line for a list; it runs
+anywhere, so the session prints it and hands it over:
+
+```
+vks/test/mac-route.sh print-tunnel --file ~/lab.forwards --mac m1@<the Mac>
+```
+
+It prints one `ssh -N -o ExitOnForwardFailure=yes -R 127.0.0.1:<tunnel port>:<lab ip>:<port> … m1@<the Mac>`.
+The owner runs it and leaves it running; he ends it after the walk. `up` refuses while a tunnel
+port of the list is not listening on the Mac, names every such port and prints the same line.
+
+**What `up` changes on the Mac**, per forward and per name:
+
+| what | how to see it | how `down` undoes it |
+|---|---|---|
+| an alias for the lab IP on `lo0`, unless `lo0` has it already | `ifconfig lo0` | `ifconfig lo0 -alias <ip>`, only for an alias it added |
+| a relay process listening on `<lab ip>:<port>`, connecting to `127.0.0.1:<tunnel port>` | `mac-route.sh status`; its log is `relay-<ip>-<port>.log` in the state directory | `kill` of the recorded PID, only while that PID still has the relay's start time and command line |
+| a line in `/etc/hosts` ending in `# vks-mac-route` | `grep vks-mac-route /etc/hosts` | the recorded line is taken out; the first original is kept as `hosts.backup` in the state directory |
+
+Everything it creates is written to `~/.local/state/vks-mac-route/state` (under
+`XDG_STATE_HOME` when that is set), and `down` removes only what is recorded there. An alias
+or a hosts line that was there before `up` is used and left alone. After a clean `down` the
+state directory is gone too. `down` twice is safe. When `status` finds a relay or a marked
+hosts line that no state file records, it lists it with the command that removes it by hand.
+
+What to know:
+
+- **Root.** The alias, a relay on a port below 1024 and the `/etc/hosts` change need root. Only
+  `sudo -n` is used. When sudo would ask for a password the script stops before changing
+  anything and says to run `sudo -v` first. It reads and stores no password.
+- **The relay** is `/usr/bin/python3` (it comes with the Command Line Tools:
+  `xcode-select --install`) running a small script that `up` writes to the state directory. One
+  process per forward, so adding a forward does not cut the others. A relay binds its lab IP
+  only, never every address, and runs as root only for a port below 1024. It logs connections
+  and byte counts, never the bytes.
+- **Addresses.** Only private addresses are accepted (10/8, 172.16/12, 192.168/16). A name that
+  `/etc/hosts` already gives another address, in a line the script did not write, is refused.
+- **`/etc/hosts`** is written through a temp file and `sudo -n cp`, so its mode and owner stay.
+- **The tunnel check** is `lsof -nP -iTCP@127.0.0.1:<port> -sTCP:LISTEN`: it reads the socket
+  table. A connect test would open a connection to the lab service through the tunnel.
+- **Not the engine VMs.** The podman machine and the Colima VM resolve the lab's names through
+  the Mac and need no entry of their own.
 
 ## Not proven
 
@@ -104,3 +186,11 @@ need the owner's tunnels: `vks/HANDOFF.md`, "The Mac's route to the lab".
   against a stand-in engine only. Not run: docker, and a real guide.
 - bash 3.2 was not available where the harness was written: `walk.sh` avoids what 3.2 lacks,
   and its first run on the Mac is the proof.
+- `mac-route.sh` has never run on a Mac. Its tests run on Linux with stand-ins for `uname`,
+  `ifconfig`, `sudo`, `lsof` and the relay's interpreter; the relay itself is run once for real
+  on `127.0.0.1`, and the script (not its tests) ran under bash 3.2 with the same stand-ins.
+  Not proven: a bind to an `lo0` alias, a relay started through the real `sudo` staying up
+  after sudo returns, what macOS `ps` prints for the start time and command line, `lsof` seeing
+  the tunnel's socket (it belongs to the Mac's sshd), and a name from `/etc/hosts` resolving
+  without a cache flush. It does not check that a lab address is not also on a network the Mac
+  is attached to.
