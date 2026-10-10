@@ -273,7 +273,7 @@ From phase 7's "done when": `REGISTRY.md` (door B) is written from the old main 
 registry, build and deploy blocks (see phases 2, 3 and 6 above); door B has not been walked
 against a Harbor installed by these chapters.
 
-### The four areas in one shape (D12) — built 2026-10-10, not walked
+### The four areas in one shape (D12) — built 2026-10-10; what was walked is in `HANDOFF.md`, "The files"
 
 A move plus new text. Of the 253 `sh` blocks before, all 253 are byte-identical after (SHA-256
 of each block's content): 226 in the same file, 27 in another (13 from `NAMESPACE.md` to
@@ -299,7 +299,7 @@ tree yet (13 for the namespace guide, 12 for the cluster guide). With stand-in f
 echo text `CLUSTER.md, Install envsubst` in five blocks (kept byte for byte; `CLUSTER.md` links
 the section, which is in `CLUSTER-auto.md` and `SETUP.md`).
 
-### Phases 2, 3 and 6 — built 2026-10-10, not walked
+### Phases 2, 3 and 6 — built 2026-10-10; what was walked is in `HANDOFF.md`, "The files"
 
 **Phase 2.** `README.md` had 76 references by step number on 68 lines; `README.md`, `SETUP.md`,
 `REGISTRY.md`, `CLEANUP.md` and `TROUBLESHOOTING.md` now have none: each is a link to the

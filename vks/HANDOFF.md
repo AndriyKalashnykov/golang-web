@@ -7,10 +7,22 @@ history up to 2026-10-05).
 
 ## The files — 2026-10-10
 
-The main guide was split on 2026-10-10 (`vks/PLAN.md`, phases 2, 3 and 6). **The split and the
-new deploy blocks have not been walked**; `PLAN.md`, "Phase state", lists every block that is
-new or changed. The records below this section were written against the old `README.md` and
+The main guide was split on 2026-10-10 (`vks/PLAN.md`, phases 2, 3 and 6) and everything named
+here is on `main`. The records below this section were written against the old `README.md` and
 name its ten steps: the table says where each step is now.
+
+Walked on the lab on 2026-10-10 (Linux, bash and zsh): the main line to the deployed published
+image; a namespace by the vCenter API, by self-service and by hand; a cluster by `kubectl` and
+by hand; Harbor by scripts and by hand; the ArgoCD Service install; the app from ArgoCD by Git
+and by a Harbor digest, and every delete in `ARGOCD-app.md`; Istio end to end; cert-manager and
+Headlamp as add-ons with removal and a second install; Headlamp from its chart. On the Mac (zsh
+and bash 3.2): the main line, and the check and look-up blocks of the namespace and cluster
+files (not their create and delete blocks).
+
+**Not walked:** anything as a user with only the Edit role; `ARGOCD-app.md` with the reader's
+own fork; Headlamp's optional settings, its page login in a browser and the desktop way;
+Harbor's uninstall when the guide's own marker is present; `kubectl_install`'s install
+branches; `REGISTRY.md`'s deploy block in its new place.
 
 | file | what it holds |
 |---|---|
