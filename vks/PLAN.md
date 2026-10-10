@@ -66,6 +66,7 @@ D1. **Namespace chapter has four doors** ⚑, in this order: (a) you have one: a
     and stops; (d) collapsed: `kubectl apply` of a `Namespace` when self-service is on, with
     the check that says whether it is and the vendor's deprecation stated. The vSphere Client
     path is a collapsed click list (screenshots when the owner has logged in).
+    **Overruled by the owner on 2026-10-10:** see D12.
 D2. **Guest cluster chapter** uses ONE template, `vks/templates/cluster.yaml`, rendered with
     `envsubst` ⚑ given an explicit variable list after a guard that every variable is
     non-empty (`envsubst` joins the tools step per OS: it is installed nowhere today, and an
@@ -132,16 +133,27 @@ D11. **"ArgoCD monitoring Harbor"** ⚑: the default update is "set the new dige
     lab in phase 9 (run in the guest cluster against the ArgoCD API); it ships as an optional
     chapter only if it works there, otherwise the guide says why not.
 
+D12. **Four areas, one shape** (owner, 2026-10-10; it replaces D1's four doors and the
+    request letters). The reader is taken to be a vCenter administrator, or to sit beside one.
+    Namespace, guest cluster, Harbor and ArgoCD each have a chooser page titled "Use or
+    create/install X" (`X.md`): one sentence on the rights each path needs, three choices (use
+    what you have, with a check block; by hand; with scripts), and ONE collapsed "If you are
+    not a vCenter administrator" with three lines. `X-manual.md` is the vSphere Client with a
+    screenshot per window, and shows where the client keeps each value; `X-auto.md` is command
+    blocks only, and prints each value. No request letter is a section anywhere. `ARGOCD.md`
+    lists what ArgoCD is for, in order: install, create a guest cluster, deploy the app; the
+    vSphere Namespace is created first and not by ArgoCD.
+
 ## Document map (target)
 
 ```
 vks/README.md                 the spine: setup, login, namespace check, cluster, deploy door A, reach, clean up
 vks/SETUP.md                  per-OS tool installs (container engine, kubectl, VCF CLI, envsubst, optional helm)
-vks/NAMESPACE.md              four doors                                        new
-vks/CLUSTER.md                create a guest cluster with kubectl; sizing        new
-vks/HARBOR.md, HARBOR-manual.md, HARBOR-auto.md                                  new
+vks/NAMESPACE.md, NAMESPACE-manual.md, NAMESPACE-auto.md   chooser + check; vSphere Client; vCenter API and self-service
+vks/CLUSTER.md, CLUSTER-manual.md, CLUSTER-auto.md         chooser + kubeconfig and check; vSphere Client; kubectl and the template
+vks/HARBOR.md, HARBOR-manual.md, HARBOR-auto.md            chooser + check; vSphere Client; vCenter API
 vks/REGISTRY.md               door B: trust the CA, project, robot, build, push  <- today's steps 3, 5, 6
-vks/ARGOCD.md, ARGOCD-manual.md, ARGOCD-auto.md   kept, corrected (order, env, chart hosting)
+vks/ARGOCD.md, ARGOCD-manual.md, ARGOCD-auto.md            chooser + check + what ArgoCD is for; by hand; with scripts
 vks/ARGOCD-app.md             door C                                             new
 vks/addons/README.md, HEADLAMP.md, ISTIO.md                                      new
 vks/CLEANUP.md, vks/TROUBLESHOOTING.md                                           <- step 10, "Fix common problems"
@@ -260,6 +272,32 @@ described from the walk's clicks, not from a picture. A Supervisor on NSX was no
 From phase 7's "done when": `REGISTRY.md` (door B) is written from the old main guide's
 registry, build and deploy blocks (see phases 2, 3 and 6 above); door B has not been walked
 against a Harbor installed by these chapters.
+
+### The four areas in one shape (D12) — built 2026-10-10, not walked
+
+A move plus new text. Of the 253 `sh` blocks before, all 253 are byte-identical after (SHA-256
+of each block's content): 226 in the same file, 27 in another (13 from `NAMESPACE.md` to
+`NAMESPACE-auto.md`, 14 from `CLUSTER.md` to `CLUSTER-auto.md`). The two namespace check blocks
+stayed in `NAMESPACE.md`; the kubeconfig block, the cluster check and the machines block under
+*Install Harbor before you create clusters* stayed in `CLUSTER.md`, so the links to those
+anchors hold. The walks recorded for phases 4 and 5 stand for those blocks as blocks.
+
+| new | what | walked |
+|---|---|---|
+| `NAMESPACE-manual.md` | every click, and 13 image lines under `img/namespace/` | no: written from the lab client's known page names and Broadcom's 9.1 page; each step not seen in the client ends with an HTML comment `unverified` |
+| `CLUSTER-manual.md` | every click, and 12 image lines under `img/cluster/` | no: the create window's names are from Broadcom's 9.0 page (9.0-doc, inferred for 9.1); same marking |
+| `CLUSTER.md`, *Use the cluster you have* | one block: lists the namespace's guest clusters | no |
+| `NAMESPACE-manual.md`, step 9 | the same block, before a delete by hand | no |
+| `CLUSTER-manual.md`, step 8 | one block: are the cluster and its address gone | no |
+| `ARGOCD.md`, *Use the ArgoCD you have* | one block: service installed, instance in the namespace, first admin password present | no |
+| `HARBOR.md`, *Use the Harbor you have* | one block: Harbor namespace on the Supervisor; `curl -sk` to `/api/v2.0/ping` | no |
+
+The 25 screenshots are not in the tree: the gate fails with one `the image file does not exist`
+line per picture until they are added. With stand-in files it ends at 0 errors.
+**Open:** whether the create window sets a default storage class (`CLUSTER-manual.md`, step 5);
+whether an Edit user without vCenter rights can open the namespace in the vSphere Client; the
+echo text `CLUSTER.md, Install envsubst` in five blocks (kept byte for byte; `CLUSTER.md` links
+the section, which is in `CLUSTER-auto.md` and `SETUP.md`).
 
 ### Phases 2, 3 and 6 — built 2026-10-10, not walked
 
@@ -466,10 +504,10 @@ None blocks a phase; each is a place where a green gate says nothing.
 
 ## Needs the owner (work continues around these)
 
-- **Screenshots of the vSphere Client** for the manual namespace and Harbor paths: the session
-  does not type passwords into a browser, so it cannot log in to the vSphere Client. Until the
-  owner logs in to it in the session's browser once, those paths ship as numbered click lists
-  without pictures.
+- **Screenshots of the vSphere Client** for `NAMESPACE-manual.md` (13, `img/namespace/`) and
+  `CLUSTER-manual.md` (12, `img/cluster/`): the session does not type passwords into a browser,
+  so it cannot log in to the vSphere Client. The image lines are in the guides; the files are
+  not, and the click steps marked `unverified` are to be walked when they are taken.
 - **Mac tunnels:** each walk on the Mac needs forwards to addresses the lab assigns at install
   time (Harbor, the guest cluster API, the app, the gateway). The session reports the exact
   `ssh -N -R …` line when the addresses exist; the owner runs it.

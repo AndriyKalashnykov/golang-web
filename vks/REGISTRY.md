@@ -13,7 +13,8 @@ You need:
 - a Harbor: its DNS name, a project you may push to, a robot account or the Harbor admin
   password, the SHA-256 fingerprint of its CA certificate, and confirmation that the guest
   cluster trusts that CA (without it the cluster cannot download your image).
-  [HARBOR.md](HARBOR.md) says what to ask for, and how to install a Harbor when you have none;
+  [HARBOR.md](HARBOR.md) says how to check it and where each value comes from, and how to
+  install a Harbor when you have none;
 - internet access for the build: quay.io, docker.io, gcr.io and proxy.golang.org (and
   download.docker.com to install docker).
 

@@ -1,4 +1,4 @@
-# Install ArgoCD onto Supervisor and create a VKS guest cluster with it — by hand
+# Install ArgoCD on the Supervisor and create a guest cluster with it, by hand
 
 This guide installs the ArgoCD Supervisor Service on a vSphere Supervisor, starts an ArgoCD
 *instance* in your vSphere Namespace, and uses that ArgoCD to create a Kubernetes cluster (a *VKS
@@ -8,7 +8,9 @@ where neither has a screen for a step, you run a short `kubectl` command; step 8
 is optional clean-up. It was written for VMware Cloud Foundation 9.1.1, ArgoCD Service 1.2.0 and
 VKS 3.7.
 
-The same result with scripts in place of clicks is in [ARGOCD-auto.md](ARGOCD-auto.md).
+The same result with scripts in place of clicks is in [ARGOCD-auto.md](ARGOCD-auto.md). If
+the ArgoCD Service is already installed, or your namespace already runs ArgoCD, see
+[ARGOCD.md](ARGOCD.md) first.
 
 It continues [the main guide](README.md) and uses its env file, its `kubectl` and its Supervisor
 login. Run the command blocks by copy and paste, in `bash` or `zsh`, on Linux or macOS. Each is
@@ -45,8 +47,9 @@ The main guide's [terms](README.md#learn-the-terms) apply. New here:
 - A browser on a machine that reaches vCenter and the Supervisor's load-balancer addresses.
 - An SSO user with the **Edit** role on your vSphere Namespace (the main guide's user).
 - For steps 2 and 3 only: a vCenter user with the privileges **Manage Supervisor Services** and
-  **Manage Supervisor Services on Supervisors**. If yours lacks them, ask your vCenter
-  administrator to do those two steps.
+  **Manage Supervisor Services on Supervisors** (a vCenter administrator has them). If yours
+  lacks them, [ARGOCD.md](ARGOCD.md#if-you-are-not-a-vcenter-administrator) lists what to ask
+  for.
 - A Broadcom support account that can download **vSphere Supervisor Services** (step 1).
 - The Supervisor must reach `projects.packages.broadcom.com` (it downloads ArgoCD from there)
   and `github.com` (ArgoCD reads the cluster's description from there).

@@ -16,7 +16,7 @@ Install only what your path needs, and skip any tool you already have:
 | `kubectl` | everyone | [Install kubectl](#install-kubectl) |
 | `vcf` | everyone | [Install the VCF CLI and its plugins](#install-the-vcf-cli-and-its-plugins) |
 | podman or docker | only [REGISTRY.md](REGISTRY.md): building the image yourself | [Install a container engine — pick one](#install-a-container-engine--pick-one) |
-| `envsubst` | only [CLUSTER.md](CLUSTER.md): creating a guest cluster | [Install envsubst](#install-envsubst) |
+| `envsubst` | only [CLUSTER-auto.md](CLUSTER-auto.md): creating a guest cluster with scripts | [Install envsubst](#install-envsubst) |
 | `helm` | only [Headlamp](addons/HEADLAMP.md), when you install it with its helm chart | [Install helm](#install-helm) |
 | a clipboard program | only [HARBOR-manual.md](HARBOR-manual.md), on Linux | [Install a clipboard program (Linux only)](#install-a-clipboard-program-linux-only) |
 
@@ -348,7 +348,7 @@ edit that line yourself.
 
 ## Install envsubst
 
-Only for [CLUSTER.md](CLUSTER.md), which has the same two blocks: if you ran them there, skip
+Only for [CLUSTER-auto.md](CLUSTER-auto.md), which has the same two blocks: if you ran them there, skip
 this. `envsubst` fills the `${…}` places of a file from your settings. Skip the install if
 `envsubst --version` already works.
 

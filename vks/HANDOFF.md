@@ -16,10 +16,12 @@ name its ten steps: the table says where each step is now.
 |---|---|
 | `README.md` | the main line: env file, tools check, clone, vCenter CA, Supervisor login, namespace check, kubeconfig, deploy the published image (ClusterIP by default), reach, the two short clean-up blocks, the list of chapters |
 | `SETUP.md` | the tool installs per OS; optional tools (container engine, `envsubst`, `helm`, clipboard) |
-| `NAMESPACE.md`, `CLUSTER.md` | use or create a vSphere Namespace; create a guest cluster |
-| `HARBOR.md`, `HARBOR-manual.md`, `HARBOR-auto.md` | use a Harbor, or install the Supervisor Service |
+| `NAMESPACE.md`, `NAMESPACE-manual.md`, `NAMESPACE-auto.md` | use or create a vSphere Namespace: the chooser with the two check blocks; the vSphere Client; the vCenter API and self-service |
+| `CLUSTER.md`, `CLUSTER-manual.md`, `CLUSTER-auto.md` | use or create a guest cluster: the chooser with the kubeconfig and check blocks and *Install Harbor before you create clusters*; the vSphere Client; `kubectl` and the template |
+| `HARBOR.md`, `HARBOR-manual.md`, `HARBOR-auto.md` | use or install Harbor: the chooser with a check block; the vSphere Client; the vCenter API |
 | `REGISTRY.md` | trust Harbor's CA, log in, build and push, deploy by digest from Harbor |
-| `ARGOCD.md`, `ARGOCD-manual.md`, `ARGOCD-auto.md` | ArgoCD on the Supervisor and a cluster made with it |
+| `ARGOCD.md`, `ARGOCD-manual.md`, `ARGOCD-auto.md` | use or install ArgoCD: the chooser with a check block and the list of what ArgoCD is for; by hand; with scripts |
+| `ARGOCD-app.md` | deploy the app as an ArgoCD Application |
 | `CLEANUP.md`, `TROUBLESHOOTING.md` | the long clean-up; errors by their text |
 | `templates/`, `argocd/`, `img/`, `test/` | the files the chapters fill, the guest-cluster chart, screenshots, the walk harness |
 
@@ -34,6 +36,15 @@ name its ten steps: the table says where each step is now.
 | 9. Reach the app | `README.md`, the port-forward first |
 | 10. Clean up | `README.md` (the app, the Supervisor login) and `CLEANUP.md` (the rest) |
 | Fix common problems | `TROUBLESHOOTING.md` |
+
+The four areas have one shape (owner, 2026-10-10; `PLAN.md`, D12): a chooser `X.md` titled
+"Use or create/install X" (one sentence on rights, three choices, a check block, one collapsed
+"If you are not a vCenter administrator"), `X-manual.md` (the vSphere Client, a screenshot per
+window under `img/<area>/`, where the client keeps each value) and `X-auto.md` (command blocks
+that print each value). No request letter is a section anywhere. `NAMESPACE-manual.md` and
+`CLUSTER-manual.md` have **not been clicked**: a step nobody has seen in the client ends with an
+HTML comment `unverified`, and their 25 screenshots are still to be taken (`PLAN.md`, "The four
+areas in one shape").
 
 Rules the split follows, to keep when editing: no reference by step number into another file,
 or inside the five files above (link the section by its title); the main guide's first block is
@@ -76,8 +87,8 @@ file instead), `brew install jq` on a macOS that lacks jq, and the Broadcom port
 
 ## `ARGOCD-auto.md` and `ARGOCD-manual.md` — 2026-10-07
 
-`vks/ARGOCD-auto.md` (named `ARGOCD.md` until the manual guide was added; `ARGOCD.md` is now a
-two-row chooser) installs ArgoCD Service 1.2.0 on the Supervisor, starts an instance in the
+`vks/ARGOCD-auto.md` (named `ARGOCD.md` until the manual guide was added; `ARGOCD.md` is now
+the chooser) installs ArgoCD Service 1.2.0 on the Supervisor, starts an instance in the
 vSphere Namespace and creates a guest cluster through it from the chart `vks/argocd/guest-cluster`
 (pinned by commit; a change to the chart needs a new pin in the guide). Its blocks parsed in
 bash 3.2 too when it was written; the gate checks bash and zsh only.

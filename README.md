@@ -648,13 +648,15 @@ Its chapters create what you do not have yet, and add the other ways to deploy.
 The chapters, in the order to use them:
 
 1. [`vks/SETUP.md`](vks/SETUP.md): install the tools, on macOS and on Debian or Ubuntu
-2. [`vks/NAMESPACE.md`](vks/NAMESPACE.md): use or create a vSphere Namespace
-3. [`vks/HARBOR.md`](vks/HARBOR.md): use the Harbor you have, or install one on the Supervisor
-4. [`vks/CLUSTER.md`](vks/CLUSTER.md): create a guest cluster with kubectl
+2. [`vks/NAMESPACE.md`](vks/NAMESPACE.md): use or create a vSphere Namespace, by hand in the
+   vSphere Client or with scripts
+3. [`vks/HARBOR.md`](vks/HARBOR.md): use or install Harbor on the Supervisor, by hand or with
+   scripts
+4. [`vks/CLUSTER.md`](vks/CLUSTER.md): use or create a guest cluster, by hand or with scripts
 5. [`vks/README.md`](vks/README.md): deploy the published image and reach the app
 6. [`vks/REGISTRY.md`](vks/REGISTRY.md): build the image yourself, push it to Harbor, deploy it by digest
-7. [`vks/ARGOCD.md`](vks/ARGOCD.md): ArgoCD on the Supervisor, and a cluster made with it, by
-   hand in the web pages or with scripts
+7. [`vks/ARGOCD.md`](vks/ARGOCD.md): use or install ArgoCD on the Supervisor, and create a
+   guest cluster with it, by hand or with scripts
 8. [`vks/ARGOCD-app.md`](vks/ARGOCD-app.md): deploy the app as an ArgoCD Application
 9. [`vks/addons/README.md`](vks/addons/README.md): add-ons for the guest cluster, Headlamp and Istio
 10. [`vks/CLEANUP.md`](vks/CLEANUP.md): remove what the guides created

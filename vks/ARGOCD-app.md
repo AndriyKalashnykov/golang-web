@@ -35,8 +35,8 @@ so three things other chapters do by hand do not last on it:
   guide ([ARGOCD.md](ARGOCD.md)) up to and including *Let ArgoCD manage your vSphere Namespace*.
 - **A guest cluster**, with `VKS_CLUSTER` in the env file set to its name and its kubeconfig
   saved. Either the ArgoCD guide created it (*Create a guest cluster with ArgoCD*), or you did
-  with [CLUSTER.md](CLUSTER.md). In both cases finish with *Get the cluster's kubeconfig* in
-  [CLUSTER.md](CLUSTER.md).
+  without it ([CLUSTER.md](CLUSTER.md)). In both cases finish with
+  [Get the cluster's kubeconfig](CLUSTER.md#get-the-clusters-kubeconfig).
 - **An image.** Either the image you built and pushed to your Harbor ([REGISTRY.md](REGISTRY.md); you need its digest;
   *Choose the image* below looks it up), or the published image on `ghcr.io`, which needs no
   Harbor: the guest cluster's nodes must then reach `ghcr.io`.
@@ -159,7 +159,7 @@ see it, skip the next block. Your vSphere Namespace is listed too, as `other`.
 
 ### Add a guest cluster you created with kubectl
 
-A cluster from [CLUSTER.md](CLUSTER.md) is unknown to ArgoCD. This block asks the ArgoCD Service
+A cluster made without ArgoCD ([CLUSTER.md](CLUSTER.md)) is unknown to ArgoCD. This block asks the ArgoCD Service
 to add it: it creates a small object (a `ManagedEntity`) in your vSphere Namespace that names
 the cluster, and waits until ArgoCD lists the cluster's address. The ArgoCD Service then stores
 the cluster's administrator certificate for ArgoCD; that certificate has an end date (the
