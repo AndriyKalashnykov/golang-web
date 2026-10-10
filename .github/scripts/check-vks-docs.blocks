@@ -2,7 +2,7 @@
 #   <file relative to vks/> <number of sh blocks>
 # A new guide: add its line; 0 for a guide with no sh block (a chooser such as ARGOCD.md).
 # A block added or removed: change the number. The gate prints the line to write.
-ARGOCD-app.md 19
+ARGOCD-app.md 20
 ARGOCD-auto.md 23
 ARGOCD-manual.md 28
 ARGOCD.md 0

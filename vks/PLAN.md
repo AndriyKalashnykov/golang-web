@@ -187,7 +187,7 @@ were built together on 2026-10-10 and are recorded under the table: text only, *
 | 4 | The check blocks; the namespace by the vCenter API (settings, session, network type, the two lists, fill, create, the stops); the namespace by self-service (`kubectl create namespace`). After the vCenter helpers moved into the main guide's step 1: the step 1 block, the namespace settings block, the open-session block and `vc_logout` | macOS and bash 3.2; the vSphere Client click list (not clicked); a Supervisor on NSX; an SSO user with only the Edit role (the first two NAMESPACE blocks are that reader's whole path, and they have never run as such a user) |
 | 5 | Lookups, fill, server dry run, create, the wait, the machines, the cluster check, delete. After the helper move: the cluster settings block, the machines block under *Install Harbor before you create clusters*, and the kubeconfig block twice with a kubectl within one minor version (no change) | macOS and bash 3.2; `kubectl_install`'s install branches on a real machine (`KUBECTL_DIR`, `sudo -n`, the `~/.local/bin` fallback, the three failure messages: run only against stand-in `curl`, `sudo` and `kubectl` programs); the two re-used-name stops on a lab |
 | 7 | Harbor Supervisor Service 2.15.2+vmware.1-vks.1. `HARBOR-auto.md`, one block per fresh login shell: the download check, the secrets file (7 values), the storage class list, the configuration file, the vCenter session, the manifest check, register (201, `ACTIVATED`, signature `TRUSTED`), install (201 on attempt 1, `CONFIGURED`), the address and `http=200`, the DNS check with both verdicts, the CA fingerprint, the three main-guide parts, the admin login, the project (201), the pull check from a guest cluster (`OK`), uninstall (204), remove the service (three 204). `HARBOR-manual.md`: every click and window in the vSphere Client; its ten screenshots are from that run. Seen in the walk: installing AND uninstalling Harbor replaces every node of every guest cluster on the Supervisor; a second install has a new address and a new CA. Run on the lab after the first review, in bash and zsh: the settings block (`settings: 6 of 6`, `admin password line: 1 of 1`), the secrets file's count line (one `awk`), the pull check's guard for a missing kubeconfig | macOS; a user without the Manage Supervisor Services privilege; a Supervisor on NSX; Contour in place of the nginx load balancer; a second install with other data values. NOT run anywhere: the two clipboard install lines of the manual guide (`sudo apt-get install -y wl-clipboard`, `sudo dnf install -y wl-clipboard`), the `xclip` form, and the block that empties the clipboard (`pbcopy`, `wl-copy --clear`, `xclip`): the walk met the clipboard block's `No clipboard program here` line on a Wayland desktop with neither program, and the paste was done from an editor |
-| 8 | Nothing | Every block of `ARGOCD-app.md`: the destination list, the `ManagedEntity` for a cluster made with `kubectl`, the Harbor digest lookup, the project `vks-apps`, the Application (published image, and a Harbor image by digest), the pull secret, the wait with the digest check, the port-forward, a second digest, the fork with a repository login, the four delete blocks. Also not run: an Application from a COPY of the chart in another repository (phase 8's third "done when"), macOS and bash 3.2 |
+| 8 | `ARGOCD-app.md` on ArgoCD Service 1.2.0 (Argo CD 3.4.4), each block as written: the settings (`8`); the destination list before and after the add; *Add a guest cluster you created with kubectl* (`ManagedEntity: Ready`, `destinations at …: 1`; the stored address equals the kubeconfig's); *Create the project*; *Create the Application* refused while the directly deployed app's namespace existed, then `created` (with kubectl's finalizer-name warning); the wait with `APP_IMAGE` empty (`Synced/Healthy`, the ghcr digest in the Deployment and in the pod, `OK`); port-forward and `curl` (`Hello, World`). Then with a two-architecture image pushed to Harbor: the digest lookup, the public/private check (`http=401`), the Application `configured`, the pull secret block (secret, service account, two pods deleted), and the wait: asked-for, Deployment and pod all showed the same index digest, `OK`. `CreateNamespace=true` worked through the cluster the service added, with the `Namespace` limited by name in the project | The four delete blocks and *If the Application will not go away*; the own-fork variant with the repository login; the pin block with a branch, a tag and a commit against a private repository; everything changed after the walk (list below); an Application from a COPY of the chart in another repository (phase 8's third "done when"); a `LoadBalancer` Service through the Application; an ArgoCD older than 3.4; a user with only the Edit role; macOS |
 
 Changed after those walks, and run only against stand-in `curl`, `kubectl` and `sleep` programs,
 in bash and zsh (not on a lab):
@@ -324,13 +324,34 @@ Phase 8, run offline only (no lab), in bash and zsh:
   answer, a refused call (nothing is waited for), `Synced/Healthy` with the old image in the
   Deployment or in a pod (not accepted), and no token on any command line.
 
-What phase 8 takes from a source and has NOT measured (each is a line of the walk): that the
-ArgoCD Service's instance reads `Application`, `AppProject` and repository secrets that
-`kubectl` creates in its vSphere Namespace as upstream ArgoCD does; that a `ManagedEntity` for a
-cluster made with `kubectl` stores the address the cluster's kubeconfig holds; that the project
-must allow the `Namespace` for `CreateNamespace=true` (read in v3.4.4's `sync_context.go` and
-`controller/sync.go`); that ArgoCD leaves the namespace behind when the Application is deleted;
-that an Edit user may create a secret of ArgoCD's repository type.
+Phase 8, changed AFTER the lab walk and run only against stand-in `kubectl`, `curl`, `git` and
+`sleep` programs, in bash 5.3, zsh 5.9 and bash 3.2 (171 checks each; six planted defects made 18
+of them fail), not on a lab:
+
+- the pin block asks for `APP_REVISION` (it asked for `main` whatever was set) with
+  `GIT_TERMINAL_PROMPT=0`. Against GitHub, from a workstation: a branch prints one
+  `refs/heads/…` line, a commit prints nothing, a repository that does not exist or is private
+  answers with an error and no prompt;
+- *Create the project* reads `clusterResourceWhitelist[0].name` back and prints `STOP: …` when
+  it is not `APP_NAMESPACE`; *Create the Application* refuses a project that is missing or does
+  not hold that name. That an ArgoCD older than 3.4 drops the field (and does not refuse the
+  object) is NOT measured: the lab has 3.4.4, where the field is kept;
+- a guest cluster named like the vSphere Namespace is refused by the add block;
+- the pull secret block deletes no pod when the service account patch failed;
+- the new block under *If the Application will not go away* (it takes the finalizer off only
+  from an Application of this chapter that is already being deleted);
+- the removal order: `CLEANUP.md`'s table, one sentence at the top of step 9 of both ArgoCD
+  guides, and the chapter's own warning.
+
+What phase 8 takes from a source and has NOT measured: that ArgoCD leaves the namespace behind
+when the Application is deleted, and that an Application whose cluster or ArgoCD instance is gone
+stays until its finalizer is taken off (both read in upstream's documentation); that the ArgoCD
+Service's instance reads a repository secret `kubectl` creates in its vSphere Namespace; that an
+Edit user may create that secret, the project and the `ManagedEntity`; what
+`kubectl get argocd -o jsonpath='{.spec.version}'` prints for an instance (the chapter gives it
+as the way to read the version). The project needing the `Namespace` for `CreateNamespace=true`
+was read in v3.4.4's `sync_context.go` and `controller/sync.go`; the walk only shows that it
+works WITH the entry.
 
 **Open (D11), for phase 9:** Argo CD Image Updater is not measured. What is known is unchanged:
 its CRD-based releases cannot be installed on the Supervisor

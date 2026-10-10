@@ -664,6 +664,10 @@ name.
 
 ## 9. Clean up (optional)
 
+If you deployed the app with ArgoCD ([ARGOCD-app.md](ARGOCD-app.md)), do that chapter's
+[Delete the Application](ARGOCD-app.md#delete-the-application) first: an Application can be
+deleted only while ArgoCD runs and still reaches the cluster.
+
 Do these in order. ArgoCD must still exist while it deletes the cluster, and the service must
 still exist while the instance is deleted.
 

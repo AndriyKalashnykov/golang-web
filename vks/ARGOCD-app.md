@@ -17,6 +17,17 @@ do. A block you run twice either changes nothing or tells you what to do.
 The terms *Application*, *destination*, *project* and *sync* are explained in the ArgoCD guide
 ([ARGOCD-auto.md](ARGOCD-auto.md), *Learn the terms*).
 
+**An app deployed here belongs to ArgoCD.** ArgoCD keeps putting back what the Application says,
+so three things other chapters do by hand do not last on it:
+
+- The main guide's *Delete the app* (`kubectl delete namespace golang-web`) is undone: ArgoCD
+  creates the namespace and the app again. Delete the Application instead (*Delete the app*
+  below), and do that **before** you delete the guest cluster or the ArgoCD instance.
+- The Istio chapter's *Make the app's Service internal* and its option *put the app into the
+  mesh* change the app with `kubectl`; ArgoCD reverts both. Choose the Service's type with
+  `APP_SERVICE_TYPE` here, and make any other change in Git (*Use your own Git repository*).
+- A change of the image with `kubectl` is reverted too (*Deploy another image*).
+
 ## Gather what you need
 
 - The main guide's env file, tools and Supervisor login ([the main guide](README.md)).
@@ -75,17 +86,28 @@ reach the address may stop the app.
 
 **What `main` means.** With `APP_REVISION="main"` ArgoCD follows this repository: a change to
 the `k8s` folder here reaches your cluster a few minutes later, without asking you. To decide that
-yourself, pin a commit. This prints the commit `main` points to now:
+yourself, pin a commit. This asks the repository which commit your `APP_REVISION` points to now
+(it never asks for a password: a repository that needs one answers with an error):
 
 ```sh
 source ~/.vks-golang-web.env
-git ls-remote "$APP_REPO" refs/heads/main
+GIT_TERMINAL_PROMPT=0 git ls-remote "$APP_REPO" "$APP_REVISION"
 ```
 
-**Expect:** one line: 40 letters and digits, then `refs/heads/main`. Put those 40 characters
-into the env file as `APP_REVISION` to pin that commit.
+**Expect:** it depends on what `APP_REVISION` is:
 
-**If not:** no output — the repository has no branch `main`, or your machine cannot reach it.
+| `APP_REVISION` is | the block prints |
+|---|---|
+| a branch, such as `main` | one line: 40 letters and digits (the commit), then `refs/heads/<the branch>` |
+| a tag | the same with `refs/tags/<the tag>`; a second line ending in `^{}`, when there is one, holds the commit |
+| a commit (40 letters and digits) | nothing: a commit is already pinned |
+
+Put the 40 characters into the env file as `APP_REVISION` to pin that commit.
+
+**If not:** no output for a branch or tag name — the repository has no branch or tag of that
+name. `Repository not found`, `could not read Username` or `terminal prompts disabled` — the
+address is wrong, or the repository is private: your machine then needs your own Git login to
+read it, and ArgoCD needs one too (*Use your own Git repository* below).
 
 ## Check ArgoCD and the guest cluster
 
@@ -163,6 +185,8 @@ elif [ -z "$N" ] || [ "$EX" = unknown ]; then
   echo "Not added: the Supervisor did not answer (see the error above)"
 elif [ "$N" -gt 0 ]; then
   echo "Already a destination: nothing to do"
+elif [ "$VKS_CLUSTER" = "$VKS_NAMESPACE" ]; then
+  echo "Not added: the guest cluster and the vSphere Namespace are both named '${VKS_CLUSTER}', and the ManagedEntity of that name is the namespace's own. Nothing was changed: add this cluster with the argocd program instead."
 elif [ -n "$EX" ]; then
   echo "Not added: a ManagedEntity named '${VKS_CLUSTER}' exists and ArgoCD does not list the cluster. Read 'If not' below."
 elif printf 'apiVersion: argocd-service.vsphere.vmware.com/v1alpha1\nkind: ManagedEntity\nmetadata:\n  name: %s\n  labels:\n    vks-golang-web/guide: argocd-app\nspec:\n  targetRef:\n    apiGroup: cluster.x-k8s.io\n    kind: Cluster\n    name: %s\n    namespace: %s\n' \
@@ -189,6 +213,10 @@ fi
   Namespace yet: do the ArgoCD guide's *Let ArgoCD manage your vSphere Namespace*, then run
   this block again. If the object is `Ready` and the count stays `0`, the address ArgoCD stored
   differs from the one in your kubeconfig: run the block before this one and compare the two.
+- `Not added: the guest cluster and the vSphere Namespace are both named …`: the ArgoCD Service
+  names each `ManagedEntity` after what it adds, and your vSphere Namespace already holds that
+  name. Use the ArgoCD guide's *Add the new cluster to ArgoCD* with this cluster's kubeconfig:
+  the `argocd` program needs no such object.
 - `Not added: a ManagedEntity named … exists …`: an earlier try left it. The `describe` command
   above says what it waits for.
 - `Forbidden`: your SSO user lacks the **Edit** role on the vSphere Namespace.
@@ -203,8 +231,8 @@ exactly as [`k8s/golang-web.yaml`](../k8s/golang-web.yaml) names it at `APP_REVI
 `<Harbor's name>/<project>/golang-web@sha256:<digest>`. A digest names one image for ever; a
 tag can be moved to another image later, and a node that already holds an older image of the
 same tag starts that one. This block looks up the digest of the version you pushed and prints
-the line for the env file. Run it from inside your `golang-web` clone, after the main guide's
-build and push.
+the line for the env file. Run it from inside your `golang-web` clone, after
+[Build and push the image](REGISTRY.md#build-and-push-the-image).
 
 ```sh
 source ~/.vks-golang-web.env
@@ -250,6 +278,10 @@ This block creates a second project, `vks-apps`, that allows only what this app 
 | objects for the whole cluster | one: the `Namespace` named `APP_NAMESPACE`, so ArgoCD can create it |
 | objects inside the namespace | two kinds: `Deployment` and `Service`. Nothing else: no `Secret`, no role |
 
+The third rule needs Argo CD 3.4 or later: older versions cannot limit a `Namespace` by name.
+So the block reads the name back after it stored the project, and tells you to stop when ArgoCD
+did not keep it.
+
 The block refuses a project named `vks-apps` that it did not create.
 
 ```sh
@@ -263,8 +295,7 @@ elif [ "$EX" = unknown ]; then
   echo "Not created: the Supervisor did not say whether the project exists (see the error above)"
 elif [ -n "$EX" ] && [ "$MK" != argocd-app ]; then
   echo "Not changed: a project named 'vks-apps' exists and this chapter did not create it"
-else
-  kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" apply -f - <<EOF
+elif kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" apply -f - <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -288,7 +319,15 @@ spec:
   - group: ""
     kind: Service
 EOF
-  kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get appprojects.argoproj.io vks-apps -o jsonpath='{.spec.sourceRepos[0]}{"  ->  "}{.spec.destinations[0].server}{"  namespace "}{.spec.destinations[0].namespace}{"\n"}'
+then
+  WN="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get appprojects.argoproj.io vks-apps -o jsonpath='{.spec.clusterResourceWhitelist[0].name}')"
+  if [ "$WN" = "$APP_NAMESPACE" ]; then
+    kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get appprojects.argoproj.io vks-apps -o jsonpath='{.spec.sourceRepos[0]}{"  ->  "}{.spec.destinations[0].server}{"  namespace "}{.spec.destinations[0].namespace}{"\n"}'
+  else
+    echo "STOP: the stored project does not limit the Namespace to '${APP_NAMESPACE}' (it holds '${WN}'). An Application in it could create ANY namespace in the guest cluster. Nothing was deleted. Do not create the Application: read 'If not' below."
+  fi
+else
+  echo "Not created: see the error above"
 fi
 ```
 
@@ -296,6 +335,14 @@ fi
 it again), then `<the repository>  ->  https://<an address>:6443  namespace <your namespace>`.
 
 **If not:**
+- `STOP: the stored project does not limit the Namespace …`: this ArgoCD dropped the
+  `Namespace`'s name from the project, which Argo CD older than 3.4 does. The project is stored
+  and nothing uses it yet; *Create the Application* refuses it as it is. This prints the version
+  of your instance:
+  `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get argocd -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.version}{"\n"}{end}'`.
+  Ask your administrator for an ArgoCD Service that brings Argo CD 3.4 or later (ArgoCD Service
+  1.2.0 brings 3.4.4). To take the project away again, run *Delete the project and the
+  repository login* below.
 - `Not changed: a project named 'vks-apps' exists …`: someone else made it. Ask them, or have
   your ArgoCD administrator allow your repository, cluster and namespace in it. This chapter
   does not change a project it did not create.
@@ -334,6 +381,7 @@ DEST="$(kubectl --kubeconfig "$GUEST_KUBECONFIG" config view --minify -o jsonpat
 EX="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get applications.argoproj.io "$ARGOCD_APP" --ignore-not-found -o name)" || EX=unknown
 MK="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get applications.argoproj.io "$ARGOCD_APP" --ignore-not-found -o jsonpath='{.metadata.labels.vks-golang-web/guide}' 2>/dev/null)"
 NS="$(kubectl --kubeconfig "$GUEST_KUBECONFIG" get namespace "$APP_NAMESPACE" --ignore-not-found -o jsonpath='{.metadata.name}{"/"}{.metadata.labels.vks-golang-web/guide}')" || NS=unknown
+WN="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get appprojects.argoproj.io vks-apps --ignore-not-found -o jsonpath='{.spec.clusterResourceWhitelist[0].name}' 2>/dev/null)"
 M=""
 for v in ARGOCD_APP APP_NAMESPACE APP_REPO APP_REVISION APP_SERVICE_TYPE; do
   [ -n "$(printenv "$v")" ] || M="$M $v"
@@ -365,6 +413,8 @@ elif [ -n "$EX" ] && [ "$MK" != argocd-app ]; then
   echo "Not changed: an Application named '${ARGOCD_APP}' exists and this chapter did not create it. Set another ARGOCD_APP."
 elif [ -n "$NS" ] && [ "$NS" != "${APP_NAMESPACE}/argocd-app" ]; then
   echo "Not created: the namespace '${APP_NAMESPACE}' exists in the guest cluster and this chapter did not create it. Delete what is in it first, or set another APP_NAMESPACE."
+elif [ "$WN" != "$APP_NAMESPACE" ]; then
+  echo "Not created: the project 'vks-apps' is missing, or does not limit the Namespace to '${APP_NAMESPACE}' (it holds '${WN}'). Run 'Create the project' again and read its 'If not'."
 else
   kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" apply -f - <<EOF
 apiVersion: argoproj.io/v1alpha1
@@ -409,7 +459,10 @@ fi
 ```
 
 **Expect:** `application.argoproj.io/<your app> created`. When you run it again with the same
-values: `unchanged`; with a new value: `configured`.
+values: `unchanged`; with a new value: `configured`. `kubectl` prints one line before it,
+`Warning: metadata.finalizers: "resources-finalizer.argocd.argoproj.io": prefer a domain-qualified
+finalizer name including a path (/) …`: that is ArgoCD's own name for the finalizer, and the
+warning is harmless.
 
 **If not:**
 - `Not created: no value for: …`: each name listed is empty in the env file.
@@ -418,6 +471,9 @@ values: `unchanged`; with a new value: `configured`.
   whatever that tag points to: this chapter takes neither.
 - `Not changed: an Application named … exists …`, `Not created: the namespace … exists …`: see
   the paragraph above the block.
+- `Not created: the project 'vks-apps' is missing, or does not limit the Namespace …`: run
+  *Create the project* first, or again after you changed `APP_NAMESPACE`. If that block prints
+  `STOP: …`, its *If not* says what to do.
 - `Forbidden`: your SSO user lacks the **Edit** role on the vSphere Namespace.
 
 An image in a private Harbor project needs the next section before the app can start. With a
@@ -465,8 +521,11 @@ elif jq -n '{apiVersion: "v1", kind: "Secret", type: "kubernetes.io/dockerconfig
              stringData: {".dockerconfigjson": ({auths: {(env.HARBOR_FQDN): {username: env.REGISTRY_USERNAME, password: env.REGISTRY_TOKEN,
                auth: ((env.REGISTRY_USERNAME + ":" + env.REGISTRY_TOKEN) | @base64)}}} | tojson)}}' \
      | kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$APP_NAMESPACE" apply -f -; then
-  kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$APP_NAMESPACE" patch serviceaccount default -p '{"imagePullSecrets":[{"name":"harbor-creds"}]}'
-  kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$APP_NAMESPACE" delete pod -l app=golang-web --ignore-not-found
+  if kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$APP_NAMESPACE" patch serviceaccount default -p '{"imagePullSecrets":[{"name":"harbor-creds"}]}'; then
+    kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$APP_NAMESPACE" delete pod -l app=golang-web --ignore-not-found
+  else
+    echo "The secret is stored, but the service account was NOT changed (see the error above), so no pod was deleted. Run this block again."
+  fi
 else
   echo "Not created: see the error above"
 fi
@@ -479,6 +538,9 @@ you run it a second time).
 **If not:**
 - `Not created: the namespace … is not there yet …`: ArgoCD creates the namespace a few seconds
   after *Create the Application*. If it stays missing, the next block's first line says why.
+- `The secret is stored, but the service account was NOT changed …`: the second of the three
+  commands failed; the line above it says why (`serviceaccounts "default" not found` in the
+  first seconds of a new namespace: wait, then run the block again).
 - A pod that later shows `no basic auth credentials` or `pull access denied`: the two
   `REGISTRY_` values in the env file are wrong. Fix them and run this block again.
 
@@ -538,6 +600,11 @@ and after `Deployment:`, one `pod runs:` line that ends with the same `sha256:�
   means a private Harbor project: do *Create a pull secret* above.
 - `Application: OutOfSync/…` that stays: take the first line of the message; `one or more
   objects failed to apply` names the object and the reason after it.
+- `pod runs:` shows the name of **another repository** before the `@`: a node that already
+  holds the same image under another name reports that name. The block compares only the part
+  from `sha256:` on, so this alone does not keep it at `NOT YET`. If everything else is right
+  and it still says `NOT YET`, compare by hand: the `sha256:…` after `Deployment:` and the one
+  after `pod runs:` must be equal, whatever stands before the `@`.
 
 ## Reach the app
 
@@ -640,6 +707,11 @@ reports `authentication required` afterwards, the token may not read that reposi
 Run these in order. Each block deletes only what this chapter created, and says so when it
 finds something else under the same name.
 
+**Do this before you delete the guest cluster, remove it from ArgoCD's destinations, or delete
+the ArgoCD instance.** The Application carries a finalizer: it can be deleted only by an ArgoCD
+that runs and still reaches the cluster. Without one of the two it stays in `Terminating` (*If
+the Application will not go away* below).
+
 ### Delete the Application
 
 This deletes the Application; ArgoCD then deletes the app's Deployment and Service from the
@@ -677,10 +749,44 @@ fi
 - `Not deleting '…': this chapter did not create that Application`: it lacks this chapter's
   mark (the label `vks-golang-web/guide`). Delete it the way it was made.
 - A name, or `unknown`, after the colon: ArgoCD is still deleting the app from the guest
-  cluster, or cannot reach that cluster any more (the cluster was deleted, or is no longer a
-  destination). Run the block again. If the cluster is gone for good,
-  `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" patch applications.argoproj.io "$ARGOCD_APP" --type merge -p '{"metadata":{"finalizers":null}}'`
-  lets the Application go without deleting anything in a cluster.
+  cluster: run the block again. If the name stays for more than a few minutes, see *If the
+  Application will not go away* below.
+
+#### If the Application will not go away
+
+An Application that stays after *Delete the Application* waits for ArgoCD to delete the app
+from the guest cluster, and ArgoCD cannot do it. There are two cases:
+
+| case | how to tell |
+|---|---|
+| the guest cluster was deleted, or is no longer one of ArgoCD's destinations | the block under *Make the guest cluster a destination* shows no `DESTINATION` line, or `NO KUBECONFIG` |
+| the ArgoCD instance was deleted | `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get argocd` lists none |
+
+If the cluster still exists, first put back what is missing (add the cluster again; create the
+instance again with the ArgoCD guide) and run *Delete the Application* again: ArgoCD then
+removes the app properly. If the cluster is gone for good, there is nothing left to remove in
+it. This takes the finalizer off, and the Application goes without ArgoCD doing anything; it
+refuses an Application this chapter did not create.
+
+```sh
+source ~/.vks-golang-web.env
+MK="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get applications.argoproj.io "$ARGOCD_APP" --ignore-not-found -o jsonpath='{.metadata.labels.vks-golang-web/guide}{"/"}{.metadata.deletionTimestamp}')" || MK=unknown
+case "${ARGOCD_APP:+set}/$MK" in
+  /*)                echo "Not changed: ARGOCD_APP is empty" ;;
+  set/unknown)       echo "Not changed: the Supervisor did not answer (see the error above)" ;;
+  set/)              echo "No Application named '${ARGOCD_APP}': nothing to do" ;;
+  set/argocd-app/)   echo "Not changed: '${ARGOCD_APP}' is not being deleted. Run 'Delete the Application' first." ;;
+  set/argocd-app/?*) kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" patch applications.argoproj.io "$ARGOCD_APP" --type merge -p '{"metadata":{"finalizers":null}}' ;;
+  *)                 echo "Not changed: this chapter did not create the Application '${ARGOCD_APP}'" ;;
+esac
+```
+
+**Expect:** `application.argoproj.io/<your app> patched`; the Application is gone a moment
+later. What the app left in a guest cluster that still exists (its Deployment, its Service, the
+namespace) is then yours to delete: *Delete the namespace* below does it.
+
+**If not:** `Not changed: '…' is not being deleted …` — the Application was never deleted: this
+block is only for one that hangs after *Delete the Application*.
 
 ### Delete the namespace
 
@@ -798,3 +904,7 @@ guest cluster instead, talking to the Supervisor's ArgoCD from outside, has not 
 | The app's pod shows `ImagePullBackOff` | With your own image: the Harbor project is private and has no pull secret (*Create a pull secret*), or the digest is not in that project. With the published image: the nodes cannot reach `ghcr.io`. |
 | You changed the Deployment with `kubectl` and the change is gone | `selfHeal` put back what the Application says. Change the Application (*Deploy another image*). |
 | A destination that worked for months fails with a certificate error | The certificate ArgoCD holds for the cluster has ended: the ArgoCD guide's *How long this login lasts*. |
+| You deleted the app's namespace, and it is back | ArgoCD created it again. Delete the Application (*Delete the app*), then the namespace. |
+| The Istio chapter's change to the Service, or its mesh option, is gone | `selfHeal` reverted it. Set `APP_SERVICE_TYPE`, or make the change in Git (*Use your own Git repository*). |
+| The Application stays in `Terminating` | The guest cluster or the ArgoCD instance was deleted first: *If the Application will not go away*. |
+| `STOP: the stored project does not limit the Namespace …` | The ArgoCD is older than 3.4: *Create the project*, *If not*. |

@@ -9,14 +9,21 @@ file and, for some blocks, the clone: that is why they go last.
 Everything here is optional. Run only the blocks you want, but in the order shown. The
 installed tools, base images, build cache and kubectl's `~/.kube/cache` are kept.
 
-What a chapter created on the platform is removed by that chapter, before the blocks here:
+What a chapter created on the platform is removed by that chapter, before the blocks here.
+**Go through the table from top to bottom:** what runs on a guest cluster goes before the
+cluster, and an app that ArgoCD deployed goes before the cluster AND before ArgoCD (its
+Application can be deleted only while ArgoCD runs and still reaches the cluster).
 
 | created with | removed with |
 |---|---|
-| [NAMESPACE.md](NAMESPACE.md) | [Remove the namespace](NAMESPACE.md#remove-the-namespace) |
+| [ARGOCD-app.md](ARGOCD-app.md) (the app, deployed by ArgoCD) | [Delete the app](ARGOCD-app.md#delete-the-app): all its blocks, in order |
+| [addons/ISTIO.md](addons/ISTIO.md) | [Remove the gateway and the route](addons/ISTIO.md#remove-the-gateway-and-the-route), then [Uninstall Istio](addons/ISTIO.md#uninstall-istio) |
+| [addons/HEADLAMP.md](addons/HEADLAMP.md) | [Remove the add-on](addons/HEADLAMP.md#remove-the-add-on), or [Uninstall Headlamp](addons/HEADLAMP.md#uninstall-headlamp) for the one installed with helm |
+| [addons/CERT-MANAGER.md](addons/CERT-MANAGER.md) | [Remove cert-manager](addons/CERT-MANAGER.md#remove-cert-manager), after the add-ons that use it |
+| [ARGOCD-auto.md](ARGOCD-auto.md) or [ARGOCD-manual.md](ARGOCD-manual.md) | that guide's *Clean up (optional)* step: the guest cluster it created, then the ArgoCD instance |
 | [CLUSTER.md](CLUSTER.md) | [Delete the cluster](CLUSTER.md#delete-the-cluster) |
 | [HARBOR-auto.md](HARBOR-auto.md) or [HARBOR-manual.md](HARBOR-manual.md) | that guide's *Uninstall Harbor (optional)* step |
-| [ARGOCD-auto.md](ARGOCD-auto.md) or [ARGOCD-manual.md](ARGOCD-manual.md) | that guide's *Clean up (optional)* step |
+| [NAMESPACE.md](NAMESPACE.md) | [Remove the namespace](NAMESPACE.md#remove-the-namespace) |
 
 ## Delete the image and the robot in Harbor
 
@@ -151,6 +158,7 @@ unset HARBOR_FQDN HARBOR_PROJECT SUPERVISOR_ENDPOINT VCENTER_FQDN VKS_CLUSTER VK
       HARBOR_MANIFEST HARBOR_VALUES_TEMPLATE HARBOR_STORAGE_CLASS HARBOR_REGISTRY_SIZE \
       HARBOR_VALUES HARBOR_SECRETS HARBOR_SERVICE_VERSION SUPERVISOR_ID
 unset ADDON_CATALOG_NAMESPACE ADDON_WAIT_MINUTES ADDON_NAME ADDON_INSTALL ADDON_RELEASE CERT_MANAGER_ADDON_RELEASE CERT_MANAGER_NAMESPACE HEADLAMP_ADDON_RELEASE HEADLAMP_ADDON_NAMESPACE HEADLAMP_ADDON_HOSTNAME HEADLAMP_ADDON_GATEWAY HEADLAMP_TOKEN_HOURS HEADLAMP_CHART_VERSION HEADLAMP_NAMESPACE HEADLAMP_LOCAL_PORT HEADLAMP_VERSION ISTIO_VERSION ISTIO_PILOT_REPLICAS ISTIO_PILOT_MEMORY ISTIO_SYSTEM_NAMESPACE ISTIO_GATEWAY_NAMESPACE ISTIO_GATEWAY ISTIO_APP_NAMESPACE ISTIO_WAIT_MINUTES
+unset ARGOCD_APP APP_NAMESPACE APP_REPO APP_REVISION APP_IMAGE APP_SERVICE_TYPE APP_REPO_USERNAME APP_REPO_TOKEN
 unset -f harbor_cfg kubectl_install vc_login vc_api vc vc_cluster_id vc_logout 2>/dev/null || true
 ```
 
