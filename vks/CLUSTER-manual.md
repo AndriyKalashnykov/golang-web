@@ -67,7 +67,8 @@ policy and the VM class you want for the nodes.
 ### Find the Kubernetes releases
 
 The Kubernetes versions you can choose come from a content library that the Supervisor reads.
-You add nothing to the namespace for it, and the client has no page worth opening for it: the
+You add nothing to the namespace for it, and the client has no page worth opening for it
+unless the library must be synchronized: the
 releases a cluster can use are the entries of the create page's own **Kubernetes Release** list
 (step 4).
 

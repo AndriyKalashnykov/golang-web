@@ -331,10 +331,13 @@ trust yet. This block downloads that CA from vCenter and saves it as `$SUPERVISO
 alternative under [Log in to the Supervisor](#log-in-to-the-supervisor) uses it so `vcf` can
 confirm it is talking to your real Supervisor, and the chapters that call vCenter (the
 namespace, Harbor and ArgoCD chapters) use it for vCenter. The download itself cannot be
-verified yet (hence `curl -k`), so you compare its fingerprint with that of the CA file you
-download from vCenter's own page in the browser:
+verified yet (hence `curl -k`). Compare its fingerprint with that of the CA file from vCenter's
+own page in the browser:
 [NAMESPACE-manual.md](NAMESPACE-manual.md#1-find-the-supervisor-its-address-and-vcenters-ca)
-shows where the page has it and how to print its fingerprint.
+shows where the page has it and how to print its fingerprint. Equal fingerprints show that both
+downloads are the same certificate. They prove the server is your vCenter only if the browser
+opened that page without a certificate warning, or if the fingerprint you compare with reached
+you another way (from whoever installed this vCenter, for example).
 
 ```sh
 source ~/.vks-golang-web.env
@@ -435,10 +438,12 @@ fi
 This guide logs in with the SSO user and a password; `--auth-type basic` asks for exactly that.
 Broadcom documents the flag for a Supervisor that otherwise opens a web-page login (KB 417617);
 this guide does not cover such a Supervisor. If the password login fails because your account exists only
-in an external identity provider (such as Okta or Entra ID), that is out of scope: get the
-guest cluster's kubeconfig another way (the vSphere Client has a download for it, named in
-[step 7 of CLUSTER-manual.md](CLUSTER-manual.md#7-get-the-kubeconfig-and-check-the-cluster)), save it
-with `source ~/.vks-golang-web.env; mkdir -p ~/.kube; cp <file> "$GUEST_KUBECONFIG"`, run
+in an external identity provider (such as Okta or Entra ID), that is out of scope. One thing to try: the
+cluster row's menu in the vSphere Client has the entry **Download Kubeconfig File**
+([step 7 of CLUSTER-manual.md](CLUSTER-manual.md#7-get-the-kubeconfig-and-check-the-cluster));
+these guides do not cover what login that file holds or whether it works for such an account.
+If you get a kubeconfig, save it with
+`source ~/.vks-golang-web.env; mkdir -p ~/.kube; cp <file> "$GUEST_KUBECONFIG"; chmod 600 "$GUEST_KUBECONFIG"`, run
 `kubectl_install "$(kubectl version -o json | jq -r .serverVersion.gitVersion)"`,
 then continue at [Check the guest cluster](#check-the-guest-cluster).
 
@@ -490,10 +495,12 @@ namespace can hold a cluster.
 **If not:**
 - `NotFound`: check `VKS_NAMESPACE`. If you have no vSphere Namespace yet, get one with
   [Use or create a vSphere Namespace](NAMESPACE.md), then run this block again.
-- `Forbidden`: your SSO user has no role on it. Give it the **Edit** role:
-  [Give your user a role](NAMESPACE-manual.md#4-give-your-user-a-role) shows where. If your user
-  may not change the namespace's permissions, a user that may (a vCenter administrator) must do
-  that step.
+- `Forbidden`: your SSO user has no role on the namespace, or you logged in before the
+  namespace or the role existed. To give a user the **Edit** role:
+  [Give your user a role](NAMESPACE-manual.md#4-give-your-user-a-role) (a vCenter administrator
+  is already in the list). Then run the
+  [Delete the Supervisor login](#delete-the-supervisor-login) block, log in again, and run this
+  check again.
 - `Unauthorized` or a login prompt: the login ended or did not work. Run
   [Renew the Supervisor login](#renew-the-supervisor-login), then this check again.
 

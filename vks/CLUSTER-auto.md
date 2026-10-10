@@ -118,8 +118,9 @@ stores the short form.)
 **If not:** no output — no release is both ready and compatible. On a Supervisor that was
 switched on minutes ago, wait ten minutes and run the block again. If the list stays empty,
 the Supervisor's Kubernetes content library has not synchronized, or holds no release this
-Supervisor can use: **If not** under *Create the cluster and wait for it* says where to
-synchronize it. `Unauthorized`: run the main guide's *Renew the Supervisor login* block.
+Supervisor can use: **If not** under *Create the cluster and wait for it* says what to do
+(synchronize that library in the vSphere Client; these guides do not show its page).
+`Unauthorized`: run the main guide's *Renew the Supervisor login* block.
 
 ### List the VM classes
 

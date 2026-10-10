@@ -58,7 +58,8 @@ Client.
    ![vCenter's start page: the grey box on the right, with Download trusted root CA certificates as the last link under For Developers](img/namespace/02-vcenter-ca.jpg)
 
 4. The browser saves `download.zip`. The CA certificate is the file ending in `.0` in its
-   `certs/lin` folder (`certs/mac` on macOS). <!-- unverified -->
+   `certs/lin` folder (`certs/mac` on macOS). If the folder holds several `.0` files, print
+   the fingerprint of each. <!-- unverified -->
 
 **Expect:** you know the Supervisor's address, and you have vCenter's CA certificate from
 vCenter's own page. The main guide's
