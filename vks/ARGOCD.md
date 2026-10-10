@@ -28,7 +28,7 @@ Only registering and installing the service needs a vCenter administrator. Ask o
 - the ArgoCD Service (release 1.2.0) registered in vCenter and installed on your Supervisor:
   steps 2 and 3 of [ARGOCD-manual.md](ARGOCD-manual.md), or step 4 of
   [ARGOCD-auto.md](ARGOCD-auto.md);
-- the **Edit** role (the vSphere Client calls it **Can edit**) on your vSphere Namespace for
+- the **Edit** role (the vSphere Client calls it **Namespaces Edit**) on your vSphere Namespace for
   your SSO user;
 - word when the service shows **Configured**. Everything after that you do yourself.
 

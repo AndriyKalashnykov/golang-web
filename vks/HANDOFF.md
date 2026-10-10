@@ -41,10 +41,13 @@ The four areas have one shape (owner, 2026-10-10; `PLAN.md`, D12): a chooser `X.
 "Use or create/install X" (one sentence on rights, three choices, a check block, one collapsed
 "If you are not a vCenter administrator"), `X-manual.md` (the vSphere Client, a screenshot per
 window under `img/<area>/`, where the client keeps each value) and `X-auto.md` (command blocks
-that print each value). No request letter is a section anywhere. `NAMESPACE-manual.md` and
-`CLUSTER-manual.md` have **not been clicked**: a step nobody has seen in the client ends with an
-HTML comment `unverified`, and their 25 screenshots are still to be taken (`PLAN.md`, "The four
-areas in one shape").
+that print each value). No request letter is a section anywhere. `NAMESPACE-manual.md` steps 1
+to 7 were clicked in the lab's client on 2026-10-10 (its remove step was not);
+`CLUSTER-manual.md` is written only as far as the client was seen, and its steps 4 and 5 say in
+bold where they stop. A step nobody has seen ends with an HTML comment `unverified`
+(`PLAN.md`, "The four areas in one shape"). In the 9.1.1 client the namespace roles are named
+**Namespaces View / Edit / Owner**, permissions are a TAB, not a card, and a vCenter
+administrator is already listed there.
 
 Rules the split follows, to keep when editing: no reference by step number into another file,
 or inside the five files above (link the section by its title); the main guide's first block is

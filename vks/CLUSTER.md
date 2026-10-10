@@ -27,7 +27,7 @@ You do not have to be one to create a cluster with scripts. You need, from a vCe
 administrator:
 
 - a vSphere Namespace that passes [Check the namespace you have](NAMESPACE.md#check-the-namespace-you-have);
-- the **Edit** role (the vSphere Client calls it **Can edit**) on it for your SSO user;
+- the **Edit** role (the vSphere Client calls it **Namespaces Edit**) on it for your SSO user;
 - the Supervisor's address, for the main guide's login.
 
 </details>

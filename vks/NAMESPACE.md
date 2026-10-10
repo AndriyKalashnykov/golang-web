@@ -27,7 +27,7 @@ Ask a vCenter administrator for these three things, then run the check below:
 
 - a vSphere Namespace on your Supervisor, with one storage policy and the VM classes
   `best-effort-small` and `best-effort-medium` (2 CPUs with 4 GB and with 8 GB of memory);
-- the **Edit** role (the vSphere Client calls it **Can edit**) on it for your SSO user;
+- the **Edit** role (the vSphere Client calls it **Namespaces Edit**) on it for your SSO user;
 - the namespace's name, for `VKS_NAMESPACE` in `~/.vks-golang-web.env`.
 
 </details>
@@ -54,7 +54,8 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" auth can-i cre
   [with scripts](NAMESPACE-auto.md).
 - `Forbidden`, or `no` on the second line: the namespace exists but your SSO user has no role
   that lets it create clusters there. Give it the **Edit** role on the namespace
-  ([Give your user a role](NAMESPACE-manual.md#4-give-your-user-a-role) shows where). If the role was given after
+  ([Give your user a role](NAMESPACE-manual.md#4-give-your-user-a-role) shows where: the
+  namespace's **Permissions** tab, role **Namespaces Edit**). If the role was given after
   you logged in, run the main guide's *Delete the Supervisor login* block and log in again.
 - `Unauthorized`, or a login prompt: the Supervisor login ended. Run the main guide's *Renew the
   Supervisor login* block, then this block again.

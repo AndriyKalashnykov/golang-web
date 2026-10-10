@@ -284,16 +284,17 @@ anchors hold. The walks recorded for phases 4 and 5 stand for those blocks as bl
 
 | new | what | walked |
 |---|---|---|
-| `NAMESPACE-manual.md` | every click, and 13 image lines under `img/namespace/` | no: written from the lab client's known page names and Broadcom's 9.1 page; each step not seen in the client ends with an HTML comment `unverified` |
-| `CLUSTER-manual.md` | every click, and 12 image lines under `img/cluster/` | no: the create window's names are from Broadcom's 9.0 page (9.0-doc, inferred for 9.1); same marking |
+| `NAMESPACE-manual.md` | every click, and 13 image lines under `img/namespace/` | steps 1 to 7 clicked by the owner in the lab's client (9.1.1) on 2026-10-10 and the text corrected to it; screenshots 01 to 11 are from that walk; the two check blocks then passed for the namespace made by hand (both VM classes, `wcp-vmfs` and `wcp-vmfs-latebinding`, 13 releases, 7 cluster classes). NOT clicked: step 9 (remove; pictures 12 and 13), and the content of `download.zip` in step 1. Each carries an HTML comment `unverified` |
+| `CLUSTER-manual.md` | 10 image lines under `img/cluster/` | seen in the client: the **Resources** cards, the create page's step 1 and step 2 up to the **VM Class** table. Everything after that table is NOT WRITTEN: steps 4 and 5 say so in bold and carry an HTML comment `placeholder`. Not seen, marked `unverified`: the content library's list, the delete menu |
 | `CLUSTER.md`, *Use the cluster you have* | one block: lists the namespace's guest clusters | no |
 | `NAMESPACE-manual.md`, step 9 | the same block, before a delete by hand | no |
 | `CLUSTER-manual.md`, step 8 | one block: are the cluster and its address gone | no |
 | `ARGOCD.md`, *Use the ArgoCD you have* | one block: service installed, instance in the namespace, first admin password present | no |
 | `HARBOR.md`, *Use the Harbor you have* | one block: Harbor namespace on the Supervisor; `curl -sk` to `/api/v2.0/ping` | no |
 
-The 25 screenshots are not in the tree: the gate fails with one `the image file does not exist`
-line per picture until they are added. With stand-in files it ends at 0 errors.
+The gate fails with one `the image file does not exist` line per picture that is not in the
+tree yet (13 for the namespace guide, 10 for the cluster guide). With stand-in files it ends at
+0 errors.
 **Open:** whether the create window sets a default storage class (`CLUSTER-manual.md`, step 5);
 whether an Edit user without vCenter rights can open the namespace in the vSphere Client; the
 echo text `CLUSTER.md, Install envsubst` in five blocks (kept byte for byte; `CLUSTER.md` links
@@ -505,7 +506,7 @@ None blocks a phase; each is a place where a green gate says nothing.
 ## Needs the owner (work continues around these)
 
 - **Screenshots of the vSphere Client** for `NAMESPACE-manual.md` (13, `img/namespace/`) and
-  `CLUSTER-manual.md` (12, `img/cluster/`): the session does not type passwords into a browser,
+  `CLUSTER-manual.md` (10 so far, `img/cluster/`): the session does not type passwords into a browser,
   so it cannot log in to the vSphere Client. The image lines are in the guides; the files are
   not, and the click steps marked `unverified` are to be walked when they are taken.
 - **Mac tunnels:** each walk on the Mac needs forwards to addresses the lab assigns at install

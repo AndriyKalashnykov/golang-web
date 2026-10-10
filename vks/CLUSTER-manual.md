@@ -1,12 +1,10 @@
 # Create a guest cluster, by hand
 
 This guide creates a Kubernetes cluster (a *VKS guest cluster*) in your vSphere Namespace in the
-vSphere Client: you look up what the namespace offers, open the namespace's **Kubernetes
-service** page, and fill in the window that **CREATE** opens. It has 8 steps; step 8 is optional
-clean-up. The page names are those of the vSphere Client for VMware Cloud Foundation 9.1.1 with
-VKS 3.7; the names inside the create window are from Broadcom's page for 9.0
-([Provision a Kubernetes cluster using self-service](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-service-administration-and-development/9-0/managing-vsphere-kuberenetes-service-clusters-and-workloads/provision-and-manage-kubernetes-clusters/provision-a-kubernetes-cluster-using-the-iaas-services-console-in-vcf-automation.html)),
-so a field can be named differently in your client.
+vSphere Client: you look up what the namespace offers, open the namespace's **Resources** tab,
+and fill in the page that **CREATE CLUSTER** opens. It has 8 steps; step 8 is optional
+clean-up. The names are those of the vSphere Client for VMware Cloud Foundation 9.1.1 with
+VKS 3.7. **Steps 4 and 5 are not complete yet:** each says where it stops.
 
 The same result with command blocks in place of clicks is in [CLUSTER-auto.md](CLUSTER-auto.md).
 If you already have a cluster, you need neither: see [CLUSTER.md](CLUSTER.md).
@@ -39,7 +37,9 @@ The main guide's [terms](README.md#learn-the-terms) apply. New here:
 - A vSphere Namespace that passed
   [Check the namespace you have](NAMESPACE.md#check-the-namespace-you-have).
 - The **Local Consumption Interface** service on the Supervisor: it is what shows the
-  **Resources** tab (step 3 says where to look if the tab is missing).
+  **Resources** tab (step 3 says where to look if the tab is missing). Broadcom's page for it:
+  [Provision a Kubernetes cluster using self-service](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-service-administration-and-development/9-0/managing-vsphere-kuberenetes-service-clusters-and-workloads/provision-and-manage-kubernetes-clusters/provision-a-kubernetes-cluster-using-the-iaas-services-console-in-vcf-automation.html)
+  (written for 9.0).
 - Room in the namespace for three virtual machines.
 - For steps 7 and 8: the main guide's env file, its tools and its Supervisor login on this
   machine.
@@ -51,8 +51,9 @@ A cluster can use only the VM classes and the storage policies its namespace has
 1. Open the vSphere Client. From the menu (☰, top left) choose **Supervisor Management**, then
    the **Namespaces** tab, and click your namespace's name.
 2. On its **Summary** page read three cards: **Status** must show **Config Status**
-   **Running**; **Storage** names the storage policies; **VM Service** counts the VM classes
-   (the **Compute** tab lists them by name). <!-- unverified -->
+   **Running** and **Kubernetes Status** **Active**; **Storage** names the storage policies;
+   **VM Service** counts the VM classes (*2 Associated VM Classes*, for example), and its link
+   **MANAGE VM CLASSES** lists them by name.
 
    ![The Summary page of a vSphere Namespace: Config Status Running, the Storage card with one policy, the VM Service card with two VM classes](img/cluster/01-namespace-summary.jpg)
 
@@ -66,18 +67,20 @@ policy and the VM class you want for the nodes.
 ### Find the Kubernetes releases
 
 The Kubernetes versions you can choose come from a content library that the Supervisor reads.
+You add nothing to the namespace for it.
 
-1. Open your Supervisor: **Supervisor Management** → **Supervisors** tab → the Supervisor's
-   name. On its **Configure** tab choose **Supervisor** → **General**; the section for the
-   Kubernetes service names the content library. <!-- unverified -->
+1. On the namespace's **Summary** page look at the **Kubernetes Service** card: it counts the
+   clusters and the content libraries (*1 Associated Content Libraries* on a new namespace) and
+   has the links **MANAGE** and **VIEW ALL**.
 2. From the menu (☰) choose **Content Libraries** and click that library. Its templates are the
    Kubernetes releases, one per version and node image. <!-- unverified -->
 
    ![The content library of the Kubernetes service, with its list of Kubernetes release templates](img/cluster/02-content-library.jpg)
 
-**Expect:** a list of templates whose names hold Kubernetes versions, such as `v1.36.2`. The
-create window in step 4 offers the releases that are ready and that this Supervisor supports;
-that list can be shorter than the library's.
+**Expect:** *1 Associated Content Libraries* on the card, and in the library a list of templates
+whose names hold Kubernetes versions, such as `v1.36.2`. The create page in step 4 offers the
+releases that are ready and that this Supervisor supports; that list can be shorter than the
+library's.
 
 **If not:** an empty library, or one that shows a synchronization error — the library has not
 downloaded the releases. Select the library and synchronize it; an error about the publisher's
@@ -86,17 +89,17 @@ certificate means its stored fingerprint is out of date and must be accepted aga
 
 ## 2. Choose the cluster's values
 
-Decide these before you open the create window:
+Decide these before you open the create page:
 
 | value | what to choose |
 |---|---|
 | name | lower-case letters, digits and `-`. **Use a name no cluster in this namespace ever had** |
-| Kubernetes release | the newest the window offers, unless you need another |
+| Kubernetes release | the newest the create page offers, unless you need another |
 | control-plane nodes | `1`, or `3` for a cluster that must stay up when a node fails |
 | worker nodes | `2` for this guide's app |
 | VM class | 2 CPUs and 4 GB (`best-effort-small`) for this guide's app; 2 CPUs and 8 GB (`best-effort-medium`) if you will add Istio |
 | storage class | the storage policy from step 1 |
-| pod and service address ranges | ranges that overlap no network the cluster must reach; keep what the window offers unless your company uses those ranges |
+| pod and service address ranges | ranges that overlap no network the cluster must reach; keep what the create page offers (`10.95.0.0/16` and `10.96.0.0/12`) unless your company uses those ranges |
 
 - **Never reuse a cluster's name.** A cluster created under a name that another cluster in the
   same namespace had before can come up with the old cluster's address, and then never becomes
@@ -109,48 +112,73 @@ Decide these before you open the create window:
   [Choose the cluster's values](CLUSTER-auto.md#choose-the-clusters-values) of the scripted
   guide.
 
-## 3. Open the Kubernetes service page
+## 3. Open the create page
 
-1. On your namespace's page open the **Resources** tab, and in it **Kubernetes service**.
+1. On your namespace's page open the **Resources** tab. It shows six cards: **Virtual
+   Machine**, **Kubernetes**, **Container**, **Virtual Machine Image**, **Network** and
+   **Volume**, with the **SERVICES** and **LAUNCH STANDALONE CLIENT** menus at the top right.
 
-   ![The Resources tab of a vSphere Namespace, Kubernetes service: the page vSphere Kubernetes Service with the CREATE button and an empty list](img/cluster/03-kubernetes-service.jpg)
+   ![The Resources tab of a vSphere Namespace: six cards, the Kubernetes card with 0 Kubernetes Clusters and its links GO TO SERVICE and CREATE CLUSTER](img/cluster/03-resources.jpg)
 
-**Expect:** a page titled **vSphere Kubernetes Service**, with a **CREATE** button, the
-**SERVICES** and **LAUNCH STANDALONE CLIENT** menus at the top right, and a list with the
-columns **Name**, **Status**, **Cluster Class**, **Kubernetes Release** and **Age**. The list is
-empty before your first cluster.
+2. The **Kubernetes** card counts the namespace's clusters (*0 Kubernetes Clusters* before your
+   first one) and has two links. **GO TO SERVICE** opens the list of clusters, a page titled
+   **vSphere Kubernetes Service** with a **CREATE** button and the columns **Name**, **Status**,
+   **Cluster Class**, **Kubernetes Release** and **Age**: step 6 watches that list.
+
+   ![The vSphere Kubernetes Service page: the CREATE button and the list of clusters, empty](img/cluster/04-kubernetes-service.jpg)
+
+3. Click **CREATE CLUSTER** on the card (or **CREATE** on the list).
+
+**Expect:** a page titled **New Kubernetes Cluster**, with `<your namespace> > Kubernetes
+service > create-cluster` above the title. On its right is a pane **Kubernetes Resource YAML**:
+it shows the cluster's description and changes while you fill in the page.
 
 **If not:** no **Resources** tab — the **Local Consumption Interface** service is not installed
 on this Supervisor. Its row is in the list of the Supervisor's services: your Supervisor →
 **Configure** → **Supervisor Services** → **Overview**. Without it, create the cluster with
 [CLUSTER-auto.md](CLUSTER-auto.md).
 
-## 4. Fill in the create window
+## 4. Fill in the create page
 
-1. Click **CREATE**.
-2. For the cluster type choose **ClusterClass API**; for the configuration type choose the
-   custom one, so that you set the sizes yourself. <!-- unverified -->
+1. **1. Configuration Type:** under *Create the cluster with a pre-defined default configuration
+   or a custom configuration* choose **Custom Configuration**, so that you set the name and the
+   sizes yourself, and click **NEXT**. (With **Default Configuration** the next step is already
+   **2. Review and Confirm**.)
 
-   ![The first page of the create window: the cluster type ClusterClass API and the configuration type](img/cluster/04-create-type.jpg)
+   ![The New Kubernetes Cluster page, step 1 Configuration Type: Default Configuration and Custom Configuration, and the Kubernetes Resource YAML pane on the right](img/cluster/05-create-type.jpg)
 
-3. **General settings:** type the cluster's name; choose the cluster class (the newest
-   `builtin-generic-…` offered) and the Kubernetes release; keep the pod and service address
-   ranges, or type your own; choose the storage class. Click **NEXT**. <!-- unverified -->
+   Step 1 closes and now reads *Cluster Type: Cluster API; Configuration Type: Custom
+   Configuration*.
 
-   ![The general settings page: name, cluster class, Kubernetes release, address ranges and storage class](img/cluster/05-create-general.jpg)
+2. **2. General Settings:**
+   - **Cluster Name:** the page offers a generated name. Replace it with the name you chose in
+     step 2.
+   - **Cluster Class:** choose the newest `builtin-generic-…` in the list (on the lab,
+     `builtin-generic-v3.7.0`).
+   - **Kubernetes Release:** choose the release (on the lab, `v1.36.2---vmware.2-vkr.3`).
+   - **VM Class:** a table of the namespace's VM classes with their **CPUs** and **Memory**.
+     Select the class you chose in step 2 with the round button at the left of its row.
 
-4. **Control plane:** set the number of nodes (`1`), the VM class and the storage class. Click
-   **NEXT**. <!-- unverified -->
+   The page says above the table: *Settings configured here (VM class, Storage class, Node
+   Volumes, Node Network) apply to both control plane and node pools by default. Override them
+   in later steps if needed.*
 
-   ![The control plane page: one node, its VM class and storage class](img/cluster/06-create-control-plane.jpg)
+   ![Step 2 General Settings: Cluster Name, Cluster Class, Kubernetes Release, and the VM Class table with one class selected](img/cluster/06-create-general.jpg)
 
-5. **Node pools:** add one node pool: a name, the number of worker nodes (`2`), the VM class
-   and the storage class. <!-- unverified -->
+3. Look at the **Kubernetes Resource YAML** pane: it starts with `apiVersion: cluster.x-k8s.io/…`
+   and `kind: Cluster`, and holds your name, the class under `classRef` and the version. It
+   also shows the address ranges the cluster will use inside: `10.95.0.0/16` for pods and
+   `10.96.0.0/12` for services unless you change them. They must not overlap any network the
+   cluster has to reach (step 2).
 
-   ![The node pool page: one pool of two worker nodes with its VM class and storage class](img/cluster/07-create-node-pool.jpg)
+**NOT WRITTEN YET — the rest of this step.** What the page asks after the **VM Class** table
+(the storage class, the node volumes, the node network, the control plane, the node pools) has
+not been seen in the client. Until it is written here, fill those parts with the values from
+step 2 and read every field before you go on.
+<!-- placeholder: the rest of General Settings and every step between it and Review and Confirm; images 07 and 08 are reserved for them -->
 
-**Expect:** each page accepts your values and **NEXT** leads to the next one; the last page is
-the review.
+**Expect:** each step accepts your values and **NEXT** opens the next one; the last one is
+**Review and Confirm**. <!-- unverified -->
 
 **If not:** a list that offers nothing — no Kubernetes release: see
 [Find the Kubernetes releases](#find-the-kubernetes-releases); no VM class or no storage class:
@@ -158,19 +186,18 @@ see step 1.
 
 ## 5. Review and create
 
-1. On the review page read the cluster's description: the window shows it as YAML.
-   <!-- unverified -->
-2. Look for `defaultStorageClass` in it. If the window lets you set a default storage class, set
-   it to your storage class. <!-- unverified --> Without one the cluster starts and looks
-   healthy, and every app that asks for a disk without naming a storage class then waits
-   forever; step 7's check tells you which you got.
+**NOT WRITTEN YET — the names on this step.** The step is called **Review and Confirm**; its
+buttons and what it shows have not been seen in the client.
+<!-- placeholder: the Review and Confirm step, its button, and what the page shows after it -->
 
-   ![The review page with the cluster's description as YAML](img/cluster/08-create-review.jpg)
+1. Read the cluster's description in the **Kubernetes Resource YAML** pane once more.
+2. Look for `defaultStorageClass` in it. Without one the cluster starts and looks healthy, and
+   every app that asks for a disk without naming a storage class then waits forever; step 7's
+   check tells you which you got. <!-- unverified -->
+3. Confirm the creation. <!-- unverified -->
 
-3. Click **FINISH**. <!-- unverified -->
-
-**Expect:** the window closes and the list on the **vSphere Kubernetes Service** page has a row
-with your cluster's name.
+**Expect:** the list on the **vSphere Kubernetes Service** page (step 3) has a row with your
+cluster's name. <!-- unverified -->
 
 **If not:** an error naming the Kubernetes release, the cluster class, the VM class or the
 storage class — that value is not one this namespace may use: go back and choose another.
@@ -216,8 +243,8 @@ your `kubectl` to it, and check the nodes and the default storage class.
 a cluster you created yourself. A cluster that ArgoCD manages comes back after you delete it
 here: delete that one with the ArgoCD guide's *Delete the guest cluster* step.
 
-1. On the **vSphere Kubernetes Service** page (step 3) find the cluster's row and check its
-   name against `VKS_CLUSTER`.
+1. On the **vSphere Kubernetes Service** page (**GO TO SERVICE** in step 3) find the cluster's
+   row and check its name against `VKS_CLUSTER`.
 2. Open the row's menu (⋮, at the left of the row) and choose **Delete**. <!-- unverified -->
 
    ![The cluster row's menu, open, with Delete](img/cluster/11-delete-menu.jpg)
@@ -248,7 +275,7 @@ machine until the last block of [CLEANUP.md](CLEANUP.md) deletes it.
 | symptom | fix |
 |---|---|
 | The namespace has no **Resources** tab | The **Local Consumption Interface** service is not installed on the Supervisor (step 3). |
-| The create window offers no Kubernetes release | The content library has no usable release: [Find the Kubernetes releases](#find-the-kubernetes-releases). |
+| The create page offers no Kubernetes release | The content library has no usable release: [Find the Kubernetes releases](#find-the-kubernetes-releases). |
 | The cluster stays **Not Available** | The name was used before in this namespace, or the node image is still being downloaded: see **If not** under [Create the cluster and wait for it](CLUSTER-auto.md#create-the-cluster-and-wait-for-it). |
 | `default storage class: NONE` in the check | The cluster has no default storage class (step 5). Name the storage class in every disk request, or create the cluster with [CLUSTER-auto.md](CLUSTER-auto.md). |
 | `secrets "<name>-kubeconfig" not found` | `VKS_CLUSTER` is not the cluster's name, or the cluster is not **Available** yet. |
