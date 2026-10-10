@@ -9,21 +9,35 @@
 #   [prompt]     nothing follows a command that can prompt (a shell without bracketed paste hands
 #                the rest of the paste to the prompt). "Follows" means after the top-level command
 #                that holds it: a whole `if … fi` is read before any of it runs
-#   [shellcheck] each block, when shellcheck exists (exclusions: SHELLCHECK_EXCLUDE below)
+#   [shellcheck] each block, when shellcheck exists (exclusions: SHELLCHECK_EXCLUDE below);
+#                [tool]: when CI is set, a missing shellcheck is an error, not a skip
 #   [env]        a block that uses a name its env file provides starts with `source ~/<env file>`,
 #                and every $VAR is set in the block, by the env contract, by an earlier
 #                "this terminal" block, or is a shell built-in name (AMBIENT below). The contract is
-#                read from the guides' own `cat > ~/<file> <<'EOF'` blocks; it is not typed here
+#                read from the guides' own `cat > ~/<file> <<'EOF'` blocks; it is not typed here.
+#                What a "this terminal" block assigns counts to the END OF ITS NUMBERED STEP
+#                (the next `## N.` heading ends it), or to the end of step N when the guide's
+#                sentence says "this terminal until the end of step N"
 #   [expect]     every block is followed by **Expect:** before the next block or heading
+#   [fence]      every opening fence is either exactly ```sh at the left margin or a data fence
+#                (DATA_FENCES below): ~~~, another tag, no tag, a fence indented 4+ spaces or
+#                inside a > quote would hold a block that no check reads
+#   [file]       no *.MD, *.markdown or similar: only *.md is read
 #   [link]       every relative link and image resolves to a file; every #anchor to a heading
 #   [details]    <details> and </details> balance
 #   [secret]     no secret on a command line (SECRET PATTERNS below)
-#   [count]      the number of blocks and files read is printed, and may not drop below a floor
+#   [count]      each guide has exactly the number of `sh` blocks check-vks-docs.blocks records
+#                for it, and every guide is listed there; the totals are printed
 # The block extractor is vks/test/walk.sh, so this gate and a walk see the same blocks.
+#
+# A NEW GUIDE needs one line in check-vks-docs.blocks: `<file relative to vks/> <sh blocks>`.
+# The error for a guide that is not listed prints that line.
 #
 # A finding that is known and accepted goes into check-vks-docs.allow, one per line:
 #   check | file | reason | one exact line of the block (or the link target, for link)
-# An entry that matches nothing fails the gate, as does one that matches two blocks.
+# An entry must allow exactly ONE finding: one that matches nothing fails the gate, as does one
+# whose line is in two blocks or that matches a second finding. count, file and tool findings
+# cannot be allowed. A block whose syntax finding is allowed still gets every other check.
 #
 # Not detected: a comment inside `$( … )` within double quotes when a case pattern closes the
 # parenthesis early; commands hidden in `eval` or `bash -c "…"`; reference-style links
@@ -35,13 +49,19 @@ export LC_ALL=C
 DIR=${VKS_DOCS_DIR:-vks}
 ALLOW=${VKS_DOCS_ALLOW:-.github/scripts/check-vks-docs.allow}
 WALK=${VKS_DOCS_WALK:-vks/test/walk.sh}
-# Floors, from the guides as of 2026-10-10: README 54, ARGOCD-auto 23, ARGOCD-manual 28 blocks;
-# those three and ARGOCD.md read. Raise them when blocks are added; lower them only on purpose.
-MIN_BLOCKS=${VKS_DOCS_MIN_BLOCKS:-105}
-MIN_FILES=${VKS_DOCS_MIN_FILES:-4}
+# The guides and how many `sh` blocks each has: `<file relative to vks/> <number>` per line, 0 for
+# a guide with none. The count must be EQUAL: a block that is removed, or no longer fenced as
+# `sh`, cannot hide behind blocks added elsewhere. A guide that is not listed is an error.
+BLOCKS=${VKS_DOCS_BLOCKS:-.github/scripts/check-vks-docs.blocks}
+SHELLCHECK=${VKS_DOCS_SHELLCHECK:-shellcheck}
 
 # Internal working files, not end-user guides (paths relative to $DIR).
 INTERNAL="PLAN.md HANDOFF.md test/README.md"
+
+# Tags a fence that holds DATA may carry. Every other opening fence must be exactly ```sh at the
+# left margin (at most 3 spaces, not inside a > quote): `bash`, `shell`, `console`, `zsh`, no
+# tag, ~~~ and a fence indented under a list item are errors, because no check would read them.
+DATA_FENCES="text yaml json"
 
 # Names a block may use without setting them: the shell and the login session provide them.
 AMBIENT="HOME USER PWD OLDPWD PATH SHELL EDITOR TMPDIR HOSTNAME UID IFS LANG RANDOM LINENO SECONDS REPLY"
@@ -50,8 +70,11 @@ OS_RELEASE_VARS="ID ID_LIKE NAME PRETTY_NAME VERSION VERSION_ID VERSION_CODENAME
 
 # Commands that can prompt on the terminal whatever their stdin is. A function the guides define
 # whose body runs one of them is added automatically (today: kubectl_install, through sudo).
-PROMPT_TTY="sudo|argocd login|argocd logout|podman login|docker login|vcf context create|vcf context refresh"
-# Commands that read the pasted text through stdin unless their top-level command redirects it.
+# `sudo -n` is exempt (it fails instead of asking); `env X=1 sudo` and `command sudo` are seen.
+PROMPT_TTY="sudo|su|argocd login|argocd logout|podman login|docker login|vcf context create|vcf context refresh"
+# Commands that read the pasted text through stdin, unless they stand on the RIGHT of a pipe,
+# have a `<` of their own, or sit inside a compound command that ends with one (`done < file`).
+# On the LEFT of a pipe they still read the paste: `ssh host cmd | tee log`.
 PROMPT_STDIN="read|ssh|colima ssh"
 # Plus: an installer fetched and run in one line (`bash -c "$(curl …)"`), matched on the raw line.
 
@@ -63,13 +86,25 @@ PROMPT_STDIN="read|ssh|colima ssh"
 #   SC2016         `printf '… "$HOME/…"'` and 'robot$apps+…' hold a literal $ on purpose
 SHELLCHECK_EXCLUDE="SC1090,SC1091,SC2034,SC2155,SC2164,SC2016"
 
-# SECRET PATTERNS (extended regular expressions, applied to each command line with single-quoted
-# text blanked). A secret in argv is visible in `ps` and stays in shell history.
-SECRET_PATTERNS='login-p|(^|[^A-Za-z])(login|sshpass)[[:space:]].*[[:space:]]-p[[:space:]]*"?[$A-Za-z]
-password-flag|--(password|passwd|token|auth-token|secret)(=|[[:space:]]+)"?[$A-Za-z0-9<]
-curl-user|(^|[^A-Za-z])curl[[:space:]].*[[:space:]](-u|--user)[[:space:]=]*"?[^[:space:]-]
-echo-secret|(^|[^A-Za-z])echo[[:space:]].*[$][{]?[A-Za-z_]*(PASSWORD|PASSWD|TOKEN|SECRET)
-from-literal|--from-literal[=[:space:]].*[$][{]?[A-Za-z_]*(PASSWORD|PASSWD|TOKEN|SECRET|KEY|CRED)'
+# SECRET PATTERNS: `label|case|regex` (extended regular expressions; case `i` = matched without
+# regard to case). Applied to each command line with single-quoted text blanked, continuation
+# lines joined. A secret in argv is visible in `ps` and stays in shell history.
+#   login-p        `-p VALUE` or `-pVALUE` of a login, sshpass or database client, wherever the
+#                  flag stands (a bare `-p`, which asks, and --password-stdin are not matched)
+#   password-flag  --password, --passwd, --token, --secret and any --<word>-… form of them, with
+#                  a value (--password-stdin, --token-file and the like are not matched)
+#   curl-user      curl -u / -su / --user with a value
+#   auth-header    an Authorization header that carries a variable
+#   url-userinfo   user:password@ inside a URL
+#   echo-secret    echo of a variable whose name says it is a secret
+#   from-literal   --from-literal whose KEY, or whose variable, is named like a secret
+SECRET_PATTERNS='login-p|-|(^|[^A-Za-z-])(login|sshpass|mysql|mariadb|psql)[[:space:]](.*[[:space:]])?-p[[:space:]]*"?[$A-Za-z0-9]
+password-flag|i|--([a-z0-9]+-)*(password|passwd|token|secret)(=|[[:space:]]+)"?[$a-z0-9]
+curl-user|-|(^|[^A-Za-z])curl[[:space:]](.*[[:space:]])?(-[A-Za-z]*u|--user)[[:space:]=]*"?[^[:space:]"=-]
+auth-header|i|(-h|--header)[[:space:]=]*"[^"]*authorization:[^"]*[$]
+url-userinfo|i|[a-z][a-z0-9+.-]*://[^/[:space:]"@]*:[^/[:space:]"@]*@
+echo-secret|-|(^|[^A-Za-z])echo[[:space:]].*[$][{]?[A-Za-z_]*(PASSWORD|PASSWD|TOKEN|SECRET)
+from-literal|i|--from-literal[=[:space:]]"?([a-z0-9_.-]*(password|passwd|token|secret)[a-z0-9_.-]*=|.*[$][{]?[a-z_]*(password|passwd|token|secret|key|cred))'
 
 TMP=$(mktemp -d) || { echo "ERROR: mktemp failed"; exit 1; }
 trap 'rm -rf "$TMP"' EXIT
@@ -96,7 +131,7 @@ line_of() { sed -n "${2}p" "$1" | trim; } # <file> <n>
 SANITIZE='
 function blank(n,   s) { s = ""; while (n-- > 0) s = s " "; return s }
 function put(a, b) { san = san a; cmd = cmd b }
-function push() { sp++; sdq[sp] = dq; spar[sp] = par; dq = 0; par = 0 }
+function push() { sp++; sdq[sp] = dq; spar[sp] = par; dq = 0; par = 0; arith[sp] = 0 }
 function pop() { dq = sdq[sp]; par = spar[sp]; sp-- }
 BEGIN { SAN = base ".san"; CMD = base ".cmd"; ST = base ".st"; CMT = base ".cmt"
         printf "" > SAN; printf "" > CMD; printf "" > ST; printf "" > CMT }
@@ -108,13 +143,18 @@ BEGIN { SAN = base ".san"; CMD = base ".cmd"; ST = base ".st"; CMT = base ".cmt"
     else if (hquo[hi + 1]) san = blank(L)
     else { san = line; gsub(/\\\$/, "  ", san) }
     print san > SAN; print blank(L) > CMD
-    print ((hi < nh || sq || dq || sp > 0 || par > 0) ? "open" : "ok") > ST
+    print ((hi < nh || sq || asq || dq || sp > 0 || par > 0) ? "open" : "ok") > ST
     next
   }
   i = 1; prev = ""
   while (i <= L) {
     c = substr(line, i, 1); n = substr(line, i + 1, 1)
     if (sq) { if (c == "\047") { sq = 0; put(c, c) } else put(" ", " "); prev = c; i++; continue }
+    if (asq) {                                # inside $'"'"'…'"'"': a backslash escapes the next character
+      if (c == "\\" && i < L) { put("  ", "  "); i += 2 }
+      else { if (c == "\047") { asq = 0; put(c, c) } else put(" ", " "); i++ }
+      prev = "x"; continue
+    }
     if (c == "\\") {
       if (i == L) { cont = 1; put(" ", " "); i++ } else { put("  ", "  "); i += 2 }
       prev = "x"; continue
@@ -125,16 +165,27 @@ BEGIN { SAN = base ".san"; CMD = base ".cmd"; ST = base ".st"; CMT = base ".cmt"
       else put(c, " ")
       prev = c; i++; continue
     }
+    if (c == "$" && n == "\047") { asq = 1; put("$\047", "$\047"); prev = "x"; i += 2; continue }
     if (c == "\047") { sq = 1; put(c, c); prev = c; i++; continue }
     if (c == "\"") { dq = 1; put(c, c); prev = c; i++; continue }
-    if (c == "$" && n == "(") { push(); put("$(", "$("); prev = "("; i += 2; continue }
-    if (c == "(") par++
-    else if (c == ")") { if (par > 0) par--; else if (sp > 0) pop() }
+    if (c == "$" && n == "(") {
+      push(); put("$(", "$("); prev = "("; i += 2
+      if (substr(line, i, 1) == "(") { arith[sp] = 1; abase[sp] = 1 }      # $(( … )): << is a shift
+      continue
+    }
+    if (c == "(") {
+      if (n == "(" && !arith[sp] && (prev == "" || index(" \t;&|", prev))) { arith[sp] = 1; abase[sp] = par + 1 }
+      par++
+    }
+    else if (c == ")") {
+      if (par > 0) { par--; if (arith[sp] && par < abase[sp]) arith[sp] = 0 }
+      else if (sp > 0) pop()
+    }
     else if (c == "#" && (prev == "" || index(" \t;&|()<>", prev))) {
       print NR "\t" (san ~ /^[ \t]*$/ ? "line" : "trailing") > CMT
       put(blank(L - i + 1), blank(L - i + 1)); break
     }
-    else if (c == "<" && n == "<" && prev != "<" && substr(line, i + 2, 1) != "<") {
+    else if (c == "<" && n == "<" && prev != "<" && substr(line, i + 2, 1) != "<" && !arith[sp]) {
       j = i + 2; dash = 0; quo = 0; del = ""
       if (substr(line, j, 1) == "-") { dash = 1; j++ }
       while (substr(line, j, 1) == " " || substr(line, j, 1) == "\t") j++
@@ -155,23 +206,32 @@ BEGIN { SAN = base ".san"; CMD = base ".cmd"; ST = base ".st"; CMT = base ".cmt"
     put(c, c); prev = c; i++
   }
   print san > SAN; print cmd > CMD
-  print ((sq || dq || sp > 0 || par > 0 || cont || nh > hi) ? "open" : "ok") > ST
+  print ((sq || asq || dq || sp > 0 || par > 0 || cont || nh > hi) ? "open" : "ok") > ST
 }'
 
 # Shared by the prompt and env checks: split a .cmd line into simple commands, each with its
-# leading NAME=value words removed. Fills C[1..nc].
+# leading NAME=value words and its `env`/`command`/`exec`/`nohup` prefix removed. Fills C[1..nc];
+# PIPED[k] is 1 when command k reads the output of a pipe (it stands on the RIGHT of a `|`).
 CMDLIB='
-function simple(line,   s, k, m, parts) {
+function simple(line,   s, k, m, parts, piped, again) {
   s = line
-  gsub(/\$\(/, " ; ", s); gsub(/&&|\|\||[;|(){}!&]/, " ; ", s)
+  gsub(/\$\(/, " ; ", s); gsub(/\|\|/, " ; ", s); gsub(/\|&?/, " ;\001 ", s)
+  gsub(/&&|[;(){}!&]/, " ; ", s)
   s = " " s " "
   for (k = 0; k < 2; k++) gsub(/[ \t](then|else|elif|do|if|while|until|time)[ \t]/, " ; ", s)
-  m = split(s, parts, ";"); nc = 0
+  m = split(s, parts, ";"); nc = 0; piped = 0
   for (k = 1; k <= m; k++) {
-    s = parts[k]; sub(/^[ \t]+/, "", s)
-    while (match(s, /^[A-Za-z_][A-Za-z0-9_]*\+?=("[^"]*"|\047[^\047]*\047|[^ \t]*)[ \t]+/)) s = substr(s, RLENGTH + 1)
+    s = parts[k]
+    if (sub(/^\001/, "", s)) piped = 1
+    sub(/^[ \t]+/, "", s)
+    again = 1
+    while (again) {
+      again = 0
+      while (match(s, /^[A-Za-z_][A-Za-z0-9_]*\+?=("[^"]*"|\047[^\047]*\047|[^ \t]*)[ \t]+/)) { s = substr(s, RLENGTH + 1); again = 1 }
+      if (match(s, /^(env|command|exec|nohup|builtin)([ \t]+-[^ \t]+)*[ \t]+/)) { s = substr(s, RLENGTH + 1); again = 1 }
+    }
     gsub(/[ \t]+/, " ", s); sub(/ $/, "", s)
-    if (s != "") C[++nc] = s
+    if (s != "") { C[++nc] = s; PIPED[nc] = piped; piped = 0 }
   }
 }
 function starts(s, w) { return s == w || index(s, w " ") == 1 }'
@@ -231,12 +291,14 @@ BEGIN {
 {
   id = (chk == "") ? 1 : CH[NR]
   if ($0 !~ /^[ \t]*$/) { last[id] = NR; if (!(id in firstl)) firstl[id] = NR }
-  t = $0; gsub(/\|\|/, "", t)
-  if (t ~ /[|<]/) redir[id] = 1
+  # A redirect on the end of a compound command feeds every command inside it: `done < file`.
+  if ($0 ~ /(done|\}|\)|fi|esac)[ \t]*<|^[ \t]*<|\|[ \t]*(while|until|if|\{|\()/) redir[id] = 1
   simple($0)
   for (k = 1; k <= nc; k++) {
+    if (C[k] ~ /^sudo (-[A-Za-z]*n[A-Za-z]*|--non-interactive)( |$)/) continue      # sudo -n never prompts
     for (j = 1; j <= nt; j++) if (starts(C[k], T[j]) && !(C[k] ~ /--password-stdin/) && !(id in pt)) { pt[id] = NR; pw[id] = T[j] }
-    for (j = 1; j <= ns; j++) if (starts(C[k], S[j]) && !(id in ps)) { ps[id] = NR; psw[id] = S[j] }
+    # A stdin reader is fed when it stands on the right of a pipe or has its own `<`.
+    for (j = 1; j <= ns; j++) if (starts(C[k], S[j]) && !PIPED[k] && C[k] !~ /</ && !(id in ps)) { ps[id] = NR; psw[id] = S[j] }
   }
   if (RAW[NR] ~ /(^|[ \t\/])bash -c "\$\(curl / && !(id in pt)) { pt[id] = NR; pw[id] = "an installer run with bash -c \"$(curl …)\"" }
   if (id > maxid) maxid = id
@@ -334,6 +396,7 @@ BEGIN {
 #   H<TAB>slug          an anchor GitHub makes for a heading (or an explicit <a id="…">)
 #   L<TAB>line<TAB>target<TAB>link|image
 #   D<TAB>line<TAB>message
+#   F<TAB>line<TAB>why the fence that opens there is not one the gate reads
 # shellcheck disable=SC1112  # the typographic quotes are data: punctuation GitHub drops from an anchor
 MDSCAN='
 function slug(t,   i, c, o, k, m, p) {
@@ -347,9 +410,27 @@ function slug(t,   i, c, o, k, m, p) {
   if (o in nslug) { k = nslug[o]++; return o "-" k }
   nslug[o] = 1; return o
 }
+BEGIN { m = split(data, p_, " "); for (k = 1; k <= m; k++) DATA[p_[k]] = 1 }
 {
-  if (infence) { if ($0 ~ /^ ? ? ?```[ \t]*$/) infence = 0; next }
-  if ($0 ~ /^ ? ? ?```/) { infence = 1; next }
+  if (infence) {
+    if (match($0, /^[ \t>]*(```+|~~~+)[ \t]*$/)) { t = $0; gsub(/[ \t>]/, "", t); if (substr(t, 1, 1) == fch && length(t) >= flen) infence = 0 }
+    next
+  }
+  # Every opening fence is classified: a block the extractor would not read must not pass unseen.
+  if (match($0, /^[ \t>]*(```+|~~~+)/)) {
+    pre = substr($0, 1, RLENGTH); info = substr($0, RLENGTH + 1)
+    fence = pre; sub(/^[ \t>]*/, "", fence); pre = substr(pre, 1, length(pre) - length(fence))
+    gsub(/^[ \t]+|[ \t]+$/, "", info); tag = info; sub(/[ \t].*/, "", tag)
+    fch = substr(fence, 1, 1); flen = length(fence); quoted = index(pre, ">"); gsub(/\t/, "    ", pre)
+    why = ""
+    if (fch == "~") why = "it is fenced with ~~~"
+    else if (length(fence) != 3) why = "it has " length(fence) " backticks"
+    else if (tag == "") why = "it has no tag"
+    else if (tag == "sh") { if (quoted) why = "it is inside a > quote"; else if (length(pre) > 3) why = "it is indented " length(pre) " spaces" }
+    else if (!(tag in DATA)) why = "its tag is \"" tag "\""
+    if (why != "") print "F\t" NR "\t" why
+    infence = 1; next
+  }
   if ($0 ~ /^##?#?#?#?#? /) { t = $0; sub(/^#+ +/, "", t); print "H\t" slug(t) }
   s = $0; gsub(/`[^`]*`/, "", s)
   t = s
@@ -380,12 +461,47 @@ END {
 is_internal() { local x; for x in $INTERNAL; do [ "$1" = "$DIR/$x" ] && return 0; done; return 1; }
 
 FILES=$TMP/files; : > "$FILES"
-find "$DIR" -type f -name '*.md' | sort > "$TMP/all"
-while IFS= read -r f; do is_internal "$f" || echo "$f" >> "$FILES"; done < "$TMP/all"
+find "$DIR" -type f \( -iname '*.md' -o -iname '*.markdown' -o -iname '*.mdown' -o -iname '*.mkd' \) | sort > "$TMP/all"
+while IFS= read -r f; do
+  is_internal "$f" && continue
+  case "$f" in
+    *.md) echo "$f" >> "$FILES" ;;
+    *)    finding file "$f" 0 "${f#"$DIR"/}" "a markdown file the gate does not read: name it *.md (lower case), as every guide is" ;;
+  esac
+done < "$TMP/all"
 nfiles=$(grep -c . "$FILES" || true)
 
 have_zsh=0; command -v zsh >/dev/null 2>&1 && have_zsh=1
-have_sc=0; command -v shellcheck >/dev/null 2>&1 && have_sc=1
+have_sc=0; command -v "$SHELLCHECK" >/dev/null 2>&1 && have_sc=1
+# CI installs shellcheck (mise): there, its absence means the check silently stopped running.
+if [ "$have_sc" -eq 0 ] && [ -n "${CI:-}" ]; then
+  finding tool "$DIR" 0 "shellcheck" "shellcheck is not installed and CI is set: the shellcheck check would be skipped (install it: make deps)"
+fi
+
+# The allowlist is read first: a block whose syntax finding is allowed still gets every other check.
+: > "$TMP/entries"
+if [ -f "$ALLOW" ]; then
+  ln=0
+  # shellcheck disable=SC2094  # `finding` appends to $FINDINGS, never to $ALLOW
+  while IFS= read -r l || [ -n "$l" ]; do
+    ln=$((ln + 1))
+    case "$l" in ''|'#'*) continue ;; esac
+    c=${l%% | *}; r1=${l#* | }; file=${r1%% | *}; r2=${r1#* | }; reason=${r2%% | *}; key=${r2#* | }
+    if [ "$r1" = "$l" ] || [ "$r2" = "$r1" ] || [ "$key" = "$r2" ] || [ -z "$reason" ] || [ -z "$key" ]; then
+      finding allowlist "$ALLOW" "$ln" "-" "not 'check | file | reason | exact line': $l"
+      continue
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\n' "$ln" "$c" "$file" "$reason" "$key" >> "$TMP/entries"
+  done < "$ALLOW"
+fi
+has_line() { K="$1" awk 'BEGIN { k = ENVIRON["K"] } { t = $0; gsub(/^[ \t]+|[ \t]+$/, "", t); if (t == k) f = 1 } END { exit !f }' "$2"; }
+syntax_allowed() { # <guide> <block>: is there an allowlist entry for this block's syntax finding?
+  local ln ec ef reason ekey
+  while IFS=$'\t' read -r ln ec ef reason ekey; do
+    [ "$ec" = syntax ] && [ "$DIR/$ef" = "$1" ] && has_line "$ekey" "$2" && return 0
+  done < "$TMP/entries"
+  return 1
+}
 
 # Pass 1: extract every file's blocks, build the two views, read the env contract.
 nblocks=0; idx=0; : > "$TMP/blocklist"; : > "$TMP/percount"
@@ -420,10 +536,13 @@ check_block() { # <guide> <block.sh> <first line in the guide> <expect text>
   # syntax
   if ! out=$(bash -n "$b" 2>&1); then
     finding syntax "$f" "$at" "$key" "the block does not parse in bash: $(head -1 <<<"$out" | sed 's/^[^:]*: //')"
-    # One defect, one finding: the other checks would only repeat the parse error.
-    [ "$expect" != - ] || finding expect "$f" "$at" "$key" "no **Expect:** between this block and the next block or heading"
-    : > "$base.bad"
-    return 0
+    # One defect, one finding: the other checks would only repeat the parse error. But when
+    # the parse error is ALLOWED, the block is not skipped: its other checks run as usual.
+    if ! syntax_allowed "$f" "$b"; then
+      [ "$expect" != - ] || finding expect "$f" "$at" "$key" "no **Expect:** between this block and the next block or heading"
+      : > "$base.bad"
+      return 0
+    fi
   fi
   if [ "$have_zsh" -eq 1 ] && ! out=$(zsh -n "$b" 2>&1); then
     finding syntax "$f" "$at" "$key" "the block does not parse in zsh: $(head -1 <<<"$out" | sed 's/^[^:]*:[0-9]*: //')"
@@ -471,8 +590,9 @@ check_block() { # <guide> <block.sh> <first line in the guide> <expect text>
 
   # secret: logical lines (continuations joined), single-quoted text already blanked
   while IFS=$'\t' read -r l rest; do
-    while IFS='|' read -r label pat; do
-      if grep -Eq -e "$pat" <<<"$rest"; then
+    while IFS='|' read -r label c pat; do
+      if [ "$c" = i ]; then c=-Eqi; else c=-Eq; fi
+      if grep "$c" -e "$pat" <<<"$rest"; then
         finding secret "$f" $((at + l - 1)) "$(line_of "$b" "$l")" "a secret on a command line ($label): it shows in 'ps' and in shell history; pass it on stdin, in a file or in the environment"
       fi
     done <<<"$SECRET_PATTERNS"
@@ -481,13 +601,27 @@ check_block() { # <guide> <block.sh> <first line in the guide> <expect text>
 }
 
 check_file() { # <guide> <dir with its blocks>
-  local f=$1 d=$2 n kind term at expect b l msg rest target what path anchor tfile
-  CARRIED=""
-  while IFS=$'\t' read -r n _ term at _ _ expect; do
+  local f=$1 d=$2 n kind term at heading expect b l msg rest target what path anchor tfile step limit carry="" x
+  while IFS=$'\t' read -r n _ term at heading _ expect; do
     b=$d/$n.sh
+    # The numbered step the block is in ("## 7. …" -> 7); empty outside the numbered steps.
+    step=${heading%%[!0-9]*}
+    case "$heading" in "$step".*) ;; *) step="" ;; esac
+    # What earlier "this terminal" blocks assigned is still set, up to the end of their scope.
+    CARRIED=""
+    for x in $carry; do
+      [ -n "$step" ] && [ "$step" -le "${x%%:*}" ] && CARRIED="$CARRIED ${x#*:}"
+    done
     check_block "$f" "$b" "$at" "$expect"
-    # A "this terminal" block: later blocks may use what it assigns.
-    [ "$term" != T ] || CARRIED="$CARRIED $(sed -n 's/^\(export  *\)\{0,1\}\([A-Za-z_][A-Za-z0-9_]*\)=.*/\2/p' "$b" | tr '\n' ' ')"
+    # A "this terminal" block (T, or T<N> when the guide says "until the end of step N"):
+    # later blocks may use what it assigns, to the end of its own step, or of step N.
+    case "$term" in
+      T*) limit=${term#T}; [ -n "$limit" ] || limit=$step
+          if [ -n "$limit" ]; then
+            # shellcheck disable=SC2013  # one variable name per line, no spaces
+            for x in $(sed -n 's/^\(export  *\)\{0,1\}\([A-Za-z_][A-Za-z0-9_]*\)=.*/\2/p' "$b"); do carry="$carry $limit:$x"; done
+          fi ;;
+    esac
   done < "$d/manifest.tsv"
 
   # all blocks of the file through shellcheck, in one run
@@ -499,13 +633,14 @@ check_file() { # <guide> <dir with its blocks>
       b=${l%%:*}; rest=${l#*:}; n=${rest%%:*}; msg=${rest#*:*: }
       at=$(awk -F'\t' -v n="$(basename "$b" .sh)" '$1 == n { print $4 }' "$d/manifest.tsv")
       finding shellcheck "$f" $((at + n - 1)) "$(line_of "$b" "$n")" "shellcheck: $msg"
-    done < <(shellcheck -s bash -f gcc -e "$SHELLCHECK_EXCLUDE" "$@" 2>/dev/null | grep -E '^[^:]+:[0-9]+:[0-9]+: ' || true)
+    done < <("$SHELLCHECK" -s bash -f gcc -e "$SHELLCHECK_EXCLUDE" "$@" 2>/dev/null | grep -E '^[^:]+:[0-9]+:[0-9]+: ' || true)
   fi
 
-  # link, details
+  # fence, link, details
   while IFS=$'\t' read -r kind l target what; do
     case "$kind" in
       D) finding details "$f" "$l" "$target" "$target" ;;
+      F) finding fence "$f" "$l" "$(line_of "$f" "$l")" "no check reads this fenced block, because $target: a shell block opens with exactly \`\`\`sh at the left margin; a data block is tagged ${DATA_FENCES// /, }" ;;
       L) case "$target" in [A-Za-z][A-Za-z0-9+.-]*:*|//*) continue ;; esac
          path=${target%%#*}; anchor=""
          case "$target" in *'#'*) anchor=${target#*#} ;; esac
@@ -516,12 +651,12 @@ check_file() { # <guide> <dir with its blocks>
            finding link "$f" "$l" "$target" "$msg"
          elif [ -n "$anchor" ] && [ -f "$tfile" ]; then
            case "$tfile" in
-             *.md) awk "$MDSCAN" "$tfile" | awk -F'\t' -v a="$anchor" '$1 == "H" && $2 == a { ok = 1 } END { exit !ok }' \
+             *.md) awk -v data="$DATA_FENCES" "$MDSCAN" "$tfile" | awk -F'\t' -v a="$anchor" '$1 == "H" && $2 == a { ok = 1 } END { exit !ok }' \
                      || finding link "$f" "$l" "$target" "no heading in ${tfile#"$DIR"/} makes the anchor #$anchor" ;;
            esac
          fi ;;
     esac
-  done < <(awk "$MDSCAN" "$f")
+  done < <(awk -v data="$DATA_FENCES" "$MDSCAN" "$f")
 }
 
 while IFS=$'\t' read -r f d; do check_file "$f" "$d"; done < "$TMP/blocklist"
@@ -541,41 +676,43 @@ done < "$FILES"
 #               commit pinned in the guides is the chart's (phase 5)
 # ---------------------------------------------------------------------------------------------
 
-# count
-[ "$nfiles" -ge "$MIN_FILES" ] || finding count "$DIR" 0 "files" \
-  "read $nfiles file(s), fewer than the floor of $MIN_FILES: a guide was removed or the file list is wrong (VKS_DOCS_MIN_FILES)"
-[ "$nblocks" -ge "$MIN_BLOCKS" ] || finding count "$DIR" 0 "blocks" \
-  "checked $nblocks block(s), fewer than the floor of $MIN_BLOCKS: blocks were removed or are no longer fenced as \`sh\` (VKS_DOCS_MIN_BLOCKS)"
+# count: each guide against the table, so that adding a guide is one line there
+[ "$nfiles" -gt 0 ] || finding count "$DIR" 0 "files" "read 0 file(s): no guide (*.md) under $DIR"
+[ "$nblocks" -gt 0 ] || finding count "$DIR" 0 "blocks" "checked 0 block(s): no guide under $DIR has a fenced \`sh\` block"
+if [ ! -f "$BLOCKS" ]; then
+  finding count "$BLOCKS" 0 "table" "the table of guides is missing: it lists each guide under $DIR with its number of sh blocks"
+else
+  while read -r g n; do
+    want=$(awk -v g="$g" '$1 == g { print $2; exit }' "$BLOCKS")
+    if [ -z "$want" ]; then
+      finding count "$DIR/$g" 0 "$g" "this guide is not in $BLOCKS: add the line '$g $n' (the file and its number of sh blocks; 0 for a guide that has none)"
+    elif [ "$want" != "$n" ]; then
+      finding count "$DIR/$g" 0 "$g" "it has $n sh block(s) and $BLOCKS records $want: a block was added, removed, or is no longer fenced as sh. If that is intended, change the line to '$g $n'"
+    fi
+  done < "$TMP/percount"
+  # shellcheck disable=SC2094  # `finding` appends to $FINDINGS, never to $BLOCKS
+  while read -r g n; do
+    case "$g" in ''|'#'*) continue ;; esac
+    case "$n" in ''|*[!0-9]*) finding count "$BLOCKS" 0 "$g" "not '<file> <number of sh blocks>': $g $n"; continue ;; esac
+    grep -q "^$(printf '%s' "$g" | sed 's/[][\.*^$]/\\&/g') " "$TMP/percount" \
+      || finding count "$BLOCKS" 0 "$g" "it lists '$g', which is not a guide under $DIR any more: remove the line, or restore the guide"
+  done < "$BLOCKS"
+fi
 
 # ---------------------------------------------------------------------------------------------
 # allowlist, report
 # ---------------------------------------------------------------------------------------------
-: > "$TMP/entries"
-if [ -f "$ALLOW" ]; then
-  ln=0
-  # shellcheck disable=SC2094  # `finding` appends to $FINDINGS, never to $ALLOW
-  while IFS= read -r l || [ -n "$l" ]; do
-    ln=$((ln + 1))
-    case "$l" in ''|'#'*) continue ;; esac
-    c=${l%% | *}; r1=${l#* | }; file=${r1%% | *}; r2=${r1#* | }; reason=${r2%% | *}; key=${r2#* | }
-    if [ "$r1" = "$l" ] || [ "$r2" = "$r1" ] || [ "$key" = "$r2" ] || [ -z "$reason" ] || [ -z "$key" ]; then
-      finding allowlist "$ALLOW" "$ln" "-" "not 'check | file | reason | exact line': $l"
-      continue
-    fi
-    printf '%s\t%s\t%s\t%s\t%s\n' "$ln" "$c" "$file" "$reason" "$key" >> "$TMP/entries"
-  done < "$ALLOW"
-fi
-
 errors=0; allowed=0; : > "$TMP/used"
 while IFS=$'\t' read -r c f l key msg; do
   hit=""
   while IFS=$'\t' read -r ln ec ef reason ekey; do
+    case "$c" in count|file|tool|allowlist) break ;; esac     # these cannot be allowed
     [ "$ec" = "$c" ] && [ "$DIR/$ef" = "$f" ] || continue
     case "$key" in
-      @*) K="$ekey" awk 'BEGIN { k = ENVIRON["K"] } { t = $0; gsub(/^[ \t]+|[ \t]+$/, "", t); if (t == k) f = 1 } END { exit !f }' "${key#@}" || continue ;;
-      *)  [ "$ekey" = "$key" ] || continue ;;
+      @*) has_line "$ekey" "${key#@}" || continue; unit=$key ;;
+      *)  [ "$ekey" = "$key" ] || continue; unit="$f:$l" ;;
     esac
-    hit=$reason; printf '%s\t%s\n' "$ln" "$key" >> "$TMP/used"; break
+    hit=$reason; printf '%s\t%s\n' "$ln" "$unit" >> "$TMP/used"; break
   done < "$TMP/entries"
   where=$f; [ "$l" = 0 ] || where="$f:$l"
   if [ -n "$hit" ]; then
@@ -591,11 +728,14 @@ while IFS=$'\t' read -r ln ec ef reason ekey; do
     errors=$((errors + 1)); echo "ERROR [allowlist] $ALLOW:$ln: this entry allows nothing any more (remove it): $ec | $ef | $ekey"
   elif [ "$uses" -gt 1 ] && awk -F'\t' -v n="$ln" '$1 == n && $2 ~ /^@/' "$TMP/used" | grep -q .; then
     errors=$((errors + 1)); echo "ERROR [allowlist] $ALLOW:$ln: this entry's line is in $uses blocks of $ef; give a line only one block has: $ekey"
+  elif [ "$uses" -gt 1 ]; then
+    # One entry accepts ONE known finding: the same line appearing a second time is a new finding.
+    errors=$((errors + 1)); echo "ERROR [allowlist] $ALLOW:$ln: this entry allows $uses findings in $ef ($(awk -F'\t' -v n="$ln" '$1 == n { sub(/.*:/, "line ", $2); print $2 }' "$TMP/used" | sort -u | tr '\n' ',' | sed 's/,$//; s/,/, /g')); an entry may allow exactly one: $ec | $ekey"
   fi
 done < "$TMP/entries"
 
 if [ "$have_zsh" -eq 1 ]; then zsh_note="zsh -n used ($(zsh --version 2>/dev/null | cut -d' ' -f1-2))"; else zsh_note="zsh not installed: zsh -n SKIPPED"; fi
-if [ "$have_sc" -eq 1 ]; then sc_note="shellcheck used ($(shellcheck --version 2>/dev/null | sed -n 's/^version: //p'))"; else sc_note="shellcheck not installed: SKIPPED"; fi
+if [ "$have_sc" -eq 1 ]; then sc_note="shellcheck used ($("$SHELLCHECK" --version 2>/dev/null | sed -n 's/^version: //p'))"; else sc_note="shellcheck not installed: SKIPPED"; fi
 echo "check-vks-docs: per file: $(tr '\n' ';' < "$TMP/percount" | sed 's/;$//; s/;/; /g')"
 echo "check-vks-docs: bash -n used ($(bash -c 'echo "$BASH_VERSION"')); $zsh_note; $sc_note"
 echo "check-vks-docs: checked $nblocks block(s) in $nfiles file(s); $errors error(s), $allowed allowed finding(s)"

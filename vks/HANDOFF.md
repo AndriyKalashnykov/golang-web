@@ -101,14 +101,27 @@ Measured while writing it:
 
 `make check-vks-docs` (`.github/scripts/check-vks-docs.sh`, part of `make static-check`, so CI
 runs it) reads every guide under `vks/` except this file, `PLAN.md` and `test/README.md`. It
-prints `checked N block(s) in M file(s)` with the count per guide, and fails below the floors set
-in the script. Per block: it parses in bash and zsh, has no comment, nothing follows a command
-that can prompt, shellcheck is clean, it starts with `source` of the env file whose names it
-uses, an **Expect** follows it, and no secret is on a command line. Per file: relative links,
-anchors and images resolve and `<details>` balance. Accepted findings are in
-`.github/scripts/check-vks-docs.allow`, each with its reason; an entry that allows nothing fails
-the gate. Two entries there are real defects in the text (blocks with no Expect), marked
-`DEFECT`. CI has no zsh: the summary then says `zsh -n SKIPPED`, so run the gate locally too.
+prints `checked N block(s) in M file(s)` with the count per guide. Per block: it parses in bash
+and zsh, has no comment, nothing follows a command that can prompt, shellcheck is clean, it
+starts with `source` of the env file whose names it uses, an **Expect** follows it, and no
+secret is on a command line. Per file: relative links, anchors and images resolve and
+`<details>` balance.
+
+- **A new guide needs one line** in `.github/scripts/check-vks-docs.blocks`:
+  `<file relative to vks/> <number of sh blocks>` (`HARBOR.md 0` for a guide with none). The
+  number must be equal, not a floor: adding or removing a block means changing it. The gate's
+  error prints the line to write.
+- **Fences:** a shell block opens with exactly ` ```sh ` at the left margin. Data may be fenced
+  as `text`, `yaml` or `json`. Any other opening fence (`bash`, `console`, no tag, `~~~`,
+  indented under a list item, inside a `>` quote) is an error, because no check would read it.
+- **"This terminal":** what such a block assigns counts to the end of its numbered step, or to
+  the end of step N when the guide says "this terminal until the end of step N".
+- **Accepted findings** are in `.github/scripts/check-vks-docs.allow`, each with its reason. An
+  entry allows exactly one finding; one that allows nothing, or a second one, fails the gate.
+  Two entries are real defects in the text (blocks with no Expect), marked `DEFECT`.
+- **Known gap, zsh in CI:** the CI job installs nothing with apt, so it has no zsh and the
+  summary there says `zsh -n SKIPPED`. Only a local run proves the zsh half: run the gate
+  locally before a merge. A missing shellcheck in CI is an error, not a skip.
 
 Not checked yet (later phases of `PLAN.md`): step-number references across files, templates,
 chart = template.
@@ -117,7 +130,9 @@ chart = template.
 
 `vks/test/walk.sh` does it; `vks/test/README.md` has the commands for Linux, a clean container
 and the Mac. It extracts every `sh` block of a guide and runs each in its **own fresh login
-shell** with stdin from `/dev/null`, so a block that lacks a needed `source` fails. It prints
+shell** with stdin from `/dev/null` and a scrubbed environment, so a block that lacks a needed
+`source` fails even when the walker's own shell has the env file loaded. Its output files may
+hold secrets a block printed; they are created for the walker only. It prints
 each block's output beside its **Expect** text and does not judge: judge by Expect, not by exit
 code (a block's exit code is only its last command's). Extract again before every walk; block
 numbers move whenever a block is added.

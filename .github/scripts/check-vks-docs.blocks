@@ -1,0 +1,8 @@
+# The guides under vks/ and how many `sh` blocks each has (read by check-vks-docs.sh).
+#   <file relative to vks/> <number of sh blocks>
+# A new guide: add its line; 0 for a guide with no sh block (a chooser such as ARGOCD.md).
+# A block added or removed: change the number. The gate prints the line to write.
+ARGOCD-auto.md 23
+ARGOCD-manual.md 28
+ARGOCD.md 0
+README.md 54

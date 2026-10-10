@@ -7,20 +7,27 @@
 #   walk.sh remote    <ssh-target> <outdir> [options] --yes-run     the same over ssh
 #   walk.sh container <image> <outdir> [options] --yes-run          the same in a clean container
 #
-# Each block runs in its OWN fresh login shell with stdin from /dev/null, so a block that lacks
-# a needed `source` line fails. The harness does NOT decide pass or fail: a block's exit status
+# Each block runs in its OWN fresh login shell, with stdin from /dev/null and a SCRUBBED
+# environment (HOME, PATH, TERM, USER, LOGNAME, SHELL, LANG, plus any --pass-env NAME), so a block
+# that lacks a needed `source` line fails even when your own shell has the env file loaded.
+# The output files may hold secrets (a guide block can print a password): everything this
+# script writes is created under umask 077. The harness does NOT decide pass or fail: a block's exit status
 # is only its last command's. It prints the output's first line beside the guide's Expect text,
 # and a person (or the calling session) judges. vks/test/README.md has the walk procedure.
 #
 # manifest.tsv, one row per block, TAB-separated, `-` for an empty field:
 #   NNN  kind  term  line  heading path  first line  Expect text
 #   kind: main | alt   (alt = inside <details>, an alternative the reader runs INSTEAD)
-#   term: T | -        (T = the guide says "this terminal" and the block only assigns variables;
-#                       `run` puts it in front of every later block, as the reader's terminal would)
+#   term: T | TN | -   (T = the guide says "this terminal" and the block only assigns variables;
+#                       TN = its sentence goes on "until the end of step N". `run` puts such a
+#                       block in front of every later block of the walk, as the reader's terminal
+#                       would — but only when the walk RAN it; an alternative that was not
+#                       selected leaves nothing behind)
 #
 # Needs bash 3.2+ and a POSIX awk. `.github/scripts/check-vks-docs.sh` uses `extract`, so the
 # gate and a walk always see the same blocks.
 set -u
+umask 077
 
 PROG=${0##*/}
 SELF=$0
@@ -40,13 +47,17 @@ run options:
   --home DIR         HOME for the blocks (default: your HOME); use a scratch home for a dry walk
   --env-file PATH    copy PATH to $HOME/<its file name> (mode 600) before the walk, unless that
                      file exists; name it as the guide does, e.g. .vks-golang-web.env. Repeatable.
+  --pass-env NAME    also give the blocks your variable NAME (the rest of your environment is
+                     not passed on). Repeatable. Remote and container: the far side's NAME.
   --timeout SECS     stop a block after SECS (default 0: no limit). Not with a sudo that prompts.
   --stop-on-fail     stop after the first block whose exit status is not 0
 remote:    WALK_SSH_OPTS (extra ssh options), WALK_REMOTE_DIR (default: walk-<outdir name>);
            --env-file names a path ON THE REMOTE machine; nothing secret is copied.
 container: CONTAINER_ENGINE (podman|docker, default podman), WALK_CONTAINER_RUN_OPTS (extra
            `run` options, e.g. "-v /var/lib/docker"), WALK_CONTAINER_PKGS (default: sudo);
-           --name NAME (reuse a kept container), --keep (do not remove it afterwards);
+           --name NAME (the new container's name), --keep (do not remove it afterwards),
+           --reuse (walk in the EXISTING container --name names; it is never removed);
+           without --reuse an existing container of that name is refused, not taken over.
            --env-file is mounted read-only and installed into the walk user's home.
 EOF
 }
@@ -68,12 +79,21 @@ cmd_extract() {
       return p == "" ? h[1] : p
     }
     function end_expect() { capturing = 0 }
+    function ticks(s) { sub(/^ ? ? ?/, "", s); return match(s, /^`+/) ? RLENGTH : 0 }
     {
       line = $0
       if (infence) {
-        if (line ~ /^ ? ? ?```[ \t]*$/) {
-          if (infence == 1) { close(file); term[n] = (prose_term && assign_only && nonblank) ? "T" : "-" }
-          infence = 0; prose_term = 0; searching = (n > 0)
+        if (line ~ /^ ? ? ?````*[ \t]*$/ && ticks(line) >= flen) {     # a fence closes with at least as many backticks
+          if (infence == 1) {
+            close(file); term[n] = "-"
+            if (index(prose, "this terminal") && assign_only && nonblank) {
+              term[n] = "T"
+              if (match(prose, /this terminal until the end of step [0-9]+/)) {
+                t = substr(prose, RSTART, RLENGTH); sub(/.* /, "", t); term[n] = "T" t
+              }
+            }
+          }
+          infence = 0; prose = ""; searching = (n > 0)
           next
         }
         if (infence == 1) {
@@ -88,8 +108,9 @@ cmd_extract() {
       }
       if (line ~ /^ ? ? ?```/) {
         end_expect(); searching = 0
-        lang = line; sub(/^ ? ? ?```[ \t]*/, "", lang); sub(/[ \t].*$/, "", lang)
-        if (lang == "sh") {
+        flen = ticks(line)
+        lang = line; sub(/^ ? ? ?`+[ \t]*/, "", lang); sub(/[ \t].*$/, "", lang)
+        if (lang == "sh" && flen == 3) {
           infence = 1; n++
           file = sprintf("%s/%03d.sh", out, n)
           printf "" > file
@@ -99,7 +120,7 @@ cmd_extract() {
         next
       }
       if (line ~ /^##?#?#?#?#? /) {
-        end_expect(); searching = 0; prose_term = 0
+        end_expect(); searching = 0; prose = ""
         lvl = index(line, " ") - 1
         t = line; sub(/^#+ +/, "", t)
         h[lvl] = t
@@ -107,7 +128,7 @@ cmd_extract() {
         next
       }
       tmp = line; depth += gsub(/<details/, "", tmp); depth -= gsub(/<\/details>/, "", tmp)
-      if (index(line, "this terminal")) prose_term = 1
+      tmp = line; gsub(/[*_]/, "", tmp); gsub(/[ \t]+/, " ", tmp); prose = prose " " tmp
       if (capturing) {
         if (line ~ /^[ \t]*$/) { end_expect(); next }
         expect[n] = expect[n] " " line
@@ -155,14 +176,15 @@ is_num() { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
 # Options shared by run, remote and container. Sets the O_* variables; leaves unknown ones in REST.
 parse_run_opts() {
   O_YES=0; O_FROM=1; O_TO=999; O_ONLY=""; O_ALT=0; O_SHELL=bash; O_WORKDIR=""; O_HOME=""
-  O_ENV=""; O_TIMEOUT=0; O_STOP=0; O_KEEP=0; O_NAME=""
+  O_ENV=""; O_TIMEOUT=0; O_STOP=0; O_KEEP=0; O_NAME=""; O_REUSE=0; O_PASS=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --yes-run)      O_YES=1 ;;
       --with-alt)     O_ALT=1 ;;
       --stop-on-fail) O_STOP=1 ;;
       --keep)         O_KEEP=1 ;;
-      --from|--to|--only|--shell|--workdir|--home|--env-file|--timeout|--name)
+      --reuse)        O_REUSE=1 ;;
+      --from|--to|--only|--shell|--workdir|--home|--env-file|--pass-env|--timeout|--name)
         [ $# -ge 2 ] || die "$1 needs a value"
         case "$1" in
           --from)     is_num "$2" || die "--from needs a number, got '$2'"; O_FROM=$((10#$2)) ;;
@@ -174,6 +196,8 @@ parse_run_opts() {
           --home)     O_HOME=$2 ;;
           --env-file) O_ENV="${O_ENV}${O_ENV:+
 }$2" ;;
+          --pass-env) case "$2" in ''|[0-9]*|*[!A-Za-z0-9_]*) die "--pass-env needs a variable NAME, got '$2'" ;; esac
+                      O_PASS="$O_PASS $2" ;;
           --timeout)  is_num "$2" || die "--timeout needs seconds, got '$2'"; O_TIMEOUT=$((10#$2)) ;;
           --name)     O_NAME=$2 ;;
         esac
@@ -216,24 +240,30 @@ EOF
 run_block() {
   local script=$1 outfile=$2 pid watcher rc
   if [ "$O_TIMEOUT" -eq 0 ]; then
-    ( cd "$WORKDIR" && HOME="$WALK_HOME" exec "$O_SHELL" -l "$script" ) </dev/null >"$outfile" 2>&1
+    ( cd "$WORKDIR" && exec env -i "${BLOCK_ENV[@]}" "$O_SHELL" -l "$script" ) </dev/null >"$outfile" 2>&1
     return $?
   fi
   set -m
-  ( cd "$WORKDIR" && HOME="$WALK_HOME" exec "$O_SHELL" -l "$script" ) </dev/null >"$outfile" 2>&1 &
+  ( cd "$WORKDIR" && exec env -i "${BLOCK_ENV[@]}" "$O_SHELL" -l "$script" ) </dev/null >"$outfile" 2>&1 &
   pid=$!
   rm -f "$outfile.timeout"
+  # The watcher: TERM to the block's process group, up to 5 s for it to go, then KILL.
   ( sleep "$O_TIMEOUT"; : > "$outfile.timeout"; kill -TERM -- "-$pid" 2>/dev/null
-    sleep 5; kill -KILL -- "-$pid" 2>/dev/null ) >/dev/null 2>&1 &
+    n=0; while kill -0 -- "-$pid" 2>/dev/null && [ "$n" -lt 5 ]; do sleep 1; n=$((n + 1)); done
+    kill -KILL -- "-$pid" 2>/dev/null ) >/dev/null 2>&1 &
   watcher=$!
   set +m
   wait "$pid" 2>/dev/null; rc=$?
   # Only the two jobs started above are ever signalled, each by its own process group.
-  kill -TERM -- "-$watcher" 2>/dev/null
-  wait "$watcher" 2>/dev/null
   if [ -e "$outfile.timeout" ]; then
+    # The limit fired. The block's first process is gone, but something it started may ignore
+    # TERM: let the watcher finish its KILL step before going on.
+    wait "$watcher" 2>/dev/null
     rm -f "$outfile.timeout"; rc=124
     echo "walk: stopped after ${O_TIMEOUT}s (--timeout)" >>"$outfile"
+  else
+    kill -TERM -- "-$watcher" 2>/dev/null
+    wait "$watcher" 2>/dev/null
   fi
   return "$rc"
 }
@@ -249,10 +279,15 @@ cmd_run() {
   [ -d "$WALK_HOME" ] || die "--home: no such directory: $WALK_HOME"
   command -v "$O_SHELL" >/dev/null 2>&1 || die "--shell $O_SHELL: not installed"
 
-  local n kind term heading first expect count=0 carry="" rc firstout res=$out/results
+  local n kind term heading first expect count=0 carry="" rc firstout res=$out/results v
+  # What a block may inherit: nothing but these, and what --pass-env names.
+  BLOCK_ENV=("HOME=$WALK_HOME" "PATH=$PATH")
+  for v in TERM USER LOGNAME SHELL LANG $O_PASS; do
+    [ -n "${!v+set}" ] && BLOCK_ENV=("${BLOCK_ENV[@]}" "$v=${!v}")
+  done
   if [ "$O_YES" -ne 1 ]; then
     echo "DRY RUN — nothing runs without --yes-run (the blocks install software and change clusters)."
-    echo "Would run, each in a fresh '$O_SHELL -l', HOME=$WALK_HOME, in $WORKDIR:"
+    echo "Would run, each in a fresh '$O_SHELL -l' with a scrubbed environment, HOME=$WALK_HOME, in $WORKDIR:"
     while IFS=$'\t' read -r n kind term _ heading first expect; do
       selected "$n" "$kind" || continue
       count=$((count + 1))
@@ -263,7 +298,8 @@ cmd_run() {
   fi
 
   install_env_files "$WALK_HOME"
-  mkdir -p "$res" || die "cannot create $res"
+  # The outputs may hold secrets: the directory and every file in it are for this user only.
+  { mkdir -p "$res" && chmod 700 "$res"; } || die "cannot create $res"
   printf 'block\tkind\texit\theading\tfirst output line\texpect\n' > "$res/summary.tsv"
   # A fresh fd for the manifest: the blocks' own stdin is /dev/null and must not eat it.
   while IFS=$'\t' read -r n kind term _ heading first expect <&3; do
@@ -278,14 +314,16 @@ cmd_run() {
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$n" "$kind" "$rc" "$heading" "${firstout:--}" "$expect" >> "$res/summary.tsv"
       printf '[%s] %-4s exit=%-3s %s\n      output: %s\n      expect: %s\n' \
         "$n" "$kind" "$rc" "$heading" "${firstout:-(none)}" "$expect"
+      # Only a block this walk RAN is carried: an unselected alternative left nothing behind.
+      case "$term" in T*) carry="$carry $out/$n.sh" ;; esac
       if [ "$rc" -ne 0 ] && [ "$O_STOP" -eq 1 ]; then
         echo "Stopped at block $n (--stop-on-fail)."
         break
       fi
     fi
-    [ "$term" = T ] && carry="$carry $out/$n.sh"
   done 3< "$out/manifest.tsv"
   echo "walk: ran $count block(s); output in $res/NNN.out, the table in $res/summary.tsv."
+  echo "Those files may hold secrets a block printed; they are readable only by you."
   echo "Judge each block by its Expect text, not by its exit status."
   [ "$count" -gt 0 ] || { echo "walk: nothing selected" >&2; return 1; }
 }
@@ -301,6 +339,7 @@ far_opts() {
   s="$s --from $O_FROM --to $O_TO --shell $O_SHELL --timeout $O_TIMEOUT"
   [ -n "$O_WORKDIR" ] && s="$s --workdir $(printf '%q' "$O_WORKDIR")"
   [ -n "$O_HOME" ] && s="$s --home $(printf '%q' "$O_HOME")"
+  for f in $O_PASS; do s="$s --pass-env $f"; done
   if [ "${1:-}" = with-env ] && [ -n "$O_ENV" ]; then
     while IFS= read -r f; do s="$s --env-file $(printf '%q' "$f")"; done <<EOF
 $O_ENV
@@ -333,7 +372,7 @@ cmd_remote() {
   # shellcheck disable=SC2086,SC2029
   ssh -n ${WALK_SSH_OPTS:-} "$target" "bash $q/walk.sh run $q$opts"
   local rc=$?
-  mkdir -p "$out/results-remote"
+  mkdir -p "$out/results-remote" && chmod 700 "$out/results-remote"
   # shellcheck disable=SC2086,SC2029
   ssh -n ${WALK_SSH_OPTS:-} "$target" "tar -cf - -C $q/results ." | tar -xf - -C "$out/results-remote" \
     || echo "$PROG: could not copy the results back from $target:$rdir/results" >&2
@@ -342,8 +381,20 @@ cmd_remote() {
 }
 
 # ---------------------------------------------------------------------------------------------
-# container — NOT RUN by the repo's tests (it needs an engine and an image)
+# container — the repo's tests run it against a stand-in engine only
 # ---------------------------------------------------------------------------------------------
+# CT_NAME is set only for a container THIS run created; nothing else is ever removed.
+CT_ENG=""; CT_NAME=""
+ct_cleanup() {
+  [ -n "$CT_NAME" ] || return 0
+  if [ "$O_KEEP" -eq 1 ]; then
+    echo "walk: container '$CT_NAME' kept (--keep). Walk in it again with --name $CT_NAME --reuse; remove it with: $CT_ENG rm -f $CT_NAME"
+  else
+    "$CT_ENG" rm -f "$CT_NAME" >/dev/null 2>&1 && echo "walk: container '$CT_NAME' removed."
+  fi
+  CT_NAME=""
+}
+
 cmd_container() {
   [ $# -ge 2 ] || die "usage: $PROG container <image> <outdir> [options] --yes-run"
   local image=$1 out=$2; shift 2
@@ -370,8 +421,15 @@ EOF
   fi
   cp "$SELF" "$out/walk.sh" || die "cannot copy walk.sh into $out"
   if "$eng" container inspect "$name" >/dev/null 2>&1; then
-    echo "walk: reusing the container '$name'"
+    [ "$O_REUSE" -eq 1 ] || die "a container named '$name' already exists and this walk did not create it, so it is neither used nor removed. Give another --name, remove it yourself ($eng rm -f $name), or add --reuse to walk in it (it is then kept)"
+    echo "walk: walking in the existing container '$name' (--reuse); it will not be removed"
   else
+    [ "$O_REUSE" -eq 0 ] || die "--reuse: no container named '$name' exists"
+    # From here on every way out, Ctrl-C included, removes the container this run creates.
+    CT_ENG=$eng; CT_NAME=$name
+    trap ct_cleanup EXIT
+    trap 'ct_cleanup; exit 130' INT
+    trap 'ct_cleanup; exit 143' TERM
     # shellcheck disable=SC2086  # option lists
     "$eng" run -d --name "$name" --privileged --network host $mounts ${WALK_CONTAINER_RUN_OPTS:-} \
       "$image" sleep infinity >/dev/null || die "$eng run failed"
@@ -387,23 +445,20 @@ EOF
       if [ -d /walk-env ]; then for f in /walk-env/* /walk-env/.[!.]*; do
         [ -f "$f" ] && install -m 600 -o walk -g walk "$f" "/home/walk/${f##*/}"
       done; fi
-    ' || { [ "$O_KEEP" -eq 1 ] || "$eng" rm -f "$name" >/dev/null; die "container setup failed"; }
+    ' || die "container setup failed"
   fi
   "$eng" exec "$name" rm -rf /walk
   { "$eng" cp "$out" "$name:/walk" && "$eng" exec "$name" chown -R walk:walk /walk; } \
-    || { [ "$O_KEEP" -eq 1 ] || "$eng" rm -f "$name" >/dev/null; die "copy into the container failed"; }
+    || die "copy into the container failed"
   # shellcheck disable=SC2086  # $opts was quoted by far_opts
   "$eng" exec -u walk -w /home/walk -e HOME=/home/walk "$name" sh -c "bash /walk/walk.sh run /walk$opts"
   rc=$?
   rm -rf "$out/results-container"
   "$eng" cp "$name:/walk/results" "$out/results-container" \
     || echo "$PROG: could not copy the results out of '$name'" >&2
-  if [ "$O_KEEP" -eq 1 ]; then
-    echo "walk: container '$name' kept (--keep). Reuse it with --name $name; remove it with: $eng rm -f $name"
-  else
-    "$eng" rm -f "$name" >/dev/null && echo "walk: container '$name' removed."
-  fi
-  echo "walk: results copied to $out/results-container."
+  [ ! -d "$out/results-container" ] || chmod -R go-rwx "$out/results-container"
+  ct_cleanup
+  echo "walk: results copied to $out/results-container (they may hold secrets a block printed)."
   return "$rc"
 }
 

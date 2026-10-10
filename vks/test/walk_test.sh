@@ -12,8 +12,9 @@ trap 'rm -rf "$T"' EXIT
 fails=0
 TAB=$(printf '\t')
 
-ok()   { echo "PASS  $1"; }
-bad()  { echo "FAIL  $1: $2"; fails=$((fails + 1)); }
+checks=0
+ok()   { echo "PASS  $1"; checks=$((checks + 1)); }
+bad()  { echo "FAIL  $1: $2"; fails=$((fails + 1)); checks=$((checks + 1)); }
 # has <label> <text> <fixed string>
 has()  { if grep -qF -- "$3" <<<"$2"; then ok "$1"; else bad "$1" "want '$3' in: $2"; fi; }
 hasnt() { if grep -qF -- "$3" <<<"$2"; then bad "$1" "did not want '$3' in: $2"; else ok "$1"; fi; }
@@ -28,8 +29,8 @@ for pair in README.md:54 ARGOCD-auto.md:23 ARGOCD-manual.md:28 ARGOCD.md:0; do
   eq "extract $g: as many fences as blocks" "$(grep -c '^```sh$' "$VKS/$g")" "$want"
 done
 eq "README: alternatives marked" "$(awk -F'\t' '$2 == "alt"' "$T/real-README.md/manifest.tsv" | grep -c .)" 3
-eq "ARGOCD-manual: one 'this terminal' block" "$(awk -F'\t' '$3 == "T" { print $6 }' "$T/real-ARGOCD-manual.md/manifest.tsv")" 'NEW_CLUSTER="my-new-cluster"'
-eq "README block 1 is written verbatim" "$(sed -n '74,142p' "$VKS/README.md" | cksum)" "$(cksum < "$T/real-README.md/001.sh")"
+eq "ARGOCD-manual: one 'this terminal' block, until the end of step 8" "$(awk -F'\t' '$3 ~ /^T/ { print $3 "/" $6 }' "$T/real-ARGOCD-manual.md/manifest.tsv")" 'T8/NEW_CLUSTER="my-new-cluster"'
+eq "README block 1 is written verbatim" "$(awk -v n="$(grep -c '' "$T/real-README.md/001.sh")" '!s && /^```sh$/ { s = NR; next } s && NR <= s + n' "$VKS/README.md" | cksum)" "$(cksum < "$T/real-README.md/001.sh")"
 
 # --- a small guide of harmless blocks ---------------------------------------------------------
 cat > "$T/guide.md" <<'GUIDE'
@@ -127,7 +128,7 @@ out=$(bash "$WALK" 2>&1); rc=$?
 has "no subcommand prints the usage" "$rc $out" "walk.sh extract"
 
 # --- run: the walk itself ---------------------------------------------------------------------
-out=$(cd "$T/work" && bash "$WALK" run "$T/out" --yes-run --home "$T/home" --to 6 --env-file "$T/.fixture.env" 2>&1); rc=$?
+out=$(cd "$T/work" && umask 022 && FIXTURE_TOKEN=leaked-from-the-caller bash "$WALK" run "$T/out" --yes-run --home "$T/home" --to 6 --env-file "$T/.fixture.env" 2>&1); rc=$?
 r=$T/out/results
 eq "run: exit status 0 although a block failed" "$rc" 0
 has "run: block 1 output" "$(cat "$r/001.out")" "hello from home"
@@ -138,6 +139,8 @@ has "run: it went on after the failing block" "$(cat "$r/003.out")" "stdin is em
 [ ! -e "$r/004.out" ] && ok "run: the alternative is skipped by default" || bad "run: the alternative is skipped by default" "004.out exists"
 has "run: a this-terminal block reaches later blocks" "$(cat "$r/006.out")" "choice=blue"
 has "run: a fresh shell does not inherit the walk's variables" "$(cat "$r/006.out")" "token=unset"
+eq "run: the results directory is for this user only" "$(find "$r" -maxdepth 0 -perm 700 | grep -c .)" 1
+eq "run: no result file is readable by others" "$(find "$r" -type f \( -perm -g+r -o -perm -o+r \) | grep -c .)" 0
 has "run: --env-file was installed in HOME" "$(cat "$r/006.out")" "env file loaded"
 eq "run: --env-file mode" "$(find "$T/home/.fixture.env" -perm 600 | grep -c .)" 1
 hasnt "run: --env-file values are not printed" "$out$(cat "$r"/*.out)" "not-a-real-secret"
@@ -172,7 +175,7 @@ has "nothing selected is an error" "$rc $out" "1 walk: ran 0 block(s)"
 
 if command -v zsh >/dev/null 2>&1; then
   rm -rf "$r"
-  out=$(cd "$T/work" && bash "$WALK" run "$T/out" --yes-run --home "$T/home" --only 1,6 --shell zsh 2>&1)
+  out=$(cd "$T/work" && bash "$WALK" run "$T/out" --yes-run --home "$T/home" --only 1,5,6 --shell zsh 2>&1)
   has "--shell zsh" "$(cat "$r/001.out" "$r/006.out")" "choice=blue"
 else
   echo "SKIP  --shell zsh (zsh is not installed)"
@@ -195,4 +198,102 @@ has "container without --yes-run: dry run" "$rc $out" "0 DRY RUN — would start
 out=$(CONTAINER_ENGINE=nerdctl bash "$WALK" container ubuntu:24.04 "$T/out" --yes-run 2>&1); rc=$?
 has "container: unknown engine" "$rc $out" "CONTAINER_ENGINE must be podman or docker"
 
-if [ "$fails" -eq 0 ]; then echo "walk.sh tests: all passed"; else echo "walk.sh tests: $fails FAILED"; exit 1; fi
+# --- the scrubbed environment, and --pass-env ----------------------------------------------------
+rm -rf "$r"
+mkdir -p "$T/home2"
+out=$(cd "$T/work" && FIXTURE_TOKEN=leaked-from-the-caller bash "$WALK" run "$T/out" --yes-run --home "$T/home2" --only 6 2>&1)
+has "scrubbed: the caller's exported variable does not reach a block" "$(cat "$r/006.out")" "token=unset"
+out=$(cd "$T/work" && FIXTURE_TOKEN=leaked-from-the-caller bash "$WALK" run "$T/out" --yes-run --home "$T/home2" --only 6 --pass-env FIXTURE_TOKEN 2>&1)
+has "--pass-env: the named variable does" "$(cat "$r/006.out")" "token=leaked-from-the-caller"
+out=$(bash "$WALK" run "$T/out" --pass-env '1BAD' 2>&1); rc=$?
+has "--pass-env: not a variable name" "$rc $out" "2 walk.sh: --pass-env needs a variable NAME"
+
+# --- "this terminal": only a block the walk RAN is carried --------------------------------------
+rm -rf "$r"
+out=$(cd "$T/work" && bash "$WALK" run "$T/out" --yes-run --home "$T/home2" --only 6 2>&1)
+has "carry: a this-terminal block that did not run leaves nothing" "$(cat "$r/006.out")" "choice=unset"
+out=$(cd "$T/work" && bash "$WALK" run "$T/out" --yes-run --home "$T/home2" --only 5,6 2>&1)
+has "carry: one that ran is carried" "$(cat "$r/006.out")" "choice=blue"
+
+# --- extract: "this terminal until the end of step N", wrapped; a four-backtick fence -----------
+printf '# G\n\n## 3. Step\n\nPut it into **this terminal**. Keep using this terminal until the\nend of step 4.\n\n```sh\nA="1"\n```\n\n````text\n```sh\nnot a block\n```\n````\n\n```sh\necho "$A"\n```\n' > "$T/until.md"
+bash "$WALK" extract "$T/until.md" "$T/until" || bad "extract until.md" "exit $?"
+eq "extract: T4 from a wrapped sentence; a 4-backtick fence does not swallow the rest" "$(cut -f1,3 "$T/until/manifest.tsv" | tr '\t\n' ' ;')" "001 T4;002 -;"
+
+# --- --timeout: what the block started is gone when the walk goes on, even if it ignores TERM ----
+mkdir -p "$T/stub"
+cat > "$T/stubborn.md" <<'GUIDE'
+# Stubborn
+
+```sh
+( trap '' TERM; echo "$BASHPID" > "$HOME/stubborn.pid"; while :; do sleep 1; done ) &
+wait
+```
+GUIDE
+bash "$WALK" extract "$T/stubborn.md" "$T/stub/out"
+start=$(date +%s)
+out=$(cd "$T/work" && bash "$WALK" run "$T/stub/out" --yes-run --home "$T/home2" --timeout 2 2>&1)
+took=$(( $(date +%s) - start ))
+spid=$(cat "$T/home2/stubborn.pid" 2>/dev/null || true)
+eq "--timeout: exit status 124 for a block whose child ignores TERM" "$(cat "$T/stub/out/results/001.rc")" 124
+if [ -n "$spid" ] && kill -0 "$spid" 2>/dev/null; then
+  bad "--timeout: the TERM-ignoring child is gone when the walk returns" "pid $spid is still alive after ${took}s"
+  kill -KILL "$spid" 2>/dev/null          # a process this test started, by its own pid
+else
+  ok "--timeout: the TERM-ignoring child is gone when the walk returns (${took}s, pid ${spid:-none})"
+fi
+[ -n "$spid" ] || bad "--timeout: the stubborn block ran" "no pid file"
+
+# --- container, against a stand-in engine: what is created is removed; what was there is not ----
+# The stand-in logs every call. FAKE_EXISTS: a container of that name is already there.
+# FAKE_MODE=int: Ctrl-C arrives while the blocks run. FAKE_MODE=setupfail: the setup step fails.
+mkdir -p "$T/fake"
+cat > "$T/fake/podman" <<'FAKE'
+#!/usr/bin/env bash
+echo "$*" >> "$FAKE_LOG"
+case "$1 $2" in
+  "container inspect") [ -n "${FAKE_EXISTS:-}" ]; exit $? ;;
+esac
+case "$1" in
+  cp) case "$3" in */results-container) mkdir -p "$3" ;; esac ;;
+  exec)
+    case "$*" in
+      *"walk.sh run"*) if [ "${FAKE_MODE:-}" = int ]; then kill -INT "$PPID"; sleep 1; fi ;;
+      *"apt-get"*)     [ "${FAKE_MODE:-}" != setupfail ] || exit 1 ;;
+    esac ;;
+esac
+exit 0
+FAKE
+chmod +x "$T/fake/podman"
+ct() { # <label> [env assignments…] -- <walk options…>  -> sets $out, $rc, $log
+  local envs=()
+  while [ "$1" != -- ]; do envs=("${envs[@]}" "$1"); shift; done; shift
+  : > "$T/engine.log"
+  out=$(cd "$T/work" && env PATH="$T/fake:$PATH" CONTAINER_ENGINE=podman FAKE_LOG="$T/engine.log" "${envs[@]}" \
+        bash "$WALK" container img:1 "$T/out" --yes-run --only 1 "$@" 2>&1); rc=$?
+  log=$(cat "$T/engine.log")
+}
+ct X=1 -- --name w1
+has "container: a container it created is removed at the end" "$log" "rm -f w1"
+has "container: says so" "$out" "walk: container 'w1' removed."
+ct FAKE_EXISTS=1 -- --name w1
+has "container: an existing container of that name is refused, with the reason" "$rc $out" "2 walk.sh: a container named 'w1' already exists and this walk did not create it"
+hasnt "container: … and is not removed" "$log" "rm -f"
+hasnt "container: … and nothing runs in it" "$log" "exec"
+ct FAKE_EXISTS=1 -- --name w1 --reuse
+has "container --reuse: walks in the existing container" "$log" "walk.sh run"
+hasnt "container --reuse: never removes it" "$log" "rm -f"
+hasnt "container --reuse: does not create one" "$log" "run -d"
+ct X=1 -- --name w1 --reuse
+has "container --reuse: nothing to reuse" "$rc $out" "2 walk.sh: --reuse: no container named 'w1' exists"
+ct FAKE_MODE=int -- --name w1
+eq "container: Ctrl-C ends the walk with 130" "$rc" 130
+has "container: Ctrl-C still removes the container it created" "$log" "rm -f w1"
+ct FAKE_MODE=int -- --name w1 --keep
+hasnt "container: Ctrl-C with --keep leaves it" "$log" "rm -f"
+has "container: … and says how to remove it" "$out" "remove it with: podman rm -f w1"
+ct FAKE_MODE=setupfail -- --name w1
+has "container: a failed setup removes the container it created" "$rc $log" "rm -f w1"
+has "container: … and says what failed" "$out" "container setup failed"
+
+if [ "$fails" -eq 0 ]; then echo "walk.sh tests: all $checks checks passed"; else echo "walk.sh tests: $fails of $checks FAILED"; exit 1; fi
