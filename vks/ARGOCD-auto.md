@@ -68,7 +68,9 @@ step 7's *Log in to the Supervisor* (if it answers `already exists`, run step 10
 Supervisor login* block first).
 
 Create this guide's two files. `~/.vks-argocd.env` holds its settings and is kept if it already
-exists; `~/.vks-argocd.functions` holds five helper commands and is rewritten every time.
+exists; `~/.vks-argocd.functions` holds two helper commands (`sk` and `argocd_session`) and is
+rewritten every time. The vCenter commands step 4 uses (`vc_login`, `vc`, `vc_logout`) are the
+main guide's; the last line of the block says whether your copy of them is there.
 
 ```sh
 ( umask 077; set -C; cat > ~/.vks-argocd.env <<'EOF'
@@ -83,8 +85,6 @@ export CLUSTER_CLASS="builtin-generic-v3.7.0"
 export CLUSTER_REPO="https://github.com/AndriyKalashnykov/golang-web.git"
 export CLUSTER_REVISION="e236f5c43aa2a1c7a9cc84e7f3cbdbc7024942d6"
 
-export VC_SESSION="$HOME/.config/vks-golang-web/vc-session"
-
 . "$HOME/.vks-golang-web.env"
 . "$HOME/.vks-argocd.functions"
 EOF
@@ -94,41 +94,6 @@ chmod 600 ~/.vks-argocd.env
 cat >| ~/.vks-argocd.functions <<'EOF'
 # sk ARGS: kubectl on the Supervisor, in your vSphere Namespace.
 sk() { kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" "$@"; }
-
-# vc_login: opens ONE vCenter API session as SSO_USERNAME and saves its token in $VC_SESSION, as a
-# curl config, so neither the password nor the token is on a command line.
-vc_login() {
-  local u="$SSO_USERNAME" p="$VCF_CLI_VSPHERE_PASSWORD" cfg
-  if [ -z "$p" ] || [ "${p#<}" != "$p" ]; then
-    echo "vc_login: set VCF_CLI_VSPHERE_PASSWORD in ~/.vks-golang-web.env first" >&2; return 1
-  fi
-  u="${u//\\/\\\\}"; u="${u//\"/\\\"}"; p="${p//\\/\\\\}"; p="${p//\"/\\\"}"
-  vc_logout
-  cfg="$(mktemp)" || return 1
-  mkdir -p "$(dirname "$VC_SESSION")"
-  ( umask 077; printf 'user = "%s:%s"\n' "$u" "$p" > "$cfg" )
-  ( umask 077; curl -fsS --cacert "$SUPERVISOR_CA" -K "$cfg" -X POST "https://${VCENTER_FQDN}/api/session" \
-      | jq -r '"header = \"vmware-api-session-id: \(.)\""' > "$VC_SESSION" )
-  rm -f "$cfg"
-  if [ -s "$VC_SESSION" ]; then echo "vCenter session opened"; else
-    rm -f "$VC_SESSION"; echo "vc_login: no session (see the curl error above) — do not retry a wrong password" >&2; return 1
-  fi
-}
-
-# vc API-PATH [curl options]: one call to vCenter's Supervisor API with the saved session.
-vc() {
-  local p="$1"; shift
-  [ -s "$VC_SESSION" ] || { echo "vc: no vCenter session — run vc_login" >&2; return 1; }
-  curl -sS --cacert "$SUPERVISOR_CA" -K "$VC_SESSION" "$@" \
-    "https://${VCENTER_FQDN}/api/vcenter/namespace-management${p}"
-}
-
-# vc_logout: ends the vCenter session and deletes its file.
-vc_logout() {
-  [ -s "$VC_SESSION" ] || return 0
-  curl -sS --cacert "$SUPERVISOR_CA" -K "$VC_SESSION" -X DELETE "https://${VCENTER_FQDN}/api/session"
-  rm -f "$VC_SESSION"; echo "vCenter session closed"
-}
 
 # argocd_session: logs this terminal's `argocd` in to your instance as admin. It reads the
 # address, the admin password and ArgoCD's certificate from the Supervisor, sends the password
@@ -153,11 +118,16 @@ argocd_session() {
   echo "argocd: logged in to https://${ip} as admin"
 }
 EOF
+grep -qs '^vc_login()' ~/.vks-golang-web.functions || echo "MISSING: vc_login (run the main guide's first block again: it keeps your settings)"
 ```
 
 **Expect:** no output the first time. If the env file already exists, bash prints
 `cannot overwrite existing file` and zsh prints `file exists`: that is fine, your earlier values
 are kept.
+
+**If not:** `MISSING: vc_login …` — your `~/.vks-golang-web.functions` was written by an older
+version of the main guide. Run the main guide's step 1 block again: it rewrites that file and
+keeps your env file. If your `~/.vks-argocd.env` has a line `export VC_SESSION=…`, it may stay.
 
 ## 2. Download the ArgoCD files
 
@@ -774,8 +744,8 @@ run the block again; `HTTP 400` on *remove the service* means a step before it d
 ```sh
 rm -f ~/.vks-argocd.env ~/.vks-argocd.functions
 unset ARGOCD_MANIFEST ARGOCD_NAME NEW_CLUSTER K8S_VERSION VM_CLASS STORAGE_CLASS CLUSTER_CLASS \
-      CLUSTER_REPO CLUSTER_REVISION VC_SESSION SUPERVISOR_ID
-unset -f sk vc_login vc vc_logout argocd_session 2>/dev/null || true
+      CLUSTER_REPO CLUSTER_REVISION SUPERVISOR_ID
+unset -f sk argocd_session 2>/dev/null || true
 if /usr/local/bin/argocd version --client 2>/dev/null | grep -q -e -vcf; then sudo rm -f /usr/local/bin/argocd; fi
 ```
 
@@ -786,9 +756,10 @@ if /usr/local/bin/argocd version --client 2>/dev/null | grep -q -e -vcf; then su
 | symptom | fix |
 |---|---|
 | `error: You must be logged in to the server (Unauthorized)`, or a helper says *the Supervisor login ended* | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's *Renew the Supervisor login* block (step 7), then the block again. If you logged in with the certificate-checking alternative, use the renew block inside that alternative instead. |
-| `vc: no vCenter session — run vc_login` | A step 4 block was run without the one before it, or after `vc_logout`. Run `vc_login`, then the block again. |
+| `vc_api: no vCenter session — run vc_login` | A step 4 block was run without the one before it, or after `vc_logout`. Run `vc_login`, then the block again. |
 | A step 4 block prints `unauthenticated` or `HTTP 401` | The vCenter session ended. Run `vc_login` (once), then the block again. |
-| `argocd_session: command not found`, or `vc_login: command not found` | Re-run step 1's second block; it rewrites `~/.vks-argocd.functions` and keeps your values. |
+| `argocd_session: command not found` | Re-run step 1's second block; it rewrites `~/.vks-argocd.functions` and keeps your values. |
+| `vc_login: command not found` | Run the main guide's step 1 block again; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | `argocd` asks `Proceed insecurely (y/n)?` or says it is not logged in | This terminal has no ArgoCD login: answer `n`, then run `argocd_session` first, as the blocks do. |
 | `bad CPU type in executable` (macOS) | `softwareupdate --install-rosetta --agree-to-license` |
 | A destination that worked for months now fails with a certificate or `Unauthorized` error | The certificate ArgoCD holds for it has ended. Step 8's *How long this login lasts* block shows the date; renew as described under it. |

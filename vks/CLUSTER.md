@@ -249,6 +249,34 @@ does not help. So `VKS_CLUSTER` must be a name that was never used in this names
 `dev-1`, take `dev-2`. The next block refuses a name that is in use or not yet released, and the
 wait after it stops as soon as it sees the wrong address.
 
+## Install Harbor before you create clusters
+
+**Installing or uninstalling Harbor on the Supervisor replaces every node of every guest
+cluster on it.** The same holds for any other change to the registries the Supervisor trusts.
+VKS adds the registry's CA to (or removes it from) the configuration every node starts with,
+and a node gets a new configuration only by being replaced: VKS builds a new machine, moves the
+work over and deletes the old one, one node at a time, in every cluster of that Supervisor.
+Apps with one copy stop for a moment when their node goes.
+
+So install Harbor **before** you create clusters, or in a maintenance window. A cluster that is
+being created at that moment takes about 15 minutes longer and shows `Available False`, with
+new machines appearing beside the first ones.
+
+This lists your namespace's machines; it shows whether a replacement is running.
+
+```sh
+source ~/.vks-golang-web.env
+kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get machine
+```
+
+**Expect:** `No resources found` before your first cluster. With a cluster: one machine per
+node, each `Running`, with `UP-TO-DATE` `True`. During a replacement the old machines show
+`UP-TO-DATE` `False` and new ones appear; it is over when every machine shows `True` again.
+
+**If not:** machines that stay `UP-TO-DATE` `False` for more than an hour, with no new machine
+appearing: tell your administrator; do not delete machines or switch virtual machines off
+yourself.
+
 ## Check the description on the Supervisor
 
 This asks the Supervisor to check the description without creating anything
@@ -366,8 +394,12 @@ says why. `No resources found`: check `VKS_CLUSTER`.
 ## Get the cluster's kubeconfig
 
 This reads the guest cluster's kubeconfig from the Supervisor, saves it as `$GUEST_KUBECONFIG`
-(the env file already points `kubectl` there), and installs the kubectl version that matches the
-guest cluster; its `sudo` may ask for your password.
+(the env file already points `kubectl` there), and compares your kubectl with the cluster's
+version. Kubernetes supports a kubectl within one minor version of the cluster, so within that
+range the block changes nothing. Further away, it installs the cluster's version into
+`KUBECTL_DIR` (`/usr/local/bin`), or into `~/.local/bin` when that needs a password: it never
+asks for one. Set `KUBECTL_MATCH="exact"` in the env file to always get the cluster's exact
+version.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -380,17 +412,25 @@ echo "Guest cluster: ${V:-unknown}"
 kubectl_install "$V"
 ```
 
-**Expect:** `Guest cluster: v1.<minor>…`, then `Client Version:` with the same `v1.<minor>`.
+**Expect:** `Guest cluster: v1.<minor>…`, then
+`kubectl v1.… is within one minor version of v1.…: supported, not changed`, or, when kubectl was
+further away, `Client Version:` with the cluster's `v1.<minor>`.
 
-**If not:** `secrets "<name>-kubeconfig" not found` — check `VKS_CLUSTER`, and that the block
-above ended with `Available=True`. `Forbidden` — the **Edit** role is missing. Either way
-`kubectl_install: no version` follows (the kubeconfig file is left empty): fix the cause and run
-the block again.
+**If not:**
+- `secrets "<name>-kubeconfig" not found`: check `VKS_CLUSTER`, and that the block above ended
+  with `Available=True`. `Forbidden`: the **Edit** role is missing. Either way
+  `kubectl_install: no version` follows (the kubeconfig file is left empty): fix the cause and
+  run the block again.
+- `… installing into <your home>/.local/bin instead`: not an error. If `… was not on your PATH`
+  follows, add the line it prints to `~/.zshrc` (zsh) or `~/.bashrc` (bash).
+- `kubectl_install: cannot reach dl.k8s.io`, `… the checksum of the download does not match` or
+  `… could not write …`: the kubeconfig is saved and kubectl is unchanged. The main guide's
+  *Install kubectl* says what to do for each.
 
 ## Check the cluster
 
-This confirms that kubectl now reaches the guest cluster, that its version matches the
-cluster's, and that the cluster has a default storage class.
+This confirms that kubectl now reaches the guest cluster, shows its version beside the
+cluster's, and checks that the cluster has a default storage class.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -399,8 +439,8 @@ kubectl version -o json | jq -r '"client \(.clientVersion.gitVersion)  server \(
 kubectl get storageclass -o json | jq -r '"default storage class: \([.items[] | select(.metadata.annotations["storageclass.kubernetes.io/is-default-class"] == "true") | .metadata.name] | join(",") | if . == "" then "NONE" else . end)"'
 ```
 
-**Expect:** every node `Ready`, client and server on the same `v1.<minor>` (e.g. `v1.36.2` and
-`v1.36.2+vmware.2`), then `default storage class: <your storage class>`. From here on, kubectl
+**Expect:** every node `Ready`, client and server at most one minor version apart (e.g. `v1.37.1`
+and `v1.36.2+vmware.2`), then `default storage class: <your storage class>`. From here on, kubectl
 talks to the guest cluster; the Supervisor is reached only with
 `--kubeconfig "$SUPERVISOR_KUBECONFIG"`.
 

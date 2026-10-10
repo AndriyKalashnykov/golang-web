@@ -175,6 +175,23 @@ tunnels.
 | 9 | Add-ons: Headlamp (Desktop, chart), Istio (install, gateway namespace, route); the Image Updater measurement | Headlamp serves view-only under `restricted`; the app answers through the gateway; the main flow is unchanged without add-ons |
 | 10 | Full walk from a BARE lab on Ubuntu and on the Mac, every door; tested-platforms record; final adversary over the whole | one clean pass per OS |
 
+## Phase state
+
+Phases 0 to 3 are not tracked here. For phases 4 and 5 the chapters, the two templates and
+`check-vks-templates.sh` are on the branch `docs/vks-namespace-cluster`.
+
+| # | Walked on the lab (VCF 9.1.1, VKS 3.7.2; Linux, bash and zsh) | Not walked |
+|---|---|---|
+| 4 | The check blocks; the namespace by the vCenter API (settings, session, network type, the two lists, fill, create, the stops); the namespace by self-service (`kubectl create namespace`) | macOS, in any shell; the vSphere Client click list (not clicked); a Supervisor on NSX; a user with only the Edit role; the blocks as changed in the round that moved the vCenter helpers into the main guide's step 1 (the settings block, and every block that now takes `vc_login` and the others from `~/.vks-golang-web.functions`) |
+| 5 | Lookups, fill, server dry run, create, the wait, the machines, the cluster check, delete | macOS; a re-used cluster name (the two stops were not re-tested); the kubeconfig block on a machine WITH sudo; the new `kubectl_install` (within one minor: no change; `KUBECTL_DIR`; the `~/.local/bin` fallback; the three failure messages), run only against stand-in `curl`, `sudo` and `kubectl` programs, not on a lab or a Mac; the machines block under *Install Harbor before you create clusters* |
+
+Not done from phase 5's "done when": the check that the chart commit pinned in the ArgoCD guides
+is not older than the chart. `check-vks-templates.sh` compares chart and template; it is not run
+by CI or `make`.
+
+No place for OPTIONAL tools exists yet (`SETUP.md` is phase 3), so the clipboard tool the manual
+Harbor chapter wants on Linux (`wl-clipboard` on Wayland, `xclip` on X11) has no home to link to.
+
 ## Gate: known gaps
 
 What `make check-vks-docs` and `vks/test/walk.sh` do not cover after the review of 2026-10-10.
