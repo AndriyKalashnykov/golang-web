@@ -45,11 +45,11 @@ What to know before a walk:
   still hold it — but only when this walk ran it. Starting after it (`--from`), or leaving it
   out, gives the later blocks what a new terminal has: nothing. Name it with `--only` to
   include it.
-- **The working directory does not carry over.** After the main guide's step 4 (`git clone`),
+- **The working directory does not carry over.** After the main guide's *Check out the repo* (`git clone`),
   run the rest with `--from N --workdir <the clone>`.
-- **The env file.** Step 1 writes example values. To walk with real ones, keep them in a file
+- **The env file.** The main guide's *Set the variables* writes example values. To walk with real ones, keep them in a file
   named as the guide names it and pass `--env-file <dir>/.vks-golang-web.env`: it is copied into
-  the walk's HOME (mode 600) before the first block, and step 1's block then keeps it, as the
+  the walk's HOME (mode 600) before the first block, and that block then keeps it, as the
   guide says. The harness never prints it. Use `--home <scratch dir>` to keep a walk out of your
   own home.
 - **Blocks that never end or that wait for a person:** the port-forward block, the editor

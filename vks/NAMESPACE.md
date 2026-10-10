@@ -556,7 +556,7 @@ unset VSPHERE_CLUSTER_ID STORAGE_POLICY STORAGE_POLICY_ID NAMESPACE_VM_CLASSES \
 ```
 
 **Expect:** no output (`vCenter session closed` if a session was still open). The four settings
-stay in the env file, which the main guide's last clean-up block deletes; the helper commands
+stay in the env file, which the last block of [CLEANUP.md](CLEANUP.md) deletes; the helper commands
 belong to the main guide.
 
 ## Fix common problems
@@ -573,4 +573,4 @@ belong to the main guide.
 ## Next
 
 Go on with [Create a guest cluster with kubectl](CLUSTER.md), or go back to
-[the main guide](README.md) if you already have a cluster in this namespace.
+[the main guide](README.md#get-your-guest-cluster) if you already have a cluster in this namespace.

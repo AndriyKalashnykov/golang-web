@@ -35,7 +35,8 @@ The main guide's [terms](README.md#learn-the-terms) apply. New here:
 
 ## Gather what you need
 
-- Steps 1, 2 and 7 of [the main guide](README.md) done on this machine (step 1 below checks it).
+- [The main guide](README.md) done on this machine, up to and including its
+  [Log in to the Supervisor](README.md#log-in-to-the-supervisor) (step 1 below checks it).
   You need no container engine and no Harbor for this guide.
 - An SSO user with the **Edit** role on your vSphere Namespace (the main guide's user).
 - For step 4 only: an SSO user with the vCenter privilege **Manage Supervisor Services**. If
@@ -55,17 +56,18 @@ source ~/.vks-golang-web.env
 for t in curl openssl jq kubectl vcf; do
   command -v "$t" >/dev/null 2>&1 || echo "MISSING: $t"
 done
-[ -s "$SUPERVISOR_CA" ] || echo "MISSING: the vCenter CA file (main guide, step 2)"
+[ -s "$SUPERVISOR_CA" ] || echo "MISSING: the vCenter CA file (main guide, Download and check the vCenter CA)"
 kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE"
 ```
 
 **Expect:** no `MISSING` line, then your vSphere Namespace, `Active`.
 
-**If not:** do the main guide's step for each `MISSING` line. `Unauthorized`: run the main
-guide's *Renew the Supervisor login* block (step 7; a login lasts about 10 hours, and the
-certificate-checking alternative has its own renew block). A kubeconfig that is not found: run
-step 7's *Log in to the Supervisor* (if it answers `already exists`, run step 10's *Delete the
-Supervisor login* block first).
+**If not:** do the main guide's part for each `MISSING` line. `Unauthorized`: run the main
+guide's [Renew the Supervisor login](README.md#renew-the-supervisor-login) block (a login
+lasts about 10 hours, and the certificate-checking alternative has its own renew block). A
+kubeconfig that is not found: run the main guide's
+[Log in to the Supervisor](README.md#log-in-to-the-supervisor) (if it answers `already exists`,
+run its [Delete the Supervisor login](README.md#delete-the-supervisor-login) block first).
 
 Create this guide's two files. `~/.vks-argocd.env` holds its settings and is kept if it already
 exists; `~/.vks-argocd.functions` holds two helper commands (`sk` and `argocd_session`) and is
@@ -126,7 +128,8 @@ grep -qs '^vc_login()' ~/.vks-golang-web.functions || echo "MISSING: vc_login (r
 are kept.
 
 **If not:** `MISSING: vc_login …` — your `~/.vks-golang-web.functions` was written by an older
-version of the main guide. Run the main guide's step 1 block again: it rewrites that file and
+version of the main guide. Run the first block of the main guide's
+[Set the variables](README.md#set-the-variables) again: it rewrites that file and
 keeps your env file. If your `~/.vks-argocd.env` has a line `export VC_SESSION=…`, it may stay.
 
 ## 2. Download the ArgoCD files
@@ -396,7 +399,7 @@ argocd_session && argocd version --short
 **If not:** `curl: (90) … public key does not match` — something between you and ArgoCD replaces
 certificates (a company proxy), or the address belongs to another server: do not continue.
 `no address yet` — the instance is not `Ready`, or the Supervisor login ended (main guide,
-step 7).
+[Renew the Supervisor login](README.md#renew-the-supervisor-login)).
 
 To open the web page, log in as `admin` with the password this prints (anyone who can read your
 screen can then log in):
@@ -583,7 +586,8 @@ added`, then two destinations: your vSphere Namespace, and
 again).
 
 **If not:** `No kubeconfig for …` — wait for step 7's cluster, or renew the Supervisor login
-(main guide, step 7), then run the block again.
+(main guide, [Renew the Supervisor login](README.md#renew-the-supervisor-login)),
+then run the block again.
 
 ### How long this login lasts
 
@@ -681,7 +685,9 @@ fi
 `application '<name>' deleted`, and within a few minutes `left (nothing after the colon means gone):` with nothing after it.
 
 **If not:** a name, or `unknown`, after the colon: the cluster is still being deleted, or the
-Supervisor login ended (main guide, step 7). Run the block again before you go on.
+Supervisor login ended (main guide,
+[Renew the Supervisor login](README.md#renew-the-supervisor-login)). Run the block again before
+you go on.
 
 ### Delete the ArgoCD instance
 
@@ -755,11 +761,11 @@ if /usr/local/bin/argocd version --client 2>/dev/null | grep -q -e -vcf; then su
 
 | symptom | fix |
 |---|---|
-| `error: You must be logged in to the server (Unauthorized)`, or a helper says *the Supervisor login ended* | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's *Renew the Supervisor login* block (step 7), then the block again. If you logged in with the certificate-checking alternative, use the renew block inside that alternative instead. |
+| `error: You must be logged in to the server (Unauthorized)`, or a helper says *the Supervisor login ended* | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's [Renew the Supervisor login](README.md#renew-the-supervisor-login) block, then the block again. If you logged in with the certificate-checking alternative, use the renew block inside that alternative instead. |
 | `vc_api: no vCenter session — run vc_login` | A step 4 block was run without the one before it, or after `vc_logout`. Run `vc_login`, then the block again. |
 | A step 4 block prints `unauthenticated` or `HTTP 401` | The vCenter session ended. Run `vc_login` (once), then the block again. |
 | `argocd_session: command not found` | Re-run step 1's second block; it rewrites `~/.vks-argocd.functions` and keeps your values. |
-| `vc_login: command not found` | Run the main guide's step 1 block again; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
+| `vc_login: command not found` | Run the first block of the main guide's [Set the variables](README.md#set-the-variables) again; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | `argocd` asks `Proceed insecurely (y/n)?` or says it is not logged in | This terminal has no ArgoCD login: answer `n`, then run `argocd_session` first, as the blocks do. |
 | `bad CPU type in executable` (macOS) | `softwareupdate --install-rosetta --agree-to-license` |
 | A destination that worked for months now fails with a certificate or `Unauthorized` error | The certificate ArgoCD holds for it has ended. Step 8's *How long this login lasts* block shows the date; renew as described under it. |

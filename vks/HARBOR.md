@@ -1,6 +1,6 @@
 # Harbor: use the one you have, or install one
 
-[The main guide](README.md) pushes the `golang-web` image to a Harbor registry and lets a VKS
+[REGISTRY.md](REGISTRY.md) pushes the `golang-web` image to a Harbor registry and lets a VKS
 guest cluster pull it from there. This page tells you what you need from a Harbor that exists,
 and where to go when none does.
 
@@ -12,11 +12,11 @@ Most companies do. Install nothing; ask the Harbor's administrator for five thin
 |---|---|
 | Harbor's DNS name | `HARBOR_FQDN` in the env file |
 | a project you may push to | `HARBOR_PROJECT` in the env file |
-| a robot account for that project (name and secret) | [the main guide](README.md), *Log in to Harbor* |
-| the SHA-256 fingerprint of Harbor's CA certificate | comparing it in the main guide's [Download and check the Harbor CA](README.md#download-and-check-the-harbor-ca) |
+| a robot account for that project (name and secret) | [Log in to Harbor](REGISTRY.md#log-in-to-harbor) |
+| the SHA-256 fingerprint of Harbor's CA certificate | comparing it in [Download and check the Harbor CA](REGISTRY.md#download-and-check-the-harbor-ca) |
 | confirmation that your guest cluster's nodes resolve Harbor's name and trust its CA | the cluster pulling your image |
 
-Then follow the main guide. To check the last row yourself once you have the cluster's
+Then follow [REGISTRY.md](REGISTRY.md). To check the last row yourself once you have the cluster's
 kubeconfig, run the block under *Check that a guest cluster can pull from Harbor* in
 [HARBOR-auto.md](HARBOR-auto.md): it needs nothing else from that guide.
 
@@ -29,7 +29,7 @@ CA to the cluster; that check tells you whether it was done.
 
 The two guides below install Harbor on the Supervisor, with its own load-balancer address (the
 Contour service is not needed), then get it a DNS name, a trusted CA, a project and a robot
-account. Both end where the main guide's registry steps begin.
+account. Both end where [REGISTRY.md](REGISTRY.md) begins.
 
 | guide | how | for |
 |---|---|---|

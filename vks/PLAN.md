@@ -177,9 +177,10 @@ tunnels.
 
 ## Phase state
 
-Phases 0 to 3 are not tracked here. For phases 4 and 5 the chapters, the two templates and
+Phases 0 and 1 are not tracked here. For phases 4 and 5 the chapters, the two templates and
 `check-vks-templates.sh` are on the branch `docs/vks-namespace-cluster`. For phase 7 the three
-Harbor chapters are on the branch `docs/vks-harbor`; `REGISTRY.md` and door B are not written.
+Harbor chapters are on the branch `docs/vks-harbor`. Phases 2, 3 and 6 (the main guide's part)
+were built together on 2026-10-10 and are recorded under the table: text only, **no lab walk**.
 
 | # | Walked on the lab (VCF 9.1.1, VKS 3.7.2; Linux, bash and zsh) | Not walked |
 |---|---|---|
@@ -218,9 +219,9 @@ is not older than the chart. `check-vks-templates.sh` (chart = template, and the
 marker in step with NAMESPACE.md) runs in `make static-check`, and so in CI, where it fails if
 `helm` or `yq` is missing.
 
-No place for OPTIONAL tools exists yet (`SETUP.md` is phase 3), so the clipboard tool the manual
-Harbor chapter wants on Linux (`wl-clipboard` on Wayland, `xclip` on X11) is installed by two
-lines inside that chapter's install step. **Open:** those lines, and the clipboard path on Linux
+`SETUP.md` now has the optional tools, and the clipboard tool the manual Harbor chapter wants on
+Linux (`wl-clipboard` on Wayland, `xclip` on X11) is there as well as in the two lines inside
+that chapter's install step. **Open:** those lines, and the clipboard path on Linux
 as a whole (copy with `wl-copy`, paste into the vSphere Client, empty it), have not been run.
 
 Phase 7, changed after those runs (second review) and run ONLY against stand-in `curl`,
@@ -255,8 +256,53 @@ Phase 7, changed after those runs (second review) and run ONLY against stand-in 
 what it shows after an uninstall (an empty list under section 2, and what section 3 offers) is
 described from the walk's clicks, not from a picture. A Supervisor on NSX was not run.
 
-Not done from phase 7's "done when": `REGISTRY.md` and door B (the Harbor chapters end where
-the main guide's registry steps begin).
+From phase 7's "done when": `REGISTRY.md` (door B) is written from the old main guide's
+registry, build and deploy blocks (see phases 2, 3 and 6 above); door B has not been walked
+against a Harbor installed by these chapters.
+
+### Phases 2, 3 and 6 — built 2026-10-10, not walked
+
+**Phase 2.** `README.md` had 76 references by step number on 68 lines; `README.md`, `SETUP.md`,
+`REGISTRY.md`, `CLEANUP.md` and `TROUBLESHOOTING.md` now have none: each is a link to the
+section by its title. The references INTO the main guide from the ArgoCD chapters (16, one of
+them inside a block's `echo` text) are links by title too, and the Harbor, namespace and cluster
+chapters' links follow the sections that moved. What is left by number is each ArgoCD and Harbor
+guide naming its OWN steps (`ARGOCD-auto.md` 34 lines, `ARGOCD-manual.md` 41, `ARGOCD.md` 1,
+`HARBOR-auto.md` 54, `HARBOR-manual.md` 51): those guides keep numbered steps. The gate has no
+step-reference check; the counts are from `grep -cE '[Ss]teps? [0-9]+'`.
+
+**Phase 3.** The split is a move. Of the 55 blocks of the old `README.md`, 53 are byte-identical
+in their new place (SHA-256 of each block's content, extracted with `walk.sh`, before against
+after): 18 in `README.md`, 14 in `SETUP.md`, 13 in `REGISTRY.md`, 8 in `CLEANUP.md` (two of
+them are in two files: see below). So the walks in `vks/HANDOFF.md` stand for those blocks as blocks.
+They do **not** stand for the new ORDER: the Supervisor login, the namespace check and the
+kubeconfig now come before anything about Harbor, and nobody has run the files in that order.
+
+| changed or new | what | walked |
+|---|---|---|
+| `README.md`, the first block (the two heredocs) | comment and message text only: three comments and `harbor_cfg`'s message named step numbers | no |
+| `REGISTRY.md`, *Deploy the image you pushed* | the `NOT FOUND` message named two step numbers; now two section titles | no |
+| `ARGOCD-auto.md`, step 1's check block | one `echo` text: `(main guide, step 2)` is now the section's title | no |
+| `README.md`, the check block under *Install the tools* | NEW: the old *Check the tools* block without `make` and without the container engine (that block is in `SETUP.md`, unchanged) | no |
+| `SETUP.md`, *Install helm* (three blocks) | NEW. The Linux line ran once on a Linux amd64 host with `USE_SUDO=false` and a scratch `HELM_INSTALL_DIR` (Helm v4.3.0, checksum verified); the `sudo` path, `brew install helm` and `helm version --short` as printed did not run | no |
+| `SETUP.md`, *Install envsubst* and *Install a clipboard program* | copies of the blocks in `CLUSTER.md` and `HARBOR-manual.md`, byte-identical; walked or not as recorded for those chapters | as there |
+| `README.md` and `REGISTRY.md` both hold *Create the app's namespace* and the pod check | two old blocks, each in two places, byte-identical | as before |
+
+The env contract (D8): the main guide's first block is still the one definition; `SETUP.md`,
+`REGISTRY.md` and `CLEANUP.md` add no setting. **Not done from phase 3:** the one-time block
+that imports `~/.vks-argocd.env`, and the ArgoCD guides' own order (both belong to the ArgoCD
+chapters). `README.md` is 744 lines, not 500: its first block alone is 163, and D8 keeps it
+there.
+
+**Phase 6 (door A).** `README.md`, *Deploy the published image*: NEW block, the published image
+with the Service written as `ClusterIP` by `sed` on the way to `kubectl apply`, then the
+Service's type printed; NEW collapsed alternative that applies the file as it is
+(`LoadBalancer`), with the `/shutdown` warning. Checked on a workstation only: the `sed` changes
+exactly one line of `k8s/golang-web.yaml`, and the `jsonpath` prints `service type: ClusterIP`
+(`kubectl patch --local`). **Not run on a lab:** both blocks, the change from one Service type
+to the other and back on a live Service, a pull of the ghcr image by a guest node, and the reach
+blocks after a `ClusterIP` deploy (the port-forward blocks themselves are old and unchanged).
+Not built: `k8s/overlays/`; door A does not use `k8s/kustomization.yaml`.
 
 ## Gate: known gaps
 
@@ -265,6 +311,9 @@ None blocks a phase; each is a place where a green gate says nothing.
 
 - **HTML links:** `<img src="…">` and `<a href="…">` targets are not resolved; only markdown
   `[text](target)` and `![alt](target)` are.
+- **Step-number references:** no check. A reference by number that crosses files would pass.
+- **HTML comments:** not read. `README.md`, *Where to go next*, has two that name a chapter to
+  link once it exists.
 - **Emoji in a heading:** the anchor the gate computes for such a heading may differ from
   GitHub's. The guides have none today.
 - **`walk.sh remote`, dry run:** it does not check that local paths (`--env-file`,
