@@ -58,10 +58,8 @@ in the vSphere Client and the ArgoCD web page, and [with scripts](ARGOCD-auto.md
 
 ## Gather what you need
 
-Ask your platform administrator for the first five rows. No vSphere Namespace yet? See
-[NAMESPACE.md](NAMESPACE.md). No cluster yet? See [CLUSTER.md](CLUSTER.md), or the [ArgoCD guide](ARGOCD.md).
-
-What you were not given, you can make. The chapters, in the order to use them:
+Ask your platform administrator for the first five rows of the table below. What you were not
+given, you can make. The chapters, in the order to use them:
 
 1. [Use or create a vSphere Namespace](NAMESPACE.md)
 2. [Create a guest cluster with kubectl](CLUSTER.md)
