@@ -12,7 +12,7 @@ Most companies do. Install nothing; ask the Harbor's administrator for five thin
 |---|---|
 | Harbor's DNS name | `HARBOR_FQDN` in the env file |
 | a project you may push to | `HARBOR_PROJECT` in the env file |
-| a robot account for that project (name and secret), or the Harbor admin password | [the main guide](README.md), *Log in to Harbor* |
+| a robot account for that project (name and secret) | [the main guide](README.md), *Log in to Harbor* |
 | the SHA-256 fingerprint of Harbor's CA certificate | comparing it in the main guide's [Download and check the Harbor CA](README.md#download-and-check-the-harbor-ca) |
 | confirmation that your guest cluster's nodes resolve Harbor's name and trust its CA | the cluster pulling your image |
 
@@ -21,7 +21,8 @@ kubeconfig, run the block under *Check that a guest cluster can pull from Harbor
 [HARBOR-auto.md](HARBOR-auto.md): it needs nothing else from that guide.
 
 A guest cluster under the same Supervisor as a Harbor Supervisor Service trusts that Harbor's CA
-without any setting. For any other Harbor with a private CA, the cluster's administrator adds the
+without any setting, unless that Harbor was installed with its own certificate and no `ca.crt`
+in its configuration. For any other Harbor with a private CA, the cluster's administrator adds the
 CA to the cluster; that check tells you whether it was done.
 
 ## You have none: install the Harbor Supervisor Service
@@ -45,11 +46,14 @@ Installing needs three things an application developer often lacks:
 - someone who can create a DNS record for Harbor's name.
 
 If you lack the first two, send this to your vCenter administrator, with your values in place of
-the three in angle brackets:
+those in angle brackets:
 
 > Please install the Harbor Supervisor Service (release 2.15.2) on the Supervisor
 > `<Supervisor name>`, with the host name `<harbor.example.test>` and its own load-balancer
-> address (`enableNginxLoadBalancer: true`, `enableContourHttpProxy: false`). The steps are in
+> address (`enableNginxLoadBalancer: true`, `enableContourHttpProxy: false`), on the storage
+> class `<storage class>` with a registry volume of `<size, for example 50Gi>`: the size is fixed
+> at install time. Please plan it for a maintenance window: the install replaces every node of
+> every guest cluster on that Supervisor, one at a time. The steps are in
 > `vks/HARBOR-manual.md` (vSphere Client) and `vks/HARBOR-auto.md` (API) of
 > https://github.com/AndriyKalashnykov/golang-web.
 >

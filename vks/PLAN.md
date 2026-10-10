@@ -185,7 +185,7 @@ Harbor chapters are on the branch `docs/vks-harbor`; `REGISTRY.md` and door B ar
 |---|---|---|
 | 4 | The check blocks; the namespace by the vCenter API (settings, session, network type, the two lists, fill, create, the stops); the namespace by self-service (`kubectl create namespace`). After the vCenter helpers moved into the main guide's step 1: the step 1 block, the namespace settings block, the open-session block and `vc_logout` | macOS and bash 3.2; the vSphere Client click list (not clicked); a Supervisor on NSX; an SSO user with only the Edit role (the first two NAMESPACE blocks are that reader's whole path, and they have never run as such a user) |
 | 5 | Lookups, fill, server dry run, create, the wait, the machines, the cluster check, delete. After the helper move: the cluster settings block, the machines block under *Install Harbor before you create clusters*, and the kubeconfig block twice with a kubectl within one minor version (no change) | macOS and bash 3.2; `kubectl_install`'s install branches on a real machine (`KUBECTL_DIR`, `sudo -n`, the `~/.local/bin` fallback, the three failure messages: run only against stand-in `curl`, `sudo` and `kubectl` programs); the two re-used-name stops on a lab |
-| 7 | Harbor Supervisor Service 2.15.2+vmware.1-vks.1. `HARBOR-auto.md`, one block per fresh login shell: the download check, the secrets file (7 values), the storage class list, the configuration file, the vCenter session, the manifest check, register (201, `ACTIVATED`, signature `TRUSTED`), install (201 on attempt 1, `CONFIGURED`), the address and `http=200`, the DNS check with both verdicts, the CA fingerprint, the three main-guide parts, the admin login, the project (201), the pull check from a guest cluster (`OK`), uninstall (204), remove the service (three 204). `HARBOR-manual.md`: every click and window in the vSphere Client; its ten screenshots are from that run. Seen in the walk: installing AND uninstalling Harbor replaces every node of every guest cluster on the Supervisor; a second install has a new address and a new CA | macOS; a user without the Manage Supervisor Services privilege; a Supervisor on NSX; Contour in place of the nginx load balancer; a second install with other data values. Changed AFTER the walk and run only off the lab, in bash and zsh against a scratch home and a stand-in `kubectl`: the settings block (now prints `settings: 6 of 6` and `admin password line: 1 of 1`), the secrets file's count line (now one `awk`), the pull check's guard for a missing kubeconfig. NOT run anywhere: the two clipboard install lines of the manual guide (`sudo apt-get install -y wl-clipboard`, `sudo dnf install -y wl-clipboard`), the `xclip` form, and the block that empties the clipboard (`pbcopy`, `wl-copy --clear`, `xclip`): the walk met the clipboard block's `No clipboard program here` line on a Wayland desktop with neither program, and the paste was done from an editor |
+| 7 | Harbor Supervisor Service 2.15.2+vmware.1-vks.1. `HARBOR-auto.md`, one block per fresh login shell: the download check, the secrets file (7 values), the storage class list, the configuration file, the vCenter session, the manifest check, register (201, `ACTIVATED`, signature `TRUSTED`), install (201 on attempt 1, `CONFIGURED`), the address and `http=200`, the DNS check with both verdicts, the CA fingerprint, the three main-guide parts, the admin login, the project (201), the pull check from a guest cluster (`OK`), uninstall (204), remove the service (three 204). `HARBOR-manual.md`: every click and window in the vSphere Client; its ten screenshots are from that run. Seen in the walk: installing AND uninstalling Harbor replaces every node of every guest cluster on the Supervisor; a second install has a new address and a new CA. Run on the lab after the first review, in bash and zsh: the settings block (`settings: 6 of 6`, `admin password line: 1 of 1`), the secrets file's count line (one `awk`), the pull check's guard for a missing kubeconfig | macOS; a user without the Manage Supervisor Services privilege; a Supervisor on NSX; Contour in place of the nginx load balancer; a second install with other data values. NOT run anywhere: the two clipboard install lines of the manual guide (`sudo apt-get install -y wl-clipboard`, `sudo dnf install -y wl-clipboard`), the `xclip` form, and the block that empties the clipboard (`pbcopy`, `wl-copy --clear`, `xclip`): the walk met the clipboard block's `No clipboard program here` line on a Wayland desktop with neither program, and the paste was done from an editor |
 
 Changed after those walks, and run only against stand-in `curl`, `kubectl` and `sleep` programs,
 in bash and zsh (not on a lab):
@@ -222,6 +222,38 @@ No place for OPTIONAL tools exists yet (`SETUP.md` is phase 3), so the clipboard
 Harbor chapter wants on Linux (`wl-clipboard` on Wayland, `xclip` on X11) is installed by two
 lines inside that chapter's install step. **Open:** those lines, and the clipboard path on Linux
 as a whole (copy with `wl-copy`, paste into the vSphere Client, empty it), have not been run.
+
+Phase 7, changed after those runs (second review) and run ONLY against stand-in `curl`,
+`kubectl`, `sleep` and `wl-copy` programs, in bash and zsh, not on a lab:
+
+- the record `~/.config/vks-golang-web/harbor-none-before`: step 1's check block writes it when
+  the Supervisor has no Harbor (vCenter's name and the Supervisor's endpoint), never when one
+  exists, and never twice; the install block adds the Supervisor's ID when vCenter accepts the
+  install; the uninstall block refuses without that ID and takes it out again when Harbor is
+  gone; the remove-service block refuses without the record; the delete-files block removes it.
+  A Harbor installed with the earlier copy of the chapters has no record and is refused: it is
+  uninstalled in the vSphere Client. The manual chapter cannot record an install, so its check
+  block proves only what step 1 saw;
+- the uninstall and remove-service blocks gating their waits and their next call on vCenter's
+  answer, the login-failed message, and the refusal while Harbor is installed on another
+  Supervisor. That the service list's `state` reads `ACTIVATED` before and something else after a
+  deactivation, that a deleted version answers 404, and that a Supervisor without Harbor answers
+  404 on the per-Supervisor read are the stand-in's assumptions: only the 404 after an uninstall
+  was seen on the lab (the old block waited for it);
+- the install block: another version already installed is detected and not waited for; its two
+  temporary files are made beside the configuration file under `umask 077` and removed on every
+  path (a SIGINT to the block's process group was sent in the test; an interactive Ctrl+C in a
+  terminal was not);
+- the configuration-file block refusing an empty or example `HARBOR_FQDN` and a data values file
+  whose SHA-256 is not step 2's. The accepting path ran only on a copy of the block with the
+  expected checksum replaced by a stand-in file's, because Broadcom's file is not in the repo;
+- the delete-files block refusing while a Harbor namespace exists; `--kubeconfig
+  "$GUEST_KUBECONFIG"` on the pull check; `wl-copy --type text/plain`.
+
+**Open for phase 7:** every REST body and answer shape in `HARBOR-auto.md` rests on ONE lab walk
+(VCF 9.1.1). The **Delete Harbor** window was captured only while Harbor was still installed:
+what it shows after an uninstall (an empty list under section 2, and what section 3 offers) is
+described from the walk's clicks, not from a picture. A Supervisor on NSX was not run.
 
 Not done from phase 7's "done when": `REGISTRY.md` and door B (the Harbor chapters end where
 the main guide's registry steps begin).

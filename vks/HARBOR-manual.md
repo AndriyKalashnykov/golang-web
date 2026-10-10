@@ -4,7 +4,9 @@ This guide installs the Harbor Supervisor Service on a vSphere Supervisor, gets 
 name, and prepares it for [the main guide](README.md): a trusted CA, a project and a robot
 account. You click through the vSphere Client for the install; the files it needs, and
 everything after it, are short command blocks. It has 11 steps; step 11 is optional clean-up. It
-was written for VMware Cloud Foundation 9.1.1 and Harbor Service 2.15.2.
+was written for VMware Cloud Foundation 9.1.1 and Harbor Service 2.15.2, and run on a Supervisor
+with vSphere Distributed Switch networking and the Foundation Load Balancer. It was not run on a
+Supervisor with NSX.
 
 The same result with vCenter's API in place of clicks is in [HARBOR-auto.md](HARBOR-auto.md). If
 your company already has a Harbor, you need neither: see [HARBOR.md](HARBOR.md).
@@ -62,10 +64,30 @@ for t in curl openssl jq awk base64 kubectl; do
   command -v "$t" >/dev/null 2>&1 || echo "MISSING: $t"
 done
 command -v harbor_cfg >/dev/null 2>&1 || echo "MISSING: the helper command harbor_cfg"
-echo "Harbor on this Supervisor: $(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns -l appplatform.vmware.com/serviceId=harbor -o name || echo unknown)"
+H="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns -l appplatform.vmware.com/serviceId=harbor -o name || echo unknown)"
+echo "Harbor on this Supervisor: ${H}"
+MARK="$HOME/.config/vks-golang-web/harbor-none-before"
+if [ -z "$H" ] && [ ! -e "$MARK" ] && [ -n "$VCENTER_FQDN" ] && [ -n "$SUPERVISOR_ENDPOINT" ]; then
+  mkdir -p "$(dirname "$MARK")"
+  ( umask 077; set -C; printf 'vcenter=%s\nsupervisor_endpoint=%s\n' "$VCENTER_FQDN" "$SUPERVISOR_ENDPOINT" > "$MARK" )
+fi
+if [ -s "$MARK" ]; then
+  echo "recorded: no Harbor was here when this guide began ($(tr '\n' ' ' < "$MARK"))"
+else
+  echo "recorded: nothing (a Harbor was already here, or that could not be checked)"
+fi
 ```
 
-**Expect:** no `MISSING` line, then `Harbor on this Supervisor:` with nothing after it.
+**Expect:** no `MISSING` line, then `Harbor on this Supervisor:` with nothing after it, then
+`recorded: no Harbor was here when this guide began (vcenter=… supervisor_endpoint=… )` with your
+vCenter's name and your Supervisor's endpoint.
+
+That last line is this guide's safety record. When the Supervisor has no Harbor, the block writes
+a small file, `~/.config/vks-golang-web/harbor-none-before`, readable only by you, with those two
+names and no secret. It is written once and never changed by this block; it is not written when
+a Harbor is already there. Step 11 reads it before you uninstall, so that you do not remove a
+Harbor this guide did not install. Run later, after your own install, the block prints the
+namespace of your Harbor and the same `recorded:` line.
 
 **If not:**
 - `MISSING: <a tool>`: do the main guide's *Install the tools* for it.
@@ -74,7 +96,8 @@ echo "Harbor on this Supervisor: $(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG"
 - `unknown`, with `Unauthorized` above it: run the main guide's
   [Renew the Supervisor login](README.md#renew-the-supervisor-login) block. A kubeconfig that is
   not found: run [Log in to the Supervisor](README.md#log-in-to-the-supervisor).
-- `namespace/svc-harbor-…` after the colon: this Supervisor already runs a Harbor. Do not install
+- `namespace/svc-harbor-…` after the colon and `recorded: nothing …`: this Supervisor already runs
+  a Harbor that this guide did not install. **Never uninstall it with this guide.** Do not install
   a second one: use it, as [HARBOR.md](HARBOR.md) describes, or go on at step 7.
 
 Add this guide's seven settings to the env file, each only if it is not there yet. Values you
@@ -258,10 +281,20 @@ five storage classes; the registry size. Everything else stays as Broadcom ships
 particular the certificate fields stay empty, so Harbor makes its own CA and certificate, and
 Trivy stays on. The block prints the lines that hold no secret.
 
+It writes nothing while `HARBOR_FQDN` is empty or still the example name `harbor.example.test`
+(a Harbor installed under a wrong name can only be corrected by uninstalling it, and both the
+install and the uninstall replace every guest cluster's nodes), and nothing from a data values
+file whose SHA-256 is not the one in step 2's table.
+
 ```sh
 source ~/.vks-golang-web.env
+WANT=52167e43d58bad377c7f10dde87bb9b8e27faacacd9a3d9e1810cb8815f53805
 if [ ! -r "$HARBOR_SECRETS" ] || [ ! -f "$HARBOR_VALUES_TEMPLATE" ] || [ -z "$HARBOR_STORAGE_CLASS" ] || [ -z "$HARBOR_REGISTRY_SIZE" ]; then
   echo "Not written: the secrets file (step 3), the data values (step 2), HARBOR_STORAGE_CLASS or HARBOR_REGISTRY_SIZE is missing"
+elif [ -z "$HARBOR_FQDN" ] || [ "$HARBOR_FQDN" = harbor.example.test ]; then
+  echo "NOT USABLE: HARBOR_FQDN is empty or still the example name. Set this Harbor's DNS name in the env file (step 1). Nothing was written."
+elif [ "$( (sha256sum "$HARBOR_VALUES_TEMPLATE" 2>/dev/null || shasum -a 256 "$HARBOR_VALUES_TEMPLATE") | awk '{print $1}')" != "$WANT" ]; then
+  echo "NOT USABLE: the data values are not the 2.15.2 file this guide was written for (its SHA-256 differs from step 2's). Nothing was written."
 else
   mkdir -p "$(dirname "$HARBOR_VALUES")"
   rm -f "$HARBOR_VALUES"
@@ -313,8 +346,14 @@ placeholders left: 0
 
 **If not:**
 - `Not written: …` — do the step it names, or set the value in the env file.
-- `NOT USABLE: …` — you downloaded another release's data values, or Broadcom changed the file.
-  Take the 2.15.2 file (step 2). Do not install with a configuration this block refused.
+- `NOT USABLE: HARBOR_FQDN is empty or still the example name …` — set `HARBOR_FQDN` in the env
+  file (step 1), then run the block again.
+- `NOT USABLE: the data values are not the 2.15.2 file …` — the file's checksum is not the one in
+  step 2's table: you downloaded another release's data values, or the download is damaged. Take
+  the 2.15.2 file (step 2).
+- `NOT USABLE: the data values are laid out differently …` — the file has the right checksum but
+  the block did not find the fields it sets. Do not install with a configuration this block
+  refused.
 
 The configuration file holds the seven values in clear text. Do not print it, attach it to a
 ticket or commit it. The clean-up in step 11 deletes it.
@@ -363,8 +402,13 @@ Afterwards have the DNS record changed (step 7), do the main guide's
 (step 8), and create the project and the robot again (step 9).
 
 The install window has a box for the service's configuration. You paste your configuration file
-from step 4 into it. That file holds Harbor's passwords, so copy it without showing it. This
-block puts it on the clipboard:
+from step 4 into it. That file holds Harbor's passwords, so copy it without showing it.
+
+Whichever way you copy it, the passwords are then on the clipboard. If your desktop has a
+clipboard manager that keeps a history, switch it off for this step or delete the entry
+afterwards: emptying the clipboard does not empty a history.
+
+This block puts the file on the clipboard:
 
 ```sh
 source ~/.vks-golang-web.env
@@ -373,7 +417,7 @@ if [ ! -s "$HARBOR_VALUES" ]; then
 elif command -v pbcopy >/dev/null 2>&1; then
   pbcopy < "$HARBOR_VALUES" && echo "copied to the clipboard"
 elif command -v wl-copy >/dev/null 2>&1 && [ -n "${WAYLAND_DISPLAY:-}" ]; then
-  wl-copy < "$HARBOR_VALUES" && echo "copied to the clipboard"
+  wl-copy --type text/plain < "$HARBOR_VALUES" && echo "copied to the clipboard"
 elif command -v xclip >/dev/null 2>&1; then
   xclip -selection clipboard < "$HARBOR_VALUES" && echo "copied to the clipboard"
 else
@@ -434,11 +478,11 @@ With the configuration on the clipboard, go on in the vSphere Client:
 
    ![The Validate step: Compatibility Check Pass and Signature Verification Pass](img/harbor/06-install-validate.jpg)
 
-4. **Review:** click into the **YAML Service Config** box and paste. Check the first lines you
-   see against your settings: `hostname:` with your Harbor name, `enableNginxLoadBalancer: true`.
-   Click **FINISH**.
+4. **Review:** click into the **YAML Service Config** box and paste. The box shows the first
+   lines of your configuration: check `hostname:`, on line 3, against your Harbor name. Scroll
+   down in the box to line 33 to see `enableNginxLoadBalancer: true`. Click **FINISH**.
 
-   ![The Review step with the YAML Service Config box filled, scrolled to the host name line](img/harbor/07-install-review.jpg)
+   ![The Review step: the YAML Service Config box shows the first 23 lines of the configuration, with the host name on line 3](img/harbor/07-install-review.jpg)
 
 5. Open the **Supervisors** tab, and in your Supervisor's row click **View** in the **Services**
    column. (The same page is under your Supervisor → **Configure** → **Supervisor Services** →
@@ -476,8 +520,7 @@ fi
 **Expect:** `clipboard emptied`. A paste into any text field then gives nothing.
 
 **If not:** `No clipboard program here: …` — you copied from an editor: select and copy any
-other text there instead. If your desktop has a clipboard manager that keeps a history, delete
-the entry there too.
+other text there instead.
 
 ## 7. Find Harbor's address and get a DNS record
 
@@ -695,8 +738,10 @@ certificate.
 
 - **The name:** the nodes ask the DNS server their network gives them. This block is the check.
 - **The certificate:** a guest cluster under the **same Supervisor** as this Harbor trusts
-  Harbor's CA without any setting. A cluster elsewhere, or a Harbor with a CA of your own, needs
-  the CA in the cluster's `osConfiguration.trust.additionalTrustedCAs` variable, which replaces
+  Harbor's CA without any setting. A cluster under another Supervisor needs the CA in the
+  cluster's `osConfiguration.trust.additionalTrustedCAs` variable, and so does any cluster when
+  Harbor was installed with your own certificate and no `ca.crt` in its configuration (the data
+  values say VKS uses `ca.crt` to trust the registry). Setting that variable replaces
   the cluster's nodes one by one; see Broadcom's
   [example cluster with additional trusted CA certificates](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-service-administration-and-development/9-0/managing-vsphere-kuberenetes-service-clusters-and-workloads/provisioning-tkg-service-clusters/using-the-cluster-v1beta1-api/using-the-versioned-clusterclass/v1beta1-example-cluster-with-additional-trusted-ca-certificates-for-ssl-tls.html)
   (written for VCF 9.0). This guide does not cover it.
@@ -711,8 +756,8 @@ source ~/.vks-golang-web.env
 if [ ! -s "$GUEST_KUBECONFIG" ]; then
   echo "No guest cluster kubeconfig (${GUEST_KUBECONFIG:-GUEST_KUBECONFIG is empty}): create a cluster and get its kubeconfig first"
 else
-  kubectl -n default delete pod harbor-pull-check --ignore-not-found >/dev/null
-  kubectl -n default apply -f - <<EOF
+  kubectl --kubeconfig "$GUEST_KUBECONFIG" -n default delete pod harbor-pull-check --ignore-not-found >/dev/null
+  kubectl --kubeconfig "$GUEST_KUBECONFIG" -n default apply -f - <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
@@ -736,9 +781,9 @@ EOF
   M=""; n=0
   until [ -n "$M" ] || [ "$n" -ge 18 ]; do
     n=$((n + 1)); sleep 5
-    M="$(kubectl -n default get events --field-selector involvedObject.name=harbor-pull-check,reason=Failed -o jsonpath='{.items[*].message}')"
+    M="$(kubectl --kubeconfig "$GUEST_KUBECONFIG" -n default get events --field-selector involvedObject.name=harbor-pull-check,reason=Failed -o jsonpath='{.items[*].message}')"
   done
-  kubectl -n default delete pod harbor-pull-check --ignore-not-found >/dev/null
+  kubectl --kubeconfig "$GUEST_KUBECONFIG" -n default delete pod harbor-pull-check --ignore-not-found >/dev/null
   case "$M" in
     "")                echo "NO ANSWER: the cluster reported no pull attempt in 90 seconds" ;;
     *"no such host"*)  echo "DNS: the nodes cannot resolve ${HARBOR_FQDN}" ;;
@@ -758,12 +803,17 @@ fi
   [Get the cluster's kubeconfig](CLUSTER.md#get-the-clusters-kubeconfig), then this block again.
 - `DNS: …` — the nodes' DNS server does not have the record. An `/etc/hosts` line on your machine
   does not help them: get the A record created (see *Get a DNS record* in step 7).
-- `CA: …` — the cluster is not under this Harbor's Supervisor, or Harbor has another CA than the
-  one the Supervisor knows: see the certificate note above.
+- `CA: …` — if Harbor was installed while this cluster already existed, the likeliest cause is
+  that its nodes are still being replaced, and an old node does not have Harbor's CA yet. The
+  machines block under
+  [Install Harbor before you create clusters](CLUSTER.md#install-harbor-before-you-create-clusters)
+  shows when that is over; run this block again then. Otherwise the cluster is not under this
+  Harbor's Supervisor, or Harbor was installed with your own certificate and no `ca.crt` in its
+  configuration: see the certificate note above.
 - `OTHER: …` with `i/o timeout` or `connection refused` — the nodes resolve the name but cannot
   reach the address: a network or firewall matter for your administrator.
 - `NO ANSWER: …` — `kubectl` does not reach the guest cluster, or the pod was refused: run
-  `kubectl -n default get events` and read the last lines.
+  `kubectl --kubeconfig "$GUEST_KUBECONFIG" -n default get events` and read the last lines.
 
 ## 11. Uninstall Harbor (optional)
 
@@ -778,6 +828,33 @@ a maintenance window; see
 [Install Harbor before you create clusters](CLUSTER.md#install-harbor-before-you-create-clusters).
 
 ### Uninstall Harbor from the Supervisor
+
+**Only uninstall a Harbor you installed with this guide.** The vSphere Client lets you uninstall
+any Harbor, also one your company runs on this Supervisor, and it does not ask whose it is. So
+read the record step 1 made before you click. This block sends nothing to vCenter:
+
+```sh
+source ~/.vks-golang-web.env
+MARK="$HOME/.config/vks-golang-web/harbor-none-before"
+if [ -s "$MARK" ] && [ -n "$VCENTER_FQDN" ] && [ -n "$SUPERVISOR_ENDPOINT" ] \
+   && [ "$(sed -n 's/^vcenter=//p' "$MARK")" = "$VCENTER_FQDN" ] \
+   && [ "$(sed -n 's/^supervisor_endpoint=//p' "$MARK")" = "$SUPERVISOR_ENDPOINT" ]; then
+  echo "MAY UNINSTALL: step 1 found no Harbor on ${SUPERVISOR_ENDPOINT} (${VCENTER_FQDN}) before you installed one"
+else
+  echo "DO NOT UNINSTALL: this machine has no record that it installed the Harbor on this Supervisor. A Harbor was already there when you started, or it was installed from another machine or in the vSphere Client. Uninstall it only if it is yours, in the vSphere Client."
+fi
+```
+
+**Expect:** `MAY UNINSTALL: step 1 found no Harbor on <your Supervisor> (<your vCenter>) before
+you installed one`.
+
+**If not:** `DO NOT UNINSTALL: …` — stop here. The record is missing, or names another
+Supervisor or vCenter: a Harbor was already on this Supervisor when you began, or this machine
+is not the one this guide was followed on. Uninstall only if you know the Harbor is yours.
+
+The record proves what step 1 saw, not who installed what came later: if somebody else installed
+a Harbor on this Supervisor after you uninstalled yours, the block still prints `MAY UNINSTALL`.
+If you are not sure the Harbor in the list is the one you installed, ask before you click.
 
 The service stays registered in vCenter, so Harbor can be installed again with step 6; that
 step says what a second install changes.
@@ -805,31 +882,59 @@ namespace's finalizers by hand to speed it up.
 
 ### Remove the service from vCenter
 
-Only if no Supervisor of this vCenter will run this Harbor version again.
+Only if no Supervisor of this vCenter will run this Harbor version again, and only for a service
+you registered with this guide. This removes the service from vCenter, for every Supervisor.
 
-1. Open the **Services** tab, and on the **Harbor** card click **ACTIONS** → **Delete**. In the
-   **Delete Harbor** window click **CONFIRM** under *1. Deactivate service*, then **CONFIRM**
-   under *3. Delete all versions of the Service*, then **DELETE**. This removes the service from
-   vCenter, for every Supervisor.
+1. Open the **Services** tab, and on the **Harbor** card click **ACTIONS** → **Delete**. The
+   **Delete Harbor** window opens. It has three sections, and a **DELETE** button at the bottom
+   right that stays grey until the sections are done.
 
-   ![The Delete Harbor window with its three steps](img/harbor/10-delete-wizard.jpg)
+   ![The Delete Harbor window, taken while Harbor was still installed: section 1, Deactivate service, with a CONFIRM button; section 2, Uninstall all versions from Supervisors, with its own CONFIRM button and a list of one Supervisor on which Harbor is Configured; section 3, Delete all versions of the Service, with text only; a grey DELETE button at the bottom right](img/harbor/10-delete-wizard.jpg)
+
+   The picture shows the window while Harbor was still installed on a Supervisor, so the list
+   under section 2 has one row. After *Uninstall Harbor from the Supervisor* above, that list is
+   empty.
+
+2. Read the list under **2. Uninstall all versions from Supervisors** before you click anything.
+   **If it names any Supervisor, stop and close the window**: the **CONFIRM** of that section
+   uninstalls Harbor there, with everything it holds, and replaces the nodes of every guest
+   cluster on that Supervisor. A Supervisor in that list that is not yours means the service is
+   in use: leave it registered.
+3. With the list empty, click **CONFIRM** under **1. Deactivate service**.
+4. Go on as the window leads you: section 3, **Delete all versions of the Service**, has no
+   button in the picture, which was taken before section 1 was confirmed. When **DELETE** at the
+   bottom right is no longer grey, click it.
 
 **Expect:** a green line saying the service was deleted. The card disappears when the page is
 reloaded.
 
 ### Delete what this guide wrote
 
-Run this when the Harbor is gone for good. It deletes the configuration file and the secrets
-file: after that, nobody can install this Harbor again with the same values. Ask for the DNS
-record to be removed too, and remove Harbor's CA from your machine with the main guide's
+Run this when the Harbor is gone for good. It deletes the configuration file, the secrets file
+and the record step 1 made: after that, nobody can install this Harbor again with the same
+values. The secrets file is the only copy of the admin password, so the block deletes nothing
+while a Harbor is still on the Supervisor, or while it cannot check that. Ask for the DNS record
+to be removed too, and remove Harbor's CA from your machine with the main guide's
 *Remove the Harbor CA*.
 
 ```sh
 source ~/.vks-golang-web.env
-rm -f "$HARBOR_VALUES" "$HARBOR_SECRETS"
+H="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns -l appplatform.vmware.com/serviceId=harbor -o name || echo unknown)"
+if [ -n "$H" ]; then
+  echo "Nothing deleted: a Harbor is still on the Supervisor, or that could not be checked (${H})"
+else
+  rm -f "$HARBOR_VALUES" "$HARBOR_SECRETS"
+  rm -f "$HOME/.config/vks-golang-web/harbor-none-before"
+  echo "deleted: the configuration file, the secrets file and the record"
+fi
 ```
 
-**Expect:** no output. The settings step 1 added to the env file stay; they do no harm.
+**Expect:** `deleted: the configuration file, the secrets file and the record`. The settings
+step 1 added to the env file stay; they do no harm.
+
+**If not:** `Nothing deleted: …` with a namespace — a Harbor is still installed: these files
+belong to it, keep them. With `unknown` — the Supervisor login ended: run the main guide's
+[Renew the Supervisor login](README.md#renew-the-supervisor-login) block, then this one again.
 
 ## Fix common problems
 

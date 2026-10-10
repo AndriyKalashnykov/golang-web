@@ -3,7 +3,9 @@
 This guide installs the Harbor Supervisor Service on a vSphere Supervisor with vCenter's API,
 gets Harbor a DNS name, and prepares it for [the main guide](README.md): a trusted CA, a project
 and a robot account. It has 10 steps; step 10 is optional clean-up. It was written for VMware
-Cloud Foundation 9.1.1 and Harbor Service 2.15.2.
+Cloud Foundation 9.1.1 and Harbor Service 2.15.2, and run on a Supervisor with vSphere
+Distributed Switch networking and the Foundation Load Balancer. It was not run on a Supervisor
+with NSX.
 
 The same result by hand, in the vSphere Client, is in [HARBOR-manual.md](HARBOR-manual.md). If
 your company already has a Harbor, you need neither: see [HARBOR.md](HARBOR.md).
@@ -62,10 +64,30 @@ for f in harbor_cfg vc_login vc vc_logout; do
   command -v "$f" >/dev/null 2>&1 || echo "MISSING: the helper command $f"
 done
 [ -s "$SUPERVISOR_CA" ] || echo "MISSING: the vCenter CA file (main guide, Download and check the vCenter CA)"
-echo "Harbor on this Supervisor: $(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns -l appplatform.vmware.com/serviceId=harbor -o name || echo unknown)"
+H="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns -l appplatform.vmware.com/serviceId=harbor -o name || echo unknown)"
+echo "Harbor on this Supervisor: ${H}"
+MARK="$HOME/.config/vks-golang-web/harbor-none-before"
+if [ -z "$H" ] && [ ! -e "$MARK" ] && [ -n "$VCENTER_FQDN" ] && [ -n "$SUPERVISOR_ENDPOINT" ]; then
+  mkdir -p "$(dirname "$MARK")"
+  ( umask 077; set -C; printf 'vcenter=%s\nsupervisor_endpoint=%s\n' "$VCENTER_FQDN" "$SUPERVISOR_ENDPOINT" > "$MARK" )
+fi
+if [ -s "$MARK" ]; then
+  echo "recorded: no Harbor was here when this guide began ($(tr '\n' ' ' < "$MARK"))"
+else
+  echo "recorded: nothing (a Harbor was already here, or that could not be checked)"
+fi
 ```
 
-**Expect:** no `MISSING` line, then `Harbor on this Supervisor:` with nothing after it.
+**Expect:** no `MISSING` line, then `Harbor on this Supervisor:` with nothing after it, then
+`recorded: no Harbor was here when this guide began (vcenter=… supervisor_endpoint=… )` with your
+vCenter's name and your Supervisor's endpoint.
+
+That last line is this guide's safety record. When the Supervisor has no Harbor, the block writes
+a small file, `~/.config/vks-golang-web/harbor-none-before`, readable only by you, with those two
+names and no secret. It is written once and never changed by this block; it is not written when
+a Harbor is already there. Step 10's uninstall blocks refuse to run without it, so this guide
+cannot remove a Harbor it did not install. Run later, after your own install, the block prints
+the namespace of your Harbor and the same `recorded:` line.
 
 **If not:**
 - `MISSING: <a tool>` or the CA file: do the main guide's part for it.
@@ -74,7 +96,8 @@ echo "Harbor on this Supervisor: $(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG"
 - `unknown`, with `Unauthorized` above it: run the main guide's
   [Renew the Supervisor login](README.md#renew-the-supervisor-login) block. A kubeconfig that is
   not found: run [Log in to the Supervisor](README.md#log-in-to-the-supervisor).
-- `namespace/svc-harbor-…` after the colon: this Supervisor already runs a Harbor. Do not install
+- `namespace/svc-harbor-…` after the colon and `recorded: nothing …`: this Supervisor already runs
+  a Harbor that this guide did not install. **Never uninstall it with this guide.** Do not install
   a second one: use it, as [HARBOR.md](HARBOR.md) describes, or go on at step 6.
 
 Add this guide's seven settings to the env file, each only if it is not there yet. Values you
@@ -258,10 +281,20 @@ five storage classes; the registry size. Everything else stays as Broadcom ships
 particular the certificate fields stay empty, so Harbor makes its own CA and certificate, and
 Trivy stays on. The block prints the lines that hold no secret.
 
+It writes nothing while `HARBOR_FQDN` is empty or still the example name `harbor.example.test`
+(a Harbor installed under a wrong name can only be corrected by uninstalling it, and both the
+install and the uninstall replace every guest cluster's nodes), and nothing from a data values
+file whose SHA-256 is not the one in step 2's table.
+
 ```sh
 source ~/.vks-golang-web.env
+WANT=52167e43d58bad377c7f10dde87bb9b8e27faacacd9a3d9e1810cb8815f53805
 if [ ! -r "$HARBOR_SECRETS" ] || [ ! -f "$HARBOR_VALUES_TEMPLATE" ] || [ -z "$HARBOR_STORAGE_CLASS" ] || [ -z "$HARBOR_REGISTRY_SIZE" ]; then
   echo "Not written: the secrets file (step 3), the data values (step 2), HARBOR_STORAGE_CLASS or HARBOR_REGISTRY_SIZE is missing"
+elif [ -z "$HARBOR_FQDN" ] || [ "$HARBOR_FQDN" = harbor.example.test ]; then
+  echo "NOT USABLE: HARBOR_FQDN is empty or still the example name. Set this Harbor's DNS name in the env file (step 1). Nothing was written."
+elif [ "$( (sha256sum "$HARBOR_VALUES_TEMPLATE" 2>/dev/null || shasum -a 256 "$HARBOR_VALUES_TEMPLATE") | awk '{print $1}')" != "$WANT" ]; then
+  echo "NOT USABLE: the data values are not the 2.15.2 file this guide was written for (its SHA-256 differs from step 2's). Nothing was written."
 else
   mkdir -p "$(dirname "$HARBOR_VALUES")"
   rm -f "$HARBOR_VALUES"
@@ -313,8 +346,14 @@ placeholders left: 0
 
 **If not:**
 - `Not written: …` — do the step it names, or set the value in the env file.
-- `NOT USABLE: …` — you downloaded another release's data values, or Broadcom changed the file.
-  Take the 2.15.2 file (step 2). Do not install with a configuration this block refused.
+- `NOT USABLE: HARBOR_FQDN is empty or still the example name …` — set `HARBOR_FQDN` in the env
+  file (step 1), then run the block again.
+- `NOT USABLE: the data values are not the 2.15.2 file …` — the file's checksum is not the one in
+  step 2's table: you downloaded another release's data values, or the download is damaged. Take
+  the 2.15.2 file (step 2).
+- `NOT USABLE: the data values are laid out differently …` — the file has the right checksum but
+  the block did not find the fields it sets. Do not install with a configuration this block
+  refused.
 
 The configuration file holds the seven values in clear text. Do not print it, attach it to a
 ticket or commit it. The clean-up in step 10 deletes it.
@@ -368,9 +407,10 @@ grep '^export HARBOR_SERVICE_VERSION=' ~/.vks-golang-web.env
 is what vCenter answers when the service is already registered.
 
 **If not:** `null  null  null  null` or a `jq:` error — vCenter did not accept the file as a
-service manifest (is `HARBOR_MANIFEST` the file from step 2?), or the session ended: run
-`vc_login`, then the block again. `HTTP 403` or `unauthorized` — your user lacks **Manage
-Supervisor Services**. A version in the second line that differs from the first line's — the env
+service manifest (is `HARBOR_MANIFEST` the file from step 2?), the session ended (run
+`vc_login`, then the block again), or your user lacks **Manage Supervisor Services**: the block
+after this one prints vCenter's answer code, which tells them apart (`HTTP 401`: the session;
+`HTTP 403`: the privilege). A version in the second line that differs from the first line's — the env
 file holds the version of another release: delete that line from the env file and run the block
 again.
 
@@ -420,8 +460,15 @@ your configuration file, and waits until vCenter reports the service as configur
 minutes). With more than one Supervisor in this vCenter, the block lists them and stops: put the
 ID of yours in the env file as `export SUPERVISOR_ID="…"`, run `vc_login`, then the block again.
 
+The request the block sends holds your configuration, with all seven secret values. It is kept
+in a file beside the configuration file, readable only by you, for the seconds the call takes,
+and is removed however the block ends, also when you stop it with Ctrl+C. When vCenter accepts
+the install, the block adds the Supervisor's ID to the record step 1 made: that line is what
+lets step 10 uninstall this Harbor, and only this one.
+
 ```sh
 source ~/.vks-golang-web.env
+MARK="$HOME/.config/vks-golang-web/harbor-none-before"
 SUP="${SUPERVISOR_ID:-$(vc /supervisors/summaries | jq -r 'if (.items | length) == 1 then .items[0].supervisor else empty end')}"
 if [ -z "$SUP" ]; then
   vc /supervisors/summaries | jq -r '.items[] | "\(.supervisor)  \(.info.name)"' \
@@ -430,33 +477,49 @@ elif [ ! -s "$HARBOR_VALUES" ] || [ -z "$HARBOR_SERVICE_VERSION" ]; then
   echo "Not installing: the configuration file (step 4) or HARBOR_SERVICE_VERSION (Check the manifest) is missing"
 else
   S="/supervisors/${SUP}/supervisor-services"
-  C=200; n=0
-  if [ "$(vc "$S/harbor.tanzu.vmware.com" -o /dev/null -w '%{http_code}')" != 200 ]; then
+  W=no
+  CUR="$(vc "$S/harbor.tanzu.vmware.com" | jq -r 'if type == "object" then (.current_version // "") else "" end' 2>/dev/null)"
+  if [ -n "$CUR" ] && [ "$CUR" != "$HARBOR_SERVICE_VERSION" ]; then
+    echo "Not installing: this Supervisor already runs Harbor ${CUR}, not ${HARBOR_SERVICE_VERSION}. Changing the version is an upgrade, which this guide does not cover."
+  elif [ -n "$CUR" ]; then
+    W=yes
+  else
+    n=0
     until [ "$(vc "$S/harbor.tanzu.vmware.com/${HARBOR_SERVICE_VERSION}/signatures" | jq -r '.status // empty' 2>/dev/null)" = TRUSTED ] || [ "$n" -ge 12 ]; do
       n=$((n + 1)); sleep 5
     done
     echo "signature: $(vc "$S/harbor.tanzu.vmware.com/${HARBOR_SERVICE_VERSION}/signatures" | jq -r '.status // "no answer"' 2>/dev/null)"
-    B="$(mktemp)"; R="$(mktemp)"
-    base64 < "$HARBOR_VALUES" | tr -d '\n' \
-      | jq -Rs --arg v "$HARBOR_SERVICE_VERSION" '{supervisor_service: "harbor.tanzu.vmware.com", version: $v, yaml_service_config: .}' > "$B"
-    C=500; n=0
-    until [ "$C" != 500 ] || [ "$n" -ge 30 ]; do
-      [ "$n" -eq 0 ] || sleep 10
-      n=$((n + 1))
-      C="$(vc "$S" -X POST -H 'Content-Type: application/json' --data-binary "@$B" -o "$R" -w '%{http_code}')"
-    done
-    echo "install: HTTP ${C} (attempt ${n})"
-    case "$C" in 2*) ;; *) jq -r '.messages[]?.default_message' "$R" 2>/dev/null ;; esac
-    rm -f "$B" "$R"
+    if ( umask 077
+         B="$(mktemp "${HARBOR_VALUES}.XXXXXX")" || exit 1
+         R="$(mktemp "${HARBOR_VALUES}.XXXXXX")" || { rm -f "$B"; exit 1; }
+         trap 'rm -f "$B" "$R"' EXIT
+         trap 'exit 130' HUP INT TERM
+         base64 < "$HARBOR_VALUES" | tr -d '\n' \
+           | jq -Rs --arg v "$HARBOR_SERVICE_VERSION" '{supervisor_service: "harbor.tanzu.vmware.com", version: $v, yaml_service_config: .}' > "$B"
+         C=500; n=0
+         until [ "$C" != 500 ] || [ "$n" -ge 30 ]; do
+           [ "$n" -eq 0 ] || sleep 10
+           n=$((n + 1))
+           C="$(vc "$S" -X POST -H 'Content-Type: application/json' --data-binary "@$B" -o "$R" -w '%{http_code}')"
+         done
+         echo "install: HTTP ${C:-no answer} (attempt ${n})"
+         case "$C" in
+           2*) exit 0 ;;
+           *)  jq -r '.messages[]?.default_message' "$R" 2>/dev/null; exit 1 ;;
+         esac ); then
+      W=yes
+      if [ -s "$MARK" ] && [ "$(sed -n 's/^vcenter=//p' "$MARK")" = "$VCENTER_FQDN" ] && ! grep -qs '^supervisor=' "$MARK"; then
+        printf 'supervisor=%s\n' "$SUP" >> "$MARK"
+      fi
+    fi
   fi
-  case "$C" in 2*)
+  if [ "$W" = yes ]; then
     n=0
     until [ "$(vc "$S/harbor.tanzu.vmware.com" | jq -r --arg v "$HARBOR_SERVICE_VERSION" 'if .config_status == "CONFIGURED" and .current_version == $v then "yes" else "no" end' 2>/dev/null)" = yes ] || [ "$n" -ge 120 ]; do
       n=$((n + 1)); sleep 15
     done
     vc "$S/harbor.tanzu.vmware.com" | jq -r '"\(.config_status)  \(.current_version)  \(.messages[0].details.default_message // "")"'
-    ;;
-  esac
+  fi
 fi
 vc_logout
 ```
@@ -472,6 +535,9 @@ success looks like.
 that.
 
 **If not:**
+- `Not installing: this Supervisor already runs Harbor …` — another version is installed there,
+  so this guide's version will not appear and the block does not wait for it.
+- `install: HTTP 401` — the vCenter session ended: run `vc_login`, then the block again.
 - `install: HTTP 500 (attempt 30)` and a message — `signature verification result not found` or
   `service account is not ready`: vCenter was still not ready after five minutes; run the block
   again (start with `vc_login`). `is in terminating status`: a Harbor uninstalled a moment ago is
@@ -710,8 +776,10 @@ certificate.
 
 - **The name:** the nodes ask the DNS server their network gives them. This block is the check.
 - **The certificate:** a guest cluster under the **same Supervisor** as this Harbor trusts
-  Harbor's CA without any setting. A cluster elsewhere, or a Harbor with a CA of your own, needs
-  the CA in the cluster's `osConfiguration.trust.additionalTrustedCAs` variable, which replaces
+  Harbor's CA without any setting. A cluster under another Supervisor needs the CA in the
+  cluster's `osConfiguration.trust.additionalTrustedCAs` variable, and so does any cluster when
+  Harbor was installed with your own certificate and no `ca.crt` in its configuration (the data
+  values say VKS uses `ca.crt` to trust the registry). Setting that variable replaces
   the cluster's nodes one by one; see Broadcom's
   [example cluster with additional trusted CA certificates](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-service-administration-and-development/9-0/managing-vsphere-kuberenetes-service-clusters-and-workloads/provisioning-tkg-service-clusters/using-the-cluster-v1beta1-api/using-the-versioned-clusterclass/v1beta1-example-cluster-with-additional-trusted-ca-certificates-for-ssl-tls.html)
   (written for VCF 9.0). This guide does not cover it.
@@ -726,8 +794,8 @@ source ~/.vks-golang-web.env
 if [ ! -s "$GUEST_KUBECONFIG" ]; then
   echo "No guest cluster kubeconfig (${GUEST_KUBECONFIG:-GUEST_KUBECONFIG is empty}): create a cluster and get its kubeconfig first"
 else
-  kubectl -n default delete pod harbor-pull-check --ignore-not-found >/dev/null
-  kubectl -n default apply -f - <<EOF
+  kubectl --kubeconfig "$GUEST_KUBECONFIG" -n default delete pod harbor-pull-check --ignore-not-found >/dev/null
+  kubectl --kubeconfig "$GUEST_KUBECONFIG" -n default apply -f - <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
@@ -751,9 +819,9 @@ EOF
   M=""; n=0
   until [ -n "$M" ] || [ "$n" -ge 18 ]; do
     n=$((n + 1)); sleep 5
-    M="$(kubectl -n default get events --field-selector involvedObject.name=harbor-pull-check,reason=Failed -o jsonpath='{.items[*].message}')"
+    M="$(kubectl --kubeconfig "$GUEST_KUBECONFIG" -n default get events --field-selector involvedObject.name=harbor-pull-check,reason=Failed -o jsonpath='{.items[*].message}')"
   done
-  kubectl -n default delete pod harbor-pull-check --ignore-not-found >/dev/null
+  kubectl --kubeconfig "$GUEST_KUBECONFIG" -n default delete pod harbor-pull-check --ignore-not-found >/dev/null
   case "$M" in
     "")                echo "NO ANSWER: the cluster reported no pull attempt in 90 seconds" ;;
     *"no such host"*)  echo "DNS: the nodes cannot resolve ${HARBOR_FQDN}" ;;
@@ -773,12 +841,17 @@ fi
   [Get the cluster's kubeconfig](CLUSTER.md#get-the-clusters-kubeconfig), then this block again.
 - `DNS: …` — the nodes' DNS server does not have the record. An `/etc/hosts` line on your machine
   does not help them: get the A record created (see *Get a DNS record* in step 6).
-- `CA: …` — the cluster is not under this Harbor's Supervisor, or Harbor has another CA than the
-  one the Supervisor knows: see the certificate note above.
+- `CA: …` — if Harbor was installed while this cluster already existed, the likeliest cause is
+  that its nodes are still being replaced, and an old node does not have Harbor's CA yet. The
+  machines block under
+  [Install Harbor before you create clusters](CLUSTER.md#install-harbor-before-you-create-clusters)
+  shows when that is over; run this block again then. Otherwise the cluster is not under this
+  Harbor's Supervisor, or Harbor was installed with your own certificate and no `ca.crt` in its
+  configuration: see the certificate note above.
 - `OTHER: …` with `i/o timeout` or `connection refused` — the nodes resolve the name but cannot
   reach the address: a network or firewall matter for your administrator.
 - `NO ANSWER: …` — `kubectl` does not reach the guest cluster, or the pod was refused: run
-  `kubectl -n default get events` and read the last lines.
+  `kubectl --kubeconfig "$GUEST_KUBECONFIG" -n default get events` and read the last lines.
 
 ## 10. Uninstall Harbor (optional)
 
@@ -794,87 +867,188 @@ a maintenance window; see
 
 ### Uninstall Harbor from the Supervisor
 
-This removes Harbor from your Supervisor and waits until its namespace is gone: a few minutes.
-The service stays registered in vCenter, so it can be installed again with step 5's last block;
-that section says what a second install changes.
+**Only uninstall a Harbor you installed with this guide.** The block checks that: it runs only
+when the record step 1 made says the Supervisor had no Harbor when you began, and names the
+Supervisor this guide then installed Harbor on. Without that it refuses and sends nothing to
+vCenter.
+
+This removes Harbor from your Supervisor. Only if vCenter accepts the request does it wait until
+Harbor's namespace is gone: a few minutes. It closes the session, whatever happened. The service
+stays registered in vCenter, so it can be installed again with step 5's last block; that section
+says what a second install changes.
 
 ```sh
 source ~/.vks-golang-web.env
-vc_login
-SUP="${SUPERVISOR_ID:-$(vc /supervisors/summaries | jq -r 'if (.items | length) == 1 then .items[0].supervisor else empty end')}"
-if [ -z "$SUP" ]; then
-  echo "Not uninstalling: this vCenter has more than one Supervisor and SUPERVISOR_ID is not set in the env file"
+MARK="$HOME/.config/vks-golang-web/harbor-none-before"
+if vc_login; then
+  SUP="${SUPERVISOR_ID:-$(vc /supervisors/summaries | jq -r 'if (.items | length) == 1 then .items[0].supervisor else empty end' 2>/dev/null)}"
+  if [ -z "$SUP" ]; then
+    echo "Not uninstalling: the Supervisor is not known. This vCenter has more than one and SUPERVISOR_ID is not set in the env file, or the list of Supervisors could not be read."
+  elif [ ! -s "$MARK" ] || [ "$(sed -n 's/^vcenter=//p' "$MARK")" != "$VCENTER_FQDN" ] || [ "$(sed -n 's/^supervisor=//p' "$MARK")" != "$SUP" ]; then
+    echo "Not uninstalling: this machine has no record that it installed the Harbor on Supervisor ${SUP}. A Harbor was already there when you started, or it was installed from another machine or in the vSphere Client. Uninstall it only if it is yours, in the vSphere Client."
+  else
+    S="/supervisors/${SUP}/supervisor-services/harbor.tanzu.vmware.com"
+    C="$(vc "$S" -X DELETE -o /dev/null -w '%{http_code}')"
+    echo "uninstall: HTTP ${C:-no answer}"
+    case "$C" in
+      2*)
+        n=0
+        until [ "$(vc "$S" -o /dev/null -w '%{http_code}')" = 404 ] || [ "$n" -ge 40 ]; do
+          n=$((n + 1)); sleep 15
+        done
+        n=0
+        until [ -z "$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns -l appplatform.vmware.com/serviceId=harbor -o name || echo unknown)" ] || [ "$n" -ge 40 ]; do
+          n=$((n + 1)); sleep 15
+        done ;;
+      404) ;;
+      *) echo "Not uninstalled: vCenter did not accept the request, so nothing is waited for." ;;
+    esac
+    case "$C" in
+      2*|404)
+        LEFT="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns -l appplatform.vmware.com/serviceId=harbor -o name || echo unknown)"
+        echo "left (nothing after the colon means gone): ${LEFT}"
+        if [ -z "$LEFT" ]; then
+          ( umask 077; grep -v '^supervisor=' "$MARK" > "$MARK.new" && mv -f "$MARK.new" "$MARK" )
+        fi ;;
+    esac
+  fi
+  vc_logout
 else
-  S="/supervisors/${SUP}/supervisor-services/harbor.tanzu.vmware.com"
-  vc "$S" -X DELETE -o /dev/null -w 'uninstall: HTTP %{http_code}\n'
-  n=0
-  until [ "$(vc "$S" -o /dev/null -w '%{http_code}')" = 404 ] || [ "$n" -ge 40 ]; do
-    n=$((n + 1)); sleep 15
-  done
-  n=0
-  until [ -z "$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns -l appplatform.vmware.com/serviceId=harbor -o name || echo unknown)" ] || [ "$n" -ge 40 ]; do
-    n=$((n + 1)); sleep 15
-  done
-  echo "left (nothing after the colon means gone): $(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns -l appplatform.vmware.com/serviceId=harbor -o name || echo unknown)"
+  echo "Not uninstalling: no vCenter session (the line above says why)"
 fi
-vc_logout
 ```
 
 **Expect:** `vCenter session opened`, `uninstall: HTTP 204`, within a few minutes
 `left (nothing after the colon means gone):` with nothing after it, then
 `vCenter session closed`.
 
-**If not:** `uninstall: HTTP 404` — Harbor was not installed on this Supervisor. A name, or
-`unknown`, after the colon: the namespace is still being deleted, or the Supervisor login ended.
-Run the block again before you install again or go on. Do not remove the namespace's finalizers
-by hand to speed it up.
+**If not:**
+- `Not uninstalling: this machine has no record …` — this guide did not install the Harbor on
+  that Supervisor from this machine, so the block will not remove it. That is also so for a
+  Harbor installed with an older copy of this guide, which kept no record. If the Harbor is
+  yours, uninstall it in the vSphere Client ([HARBOR-manual.md](HARBOR-manual.md), *Uninstall
+  Harbor from the Supervisor*). If it is not, leave it.
+- `Not uninstalling: no vCenter session …` — the login failed: the line above it says why. Fix
+  the env file before you try again; do not repeat a wrong password.
+- `Not uninstalling: the Supervisor is not known …` — set `SUPERVISOR_ID` in the env file (step
+  5's last block lists the IDs), then run the block again.
+- `uninstall: HTTP 401`, then `Not uninstalled: …` — vCenter did not accept the session: run the
+  block again; it logs in anew.
+- `uninstall: HTTP 403`, then `Not uninstalled: …` — your user lacks **Manage Supervisor Services
+  on Supervisors**: ask your vCenter administrator.
+- `uninstall: HTTP 404` — Harbor is not installed on this Supervisor (any more). The `left` line
+  still tells you whether its namespace is gone.
+- A name, or `unknown`, after the colon — the namespace is still being deleted, or the
+  Supervisor login ended. Run the block again in a few minutes, before you install again or go
+  on: it then answers `HTTP 404` and prints the line again. Do not remove the namespace's
+  finalizers by hand to speed it up.
 
 ### Remove the service from vCenter
 
-Only if no Supervisor of this vCenter will run this Harbor version again. The three calls must
-come in this order: vCenter refuses to remove a service that is still active or still has a
-version.
+Only if no Supervisor of this vCenter will run this Harbor version again, and only for a service
+this guide registered. The block refuses without step 1's record for this vCenter, and while
+Harbor is installed on ANY Supervisor of this vCenter: it asks each of them and names the ones
+that still have it. The three calls must come in this order, because vCenter refuses to remove a
+service that is still active or still has a version; the block stops at the first call vCenter
+does not accept.
 
 ```sh
 source ~/.vks-golang-web.env
-vc_login
+MARK="$HOME/.config/vks-golang-web/harbor-none-before"
 A=/supervisor-services/harbor.tanzu.vmware.com
-if [ -z "$HARBOR_SERVICE_VERSION" ] || [ -n "$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns -l appplatform.vmware.com/serviceId=harbor -o name || echo unknown)" ]; then
-  echo "Not removing: Harbor is still installed (or could not be checked), or HARBOR_SERVICE_VERSION is empty"
+if vc_login; then
+  N="$(vc /supervisors/summaries | jq -r 'if type == "object" and (.items | type) == "array" then (.items | length) else 0 end' 2>/dev/null)"
+  ON="$(vc /supervisors/summaries | jq -r '.items[]?.supervisor' 2>/dev/null | while read -r s; do
+    c="$(vc "/supervisors/${s}/supervisor-services/harbor.tanzu.vmware.com" -o /dev/null -w '%{http_code}')"
+    [ "$c" = 404 ] || printf '%s (HTTP %s)  ' "$s" "${c:-no answer}"
+  done)"
+  STATE="$(vc /supervisor-services | jq -r '.[]? | select(.supervisor_service == "harbor.tanzu.vmware.com") | .state' 2>/dev/null)"
+  if [ ! -s "$MARK" ] || [ "$(sed -n 's/^vcenter=//p' "$MARK")" != "$VCENTER_FQDN" ]; then
+    echo "Not removing: this machine has no record for this vCenter (step 1), so the Harbor service here is not this guide's. Remove it only if it is yours, in the vSphere Client."
+  elif [ -z "$HARBOR_SERVICE_VERSION" ]; then
+    echo "Not removing: HARBOR_SERVICE_VERSION is empty"
+  elif [ "${N:-0}" -lt 1 ] || [ -n "$ON" ]; then
+    echo "Not removing: Harbor is still installed on a Supervisor of this vCenter, or that could not be checked: ${ON:-the list of Supervisors could not be read}"
+  elif [ -n "$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns -l appplatform.vmware.com/serviceId=harbor -o name || echo unknown)" ]; then
+    echo "Not removing: Harbor's namespace is still on your Supervisor, or that could not be checked"
+  elif [ -z "$STATE" ]; then
+    echo "Nothing to remove: vCenter does not know the Harbor service"
+  else
+    C=204
+    if [ "$STATE" = ACTIVATED ]; then
+      C="$(vc "$A?action=deactivate" -X PATCH -o /dev/null -w '%{http_code}')"
+      echo "deactivate: HTTP ${C:-no answer}"
+    else
+      echo "deactivate: not needed, the service is ${STATE}"
+    fi
+    if [ "$C" = 204 ]; then
+      C="$(vc "$A/versions/${HARBOR_SERVICE_VERSION}" -X DELETE -o /dev/null -w '%{http_code}')"
+      echo "remove the version: HTTP ${C:-no answer}"
+      [ "$C" != 404 ] || C=204
+    fi
+    if [ "$C" = 204 ]; then
+      C="$(vc "$A" -X DELETE -o /dev/null -w '%{http_code}')"
+      echo "remove the service: HTTP ${C:-no answer}"
+    fi
+    [ "$C" = 204 ] || echo "Stopped: vCenter did not accept that call, so the calls after it were not sent."
+  fi
+  vc_logout
 else
-  vc "$A?action=deactivate" -X PATCH -o /dev/null -w 'deactivate: HTTP %{http_code}\n'
-  vc "$A/versions/${HARBOR_SERVICE_VERSION}" -X DELETE -o /dev/null -w 'remove the version: HTTP %{http_code}\n'
-  vc "$A" -X DELETE -o /dev/null -w 'remove the service: HTTP %{http_code}\n'
+  echo "Not removing: no vCenter session (the line above says why)"
 fi
-vc_logout
 ```
 
 **Expect:** `vCenter session opened`, then three lines ending `HTTP 204` (`deactivate`,
 `remove the version`, `remove the service`), then `vCenter session closed`.
 
-**If not:** `Not removing: …` — run *Uninstall Harbor from the Supervisor* first. A line that
-does not end in `HTTP 204`: run the block again; `HTTP 400` on *remove the service* means a step
-before it did not finish, or vCenter holds another version of the service.
+**If not:**
+- `Not removing: this machine has no record …` — see the same line under *Uninstall Harbor from
+  the Supervisor*.
+- `Not removing: Harbor is still installed on a Supervisor …` — the line names each Supervisor
+  that still has Harbor, by its ID, with vCenter's answer for it (`HTTP 200`: installed there;
+  any other code: it could not be checked). Yours: run *Uninstall Harbor from the Supervisor*
+  first. Another Supervisor: its Harbor is not yours to remove, and the service must stay.
+- `Not removing: Harbor's namespace is still on your Supervisor …` — the uninstall has not
+  finished, or the Supervisor login ended: run the uninstall block again.
+- A line that does not end in `HTTP 204`, then `Stopped: …` — `HTTP 401`: run the block again.
+  `HTTP 403`: your user lacks **Manage Supervisor Services**. `HTTP 400` on *remove the service*:
+  vCenter holds another version of the service. Run the block again after the cause is gone: it
+  skips the deactivation when the service is no longer active, and goes on after
+  `remove the version: HTTP 404` (that version is already removed).
 
 ### Delete what this guide wrote
 
-Run this when the Harbor is gone for good. It deletes the configuration file and the secrets
-file: after that, nobody can install this Harbor again with the same values. Ask for the DNS
-record to be removed too, and remove Harbor's CA from your machine with the main guide's
+Run this when the Harbor is gone for good. It deletes the configuration file, the secrets file
+and the record step 1 made: after that, nobody can install this Harbor again with the same
+values. The secrets file is the only copy of the admin password, so the block deletes nothing
+while a Harbor is still on the Supervisor, or while it cannot check that. Ask for the DNS record
+to be removed too, and remove Harbor's CA from your machine with the main guide's
 *Remove the Harbor CA*.
 
 ```sh
 source ~/.vks-golang-web.env
-rm -f "$HARBOR_VALUES" "$HARBOR_SECRETS"
+H="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns -l appplatform.vmware.com/serviceId=harbor -o name || echo unknown)"
+if [ -n "$H" ]; then
+  echo "Nothing deleted: a Harbor is still on the Supervisor, or that could not be checked (${H})"
+else
+  rm -f "$HARBOR_VALUES" "$HARBOR_SECRETS"
+  rm -f "$HOME/.config/vks-golang-web/harbor-none-before"
+  echo "deleted: the configuration file, the secrets file and the record"
+fi
 ```
 
-**Expect:** no output. The settings step 1 added to the env file stay; they do no harm.
+**Expect:** `deleted: the configuration file, the secrets file and the record`. The settings
+step 1 added to the env file stay; they do no harm.
+
+**If not:** `Nothing deleted: …` with a namespace — a Harbor is still installed: these files
+belong to it, keep them. With `unknown` — the Supervisor login ended: run the main guide's
+[Renew the Supervisor login](README.md#renew-the-supervisor-login) block, then this one again.
 
 ## Fix common problems
 
 | symptom | fix |
 |---|---|
-| `vc: no vCenter session — run vc_login` | A step 5 or step 10 block was run without the one before it, or after `vc_logout`. Run `vc_login`, then the block again. |
+| `vc_api: no vCenter session — run vc_login` | A step 5 block was run without the one before it, or after `vc_logout`. Run `vc_login`, then the block again. |
 | A step 5 block prints `unauthenticated` or `HTTP 401` | The vCenter session ended. Run `vc_login` (once), then the block again. |
 | `vc_login: command not found` | Run the first block of the main guide's *Set the variables* again; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | `install: HTTP 500` on every attempt | Read the message under it: step 5's **If not** names the three causes. |
