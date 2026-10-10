@@ -352,7 +352,9 @@ SPEC="$HOME/.config/vks-golang-web/namespace-spec.json"
 C="$(jq -r '.cluster // empty' "$SPEC" 2>/dev/null)"
 P="$(vc "/clusters/${C}" | jq -r '.network_provider // empty')"
 H="$(vc_api "/namespaces/instances/${VKS_NAMESPACE}" -o /dev/null -w '%{http_code}')"
-if [ "$(jq -r '.namespace // empty' "$SPEC" 2>/dev/null)" != "$VKS_NAMESPACE" ]; then
+if [ ! -s "$VC_SESSION" ]; then
+  echo "STOP: no vCenter session is open. Run the first block of 'Open a vCenter session and find the Supervisor's cluster' again. Nothing was created."
+elif [ "$(jq -r '.namespace // empty' "$SPEC" 2>/dev/null)" != "$VKS_NAMESPACE" ]; then
   echo "STOP: the filled description is missing, or is for another namespace. Run the block above again."
 elif [ "$P" != VSPHERE_NETWORK ]; then
   echo "STOP: this Supervisor's network provider is '${P:-unknown}', not VSPHERE_NETWORK. Nothing was created."
@@ -429,11 +431,16 @@ if [ -n "$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE"
   echo "A namespace named '${VKS_NAMESPACE}' already exists (not changed)"
 else
   kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" create namespace "$VKS_NAMESPACE"
+  n=0
+  until [ -n "$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get virtualmachineclass -o name 2>/dev/null)" ] || [ "$n" -ge 12 ]; do
+    sleep 5; n=$((n + 1))
+  done
 fi
-kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE" -o jsonpath='{.metadata.name}{"  self-service: "}{.metadata.labels.vmware-system-self-service-namespace}{"\n"}'
+kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE" -o jsonpath='{.metadata.name}{"  self-service: "}{.metadata.annotations.vmware-system-self-service-namespace}{"\n"}'
 ```
 
-**Expect:** `namespace/<your namespace> created`, then `<your namespace>  self-service: true`.
+**Expect:** `namespace/<your namespace> created`, then, after up to a minute while the
+template's VM classes arrive, `<your namespace>  self-service: true`.
 Now run both blocks of [Check the namespace you have](#check-the-namespace-you-have): they show
 what the template gave the namespace.
 
