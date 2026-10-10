@@ -5,10 +5,46 @@ current state, how to walk the guide again, and what is already measured. It is 
 replace what changes, and leave the history to git (the round-by-round record is in this file's
 history up to 2026-10-05).
 
+## The files — 2026-10-10
+
+The main guide was split on 2026-10-10 (`vks/PLAN.md`, phases 2, 3 and 6). **The split and the
+new deploy blocks have not been walked**; `PLAN.md`, "Phase state", lists every block that is
+new or changed. The records below this section were written against the old `README.md` and
+name its ten steps: the table says where each step is now.
+
+| file | what it holds |
+|---|---|
+| `README.md` | the main line: env file, tools check, clone, vCenter CA, Supervisor login, namespace check, kubeconfig, deploy the published image (ClusterIP by default), reach, the two short clean-up blocks, the list of chapters |
+| `SETUP.md` | the tool installs per OS; optional tools (container engine, `envsubst`, `helm`, clipboard) |
+| `NAMESPACE.md`, `CLUSTER.md` | use or create a vSphere Namespace; create a guest cluster |
+| `HARBOR.md`, `HARBOR-manual.md`, `HARBOR-auto.md` | use a Harbor, or install the Supervisor Service |
+| `REGISTRY.md` | trust Harbor's CA, log in, build and push, deploy by digest from Harbor |
+| `ARGOCD.md`, `ARGOCD-manual.md`, `ARGOCD-auto.md` | ArgoCD on the Supervisor and a cluster made with it |
+| `CLEANUP.md`, `TROUBLESHOOTING.md` | the long clean-up; errors by their text |
+| `templates/`, `argocd/`, `img/`, `test/` | the files the chapters fill, the guest-cluster chart, screenshots, the walk harness |
+
+| old step of `README.md` | now |
+|---|---|
+| 1. Set the variables | `README.md`, *Set the variables* |
+| 2. Install the tools | `SETUP.md`; the vCenter CA download stayed in `README.md` |
+| 3. Trust the Harbor CA; 5. Log in to Harbor; 6. Build and push the image | `REGISTRY.md` |
+| 4. Check out the repo | `README.md`, before the vCenter CA |
+| 7. Get the kubeconfigs | `README.md`: *Log in to the Supervisor*, *Check your vSphere Namespace*, *Get your guest cluster* |
+| 8. Deploy | from Harbor by digest: `REGISTRY.md`, *Deploy from Harbor*. `README.md`, *Deploy the app*, is new: the published image |
+| 9. Reach the app | `README.md`, the port-forward first |
+| 10. Clean up | `README.md` (the app, the Supervisor login) and `CLEANUP.md` (the rest) |
+| Fix common problems | `TROUBLESHOOTING.md` |
+
+Rules the split follows, to keep when editing: no reference by step number into another file,
+or inside the five files above (link the section by its title); the main guide's first block is
+the one place that creates the env file, and a chapter adds its settings with
+`grep -qs … || printf … >>`; a block that moves keeps its content byte for byte, so that its
+walk still counts.
+
 ## Where it stands — 2026-10-07
 
-`vks/README.md` builds `golang-web`, pushes it to Harbor and deploys it to a VKS guest cluster.
-**All work is merged; nothing is in flight.** It is pinned to **VCF CLI 9.1.1.0100**
+Until 2026-10-10 `vks/README.md` built `golang-web`, pushed it to Harbor and deployed it to a
+VKS guest cluster; this section and the walks below are about that text. It is pinned to **VCF CLI 9.1.1.0100**
 (`vcf version` prints `v9.1.1.0100.25746586`; the plugin bundle is build 25793136; both
 published 2026-10-08, re-pinned from 9.1.1.0 the same day). No block count is kept in this
 file: `make check-vks-docs` prints the count per guide and fails if a block does not parse with
@@ -123,8 +159,8 @@ secret is on a command line. Per file: relative links, anchors and images resolv
   summary there says `zsh -n SKIPPED`. Only a local run proves the zsh half: run the gate
   locally before a merge. A missing shellcheck in CI is an error, not a skip.
 
-Not checked yet (later phases of `PLAN.md`): step-number references across files, templates,
-chart = template.
+Not checked by this gate: step-number references across files. Templates and chart = template
+are checked by `check-vks-templates.sh`.
 
 ## How to walk it again
 

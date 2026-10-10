@@ -55,7 +55,7 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE"
 
 **If not:**
 - `MISSING: envsubst` on macOS after the install: Homebrew's folder is not in your `PATH`; run
-  the main guide's Homebrew `PATH` block.
+  the Homebrew `PATH` block under [Install Homebrew (macOS only)](SETUP.md#install-homebrew-macos-only).
 - `MISSING: vks/templates/cluster.yaml`: `cd` into your clone, then run the block again.
 - `NotFound` or `Forbidden`: do [NAMESPACE.md](NAMESPACE.md) first. `Unauthorized`: run the main
   guide's *Renew the Supervisor login* block.
@@ -465,8 +465,8 @@ further away, `Client Version:` with the cluster's `v1.<minor>`.
 - `… installing into <your home>/.local/bin instead`: not an error. If `… was not on your PATH`
   follows, add the line it prints to `~/.zshrc` (zsh) or `~/.bashrc` (bash).
 - `kubectl_install: cannot reach dl.k8s.io`, `… the checksum of the download does not match` or
-  `… could not write …`: the kubeconfig is saved and kubectl is unchanged. The main guide's
-  *Install kubectl* says what to do for each.
+  `… could not write …`: the kubeconfig is saved and kubectl is unchanged. [Install kubectl](SETUP.md#install-kubectl)
+  says what to do for each.
 
 ## Check the cluster
 
@@ -562,4 +562,5 @@ Do not create the next cluster under the same name.
 
 ## Next
 
-Go back to [the main guide](README.md) and deploy the app onto the new cluster.
+Go back to the main guide's [Deploy the app](README.md#deploy-the-app) and deploy the app onto the new
+cluster.

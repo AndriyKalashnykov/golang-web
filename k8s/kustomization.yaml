@@ -1,0 +1,8 @@
+# Lets a tool that reads a folder (ArgoCD, `kubectl apply -k k8s`) deploy golang-web.yaml as it is,
+# and lets it replace the image from outside (vks/ARGOCD-app.md: the ArgoCD Application carries
+# the image name and digest). Keep it free of image tags and digests: the one pinned image is in
+# golang-web.yaml, where Renovate tracks it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - golang-web.yaml

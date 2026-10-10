@@ -1,0 +1,45 @@
+# Values for the upstream Headlamp chart, used by vks/addons/HEADLAMP.md.
+# They make the pod pass Pod Security "restricted" (a VKS guest cluster enforces it by default)
+# and give Headlamp's account read-only rights. The chart's own defaults do neither: its pod is
+# rejected under "restricted", and its account is bound to cluster-admin.
+replicaCount: 1
+
+clusterRoleBinding:
+  create: true
+  # Kubernetes' built-in read-only role. It cannot read Secrets and cannot change anything.
+  clusterRoleName: view
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  privileged: false
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 100
+  runAsGroup: 101
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+config:
+  oidc:
+    secret:
+      # No OIDC login is set up here: without this the chart creates an empty Secret named "oidc".
+      create: false

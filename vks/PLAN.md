@@ -177,15 +177,17 @@ tunnels.
 
 ## Phase state
 
-Phases 0 to 3 are not tracked here. For phases 4 and 5 the chapters, the two templates and
+Phases 0 and 1 are not tracked here. For phases 4 and 5 the chapters, the two templates and
 `check-vks-templates.sh` are on the branch `docs/vks-namespace-cluster`. For phase 7 the three
-Harbor chapters are on the branch `docs/vks-harbor`; `REGISTRY.md` and door B are not written.
+Harbor chapters are on the branch `docs/vks-harbor`. Phases 2, 3 and 6 (the main guide's part)
+were built together on 2026-10-10 and are recorded under the table: text only, **no lab walk**.
 
 | # | Walked on the lab (VCF 9.1.1, VKS 3.7.2; Linux, bash and zsh) | Not walked |
 |---|---|---|
 | 4 | The check blocks; the namespace by the vCenter API (settings, session, network type, the two lists, fill, create, the stops); the namespace by self-service (`kubectl create namespace`). After the vCenter helpers moved into the main guide's step 1: the step 1 block, the namespace settings block, the open-session block and `vc_logout` | macOS and bash 3.2; the vSphere Client click list (not clicked); a Supervisor on NSX; an SSO user with only the Edit role (the first two NAMESPACE blocks are that reader's whole path, and they have never run as such a user) |
 | 5 | Lookups, fill, server dry run, create, the wait, the machines, the cluster check, delete. After the helper move: the cluster settings block, the machines block under *Install Harbor before you create clusters*, and the kubeconfig block twice with a kubectl within one minor version (no change) | macOS and bash 3.2; `kubectl_install`'s install branches on a real machine (`KUBECTL_DIR`, `sudo -n`, the `~/.local/bin` fallback, the three failure messages: run only against stand-in `curl`, `sudo` and `kubectl` programs); the two re-used-name stops on a lab |
 | 7 | Harbor Supervisor Service 2.15.2+vmware.1-vks.1. `HARBOR-auto.md`, one block per fresh login shell: the download check, the secrets file (7 values), the storage class list, the configuration file, the vCenter session, the manifest check, register (201, `ACTIVATED`, signature `TRUSTED`), install (201 on attempt 1, `CONFIGURED`), the address and `http=200`, the DNS check with both verdicts, the CA fingerprint, the three main-guide parts, the admin login, the project (201), the pull check from a guest cluster (`OK`), uninstall (204), remove the service (three 204). `HARBOR-manual.md`: every click and window in the vSphere Client; its ten screenshots are from that run. Seen in the walk: installing AND uninstalling Harbor replaces every node of every guest cluster on the Supervisor; a second install has a new address and a new CA. Run on the lab after the first review, in bash and zsh: the settings block (`settings: 6 of 6`, `admin password line: 1 of 1`), the secrets file's count line (one `awk`), the pull check's guard for a missing kubeconfig | macOS; a user without the Manage Supervisor Services privilege; a Supervisor on NSX; Contour in place of the nginx load balancer; a second install with other data values. NOT run anywhere: the two clipboard install lines of the manual guide (`sudo apt-get install -y wl-clipboard`, `sudo dnf install -y wl-clipboard`), the `xclip` form, and the block that empties the clipboard (`pbcopy`, `wl-copy --clear`, `xclip`): the walk met the clipboard block's `No clipboard program here` line on a Wayland desktop with neither program, and the paste was done from an editor |
+| 8 | `ARGOCD-app.md` on ArgoCD Service 1.2.0 (Argo CD 3.4.4), each block as written: the settings (`8`); the destination list before and after the add; *Add a guest cluster you created with kubectl* (`ManagedEntity: Ready`, `destinations at …: 1`; the stored address equals the kubeconfig's); *Create the project*; *Create the Application* refused while the directly deployed app's namespace existed, then `created` (with kubectl's finalizer-name warning); the wait with `APP_IMAGE` empty (`Synced/Healthy`, the ghcr digest in the Deployment and in the pod, `OK`); port-forward and `curl` (`Hello, World`). Then with a two-architecture image pushed to Harbor: the digest lookup, the public/private check (`http=401`), the Application `configured`, the pull secret block (secret, service account, two pods deleted), and the wait: asked-for, Deployment and pod all showed the same index digest, `OK`. `CreateNamespace=true` worked through the cluster the service added, with the `Namespace` limited by name in the project | The four delete blocks and *If the Application will not go away*; the own-fork variant with the repository login; the pin block with a branch, a tag and a commit against a private repository; everything changed after the walk (list below); an Application from a COPY of the chart in another repository (phase 8's third "done when"); a `LoadBalancer` Service through the Application; an ArgoCD older than 3.4; a user with only the Edit role; macOS |
 
 Changed after those walks, and run only against stand-in `curl`, `kubectl` and `sleep` programs,
 in bash and zsh (not on a lab):
@@ -218,9 +220,9 @@ is not older than the chart. `check-vks-templates.sh` (chart = template, and the
 marker in step with NAMESPACE.md) runs in `make static-check`, and so in CI, where it fails if
 `helm` or `yq` is missing.
 
-No place for OPTIONAL tools exists yet (`SETUP.md` is phase 3), so the clipboard tool the manual
-Harbor chapter wants on Linux (`wl-clipboard` on Wayland, `xclip` on X11) is installed by two
-lines inside that chapter's install step. **Open:** those lines, and the clipboard path on Linux
+`SETUP.md` now has the optional tools, and the clipboard tool the manual Harbor chapter wants on
+Linux (`wl-clipboard` on Wayland, `xclip` on X11) is there as well as in the two lines inside
+that chapter's install step. **Open:** those lines, and the clipboard path on Linux
 as a whole (copy with `wl-copy`, paste into the vSphere Client, empty it), have not been run.
 
 Phase 7, changed after those runs (second review) and run ONLY against stand-in `curl`,
@@ -255,8 +257,171 @@ Phase 7, changed after those runs (second review) and run ONLY against stand-in 
 what it shows after an uninstall (an empty list under section 2, and what section 3 offers) is
 described from the walk's clicks, not from a picture. A Supervisor on NSX was not run.
 
-Not done from phase 7's "done when": `REGISTRY.md` and door B (the Harbor chapters end where
-the main guide's registry steps begin).
+From phase 7's "done when": `REGISTRY.md` (door B) is written from the old main guide's
+registry, build and deploy blocks (see phases 2, 3 and 6 above); door B has not been walked
+against a Harbor installed by these chapters.
+
+### Phases 2, 3 and 6 — built 2026-10-10, not walked
+
+**Phase 2.** `README.md` had 76 references by step number on 68 lines; `README.md`, `SETUP.md`,
+`REGISTRY.md`, `CLEANUP.md` and `TROUBLESHOOTING.md` now have none: each is a link to the
+section by its title. The references INTO the main guide from the ArgoCD chapters (16, one of
+them inside a block's `echo` text) are links by title too, and the Harbor, namespace and cluster
+chapters' links follow the sections that moved. What is left by number is each ArgoCD and Harbor
+guide naming its OWN steps (`ARGOCD-auto.md` 34 lines, `ARGOCD-manual.md` 41, `ARGOCD.md` 1,
+`HARBOR-auto.md` 54, `HARBOR-manual.md` 51): those guides keep numbered steps. The gate has no
+step-reference check; the counts are from `grep -cE '[Ss]teps? [0-9]+'`.
+
+**Phase 3.** The split is a move. Of the 55 blocks of the old `README.md`, 53 are byte-identical
+in their new place (SHA-256 of each block's content, extracted with `walk.sh`, before against
+after): 18 in `README.md`, 14 in `SETUP.md`, 13 in `REGISTRY.md`, 8 in `CLEANUP.md` (two of
+them are in two files: see below). So the walks in `vks/HANDOFF.md` stand for those blocks as blocks.
+They do **not** stand for the new ORDER: the Supervisor login, the namespace check and the
+kubeconfig now come before anything about Harbor, and nobody has run the files in that order.
+
+| changed or new | what | walked |
+|---|---|---|
+| `README.md`, the first block (the two heredocs) | comment and message text only: three comments and `harbor_cfg`'s message named step numbers | no |
+| `REGISTRY.md`, *Deploy the image you pushed* | the `NOT FOUND` message named two step numbers; now two section titles | no |
+| `ARGOCD-auto.md`, step 1's check block | one `echo` text: `(main guide, step 2)` is now the section's title | no |
+| `README.md`, the check block under *Install the tools* | NEW: the old *Check the tools* block without `make` and without the container engine (that block is in `SETUP.md`, unchanged) | no |
+| `SETUP.md`, *Install helm* (three blocks) | NEW. The Linux line ran once on a Linux amd64 host with `USE_SUDO=false` and a scratch `HELM_INSTALL_DIR` (Helm v4.3.0, checksum verified); the `sudo` path, `brew install helm` and `helm version --short` as printed did not run | no |
+| `SETUP.md`, *Install envsubst* and *Install a clipboard program* | copies of the blocks in `CLUSTER.md` and `HARBOR-manual.md`, byte-identical; walked or not as recorded for those chapters | as there |
+| `README.md` and `REGISTRY.md` both hold *Create the app's namespace* and the pod check | two old blocks, each in two places, byte-identical | as before |
+
+The env contract (D8): the main guide's first block is still the one definition; `SETUP.md`,
+`REGISTRY.md` and `CLEANUP.md` add no setting. **Not done from phase 3:** the one-time block
+that imports `~/.vks-argocd.env`, and the ArgoCD guides' own order (both belong to the ArgoCD
+chapters). `README.md` is 744 lines, not 500: its first block alone is 163, and D8 keeps it
+there.
+
+**Phase 6 (door A).** `README.md`, *Deploy the published image*: NEW block, the published image
+with the Service written as `ClusterIP` by `sed` on the way to `kubectl apply`, then the
+Service's type printed; NEW collapsed alternative that applies the file as it is
+(`LoadBalancer`), with the `/shutdown` warning. Checked on a workstation only: the `sed` changes
+exactly one line of `k8s/golang-web.yaml`, and the `jsonpath` prints `service type: ClusterIP`
+(`kubectl patch --local`). **Not run on a lab:** both blocks, the change from one Service type
+to the other and back on a live Service, a pull of the ghcr image by a guest node, and the reach
+blocks after a `ClusterIP` deploy (the port-forward blocks themselves are old and unchanged).
+Not built: `k8s/overlays/`; door A does not use `k8s/kustomization.yaml`.
+
+Phase 8, run offline only (no lab), in bash and zsh:
+
+- `kustomize build k8s` and `kubectl kustomize k8s` give the same two objects as
+  `k8s/golang-web.yaml` (kustomize 5.8.2, and the 5.8.1 inside kubectl 1.37.1). The three image
+  overrides were measured again and D5 holds: name alone keeps the ghcr tag and digest under the
+  new name, name + tag drops the digest, name + digest gives `<name>@sha256:…`;
+- the `Application` and `AppProject` the blocks send were captured from a stand-in `kubectl` and
+  checked against the CRD schemas of upstream ArgoCD v3.4.4 with unknown fields refused (a
+  misspelt field fails). The VCF build's own CRDs were not read. The `ManagedEntity` has no
+  schema offline: it is the ArgoCD guides' object plus one label;
+- the same `Application` was rendered the way ArgoCD's repo-server does it (`kustomize edit set
+  image`, the patch appended to `kustomization.yaml`, `kustomize build`): the Harbor digest and
+  `type: ClusterIP` come out, and the result is valid for Kubernetes 1.36;
+- every refusal and the digest check, against stand-in `kubectl`, `curl` and `sleep` programs:
+  an empty name, an object without this chapter's label (Application, project, namespace, pull
+  secret, repository secret, `ManagedEntity`), a Supervisor or guest cluster that does not
+  answer, a refused call (nothing is waited for), `Synced/Healthy` with the old image in the
+  Deployment or in a pod (not accepted), and no token on any command line.
+
+Phase 8, changed AFTER the lab walk and run only against stand-in `kubectl`, `curl`, `git` and
+`sleep` programs, in bash 5.3, zsh 5.9 and bash 3.2 (171 checks each; six planted defects made 18
+of them fail), not on a lab:
+
+- the pin block asks for `APP_REVISION` (it asked for `main` whatever was set) with
+  `GIT_TERMINAL_PROMPT=0`. Against GitHub, from a workstation: a branch prints one
+  `refs/heads/…` line, a commit prints nothing, a repository that does not exist or is private
+  answers with an error and no prompt;
+- *Create the project* reads `clusterResourceWhitelist[0].name` back and prints `STOP: …` when
+  it is not `APP_NAMESPACE`; *Create the Application* refuses a project that is missing or does
+  not hold that name. That an ArgoCD older than 3.4 drops the field (and does not refuse the
+  object) is NOT measured: the lab has 3.4.4, where the field is kept;
+- a guest cluster named like the vSphere Namespace is refused by the add block;
+- the pull secret block deletes no pod when the service account patch failed;
+- the new block under *If the Application will not go away* (it takes the finalizer off only
+  from an Application of this chapter that is already being deleted);
+- the removal order: `CLEANUP.md`'s table, one sentence at the top of step 9 of both ArgoCD
+  guides, and the chapter's own warning.
+
+What phase 8 takes from a source and has NOT measured: that ArgoCD leaves the namespace behind
+when the Application is deleted, and that an Application whose cluster or ArgoCD instance is gone
+stays until its finalizer is taken off (both read in upstream's documentation); that the ArgoCD
+Service's instance reads a repository secret `kubectl` creates in its vSphere Namespace; that an
+Edit user may create that secret, the project and the `ManagedEntity`; what
+`kubectl get argocd -o jsonpath='{.spec.version}'` prints for an instance (the chapter gives it
+as the way to read the version). The project needing the `Namespace` for `CreateNamespace=true`
+was read in v3.4.4's `sync_context.go` and `controller/sync.go`; the walk only shows that it
+works WITH the entry.
+
+**Open (D11), for phase 9:** Argo CD Image Updater is not measured. What is known is unchanged:
+its CRD-based releases cannot be installed on the Supervisor
+(`kubectl auth can-i create customresourcedefinitions`: no, measured on the lab), and running it
+in the guest cluster against the Supervisor's ArgoCD API has not been tried. `ARGOCD-app.md`
+therefore says "not covered" and claims nothing about it; the update it describes is "set the
+new digest".
+
+### Phase 9 (add-ons): three chapters; installs and checks walked, removals and options not
+
+`vks/addons/README.md`, `CERT-MANAGER.md`, `ISTIO.md` and `HEADLAMP.md`, with three files under
+`vks/addons/templates/` (`addoninstall.yaml`, shared by the three add-ons; `istio-gateway.yaml`;
+`headlamp-values.yaml`, for the helm chart). The document map above names `vks/templates/` for
+them, which is not where they are. Owner, 2026-10-10: add-ons are first class; every chapter
+leads with the VKS add-on and gives other ways after it.
+
+Walked on the lab (2026-10-10; VCF 9.1.1, VKS 3.7.2, guest v1.36.2; Linux, bash and zsh), every
+block as written:
+
+- `ISTIO.md`, end to end, in its first-round text: release list; install (taken up in 10 s);
+  size patch (worked in after 5 s); Ready after 45 s; `istiod` 1 of 1 at 1Gi, `istio-cni-node`
+  3 of 3, 3 webhooks; Gateway API there, `GatewayClass istio` accepted; gateway programmed in
+  10 s; the label dry run printing the `restricted` violation (`seccompProfile`); the app
+  through the gateway; the mesh option and its undo; remove; uninstall (no `istio-system`, 0
+  Istio object types).
+- `CERT-MANAGER.md`, on a cluster that already had the add-on under this guide's names:
+  settings (`4`); the check (`a VKS add-on, Ready=True`); the release list (seven); fill and dry
+  run; install (`unchanged`, `15 s: Ready=True`); the guest check (three deployments 1/1, three
+  CRDs); *Remove cert-manager* with Headlamp installed (the refusal).
+- `HEADLAMP.md`, add-on way, likewise already installed: settings (`11`); the cert-manager
+  check; fill; install (`unchanged`, `15 s: Ready=True`); *What the add-on put on the cluster*
+  (LoadBalancer on 443, `cluster-admin`, `privileged`); the read-only account (created; yes /
+  no / no / no, no kubectl warning); the token block; *Open the page* (HTTP 200, the same
+  fingerprint from the Secret `headlamp-tls-cert` and from the address).
+- `HEADLAMP.md`, helm way: all of it in the first round; *Create Headlamp's namespace* again
+  with the add-on installed (the refusal).
+- By hand, outside the chapters: the Headlamp add-on without cert-manager stays `Ready=False`
+  (`Expected to find kind 'cert-manager.io/v1/Issuer', but did not`); cert-manager from nothing
+  was Ready after 30 s, Headlamp after it in 20 s.
+
+NOT walked on a lab (stand-in `kubectl`, `helm`, `curl`, `sleep` only: 149 cases, each in bash
+and zsh):
+
+- the three remove blocks in their third-round form. Each now reads the `AddonInstall` AND the
+  `ClusterAddon` first; with both absent it cleans up (Headlamp: the read-only binding on the
+  guest and two files; the others: one file), also on a later run after a wait that timed out;
+  with only the `ClusterAddon` left it says VKS is still removing it. The stand-in cases run
+  that sequence (timed out, still going, gone). On a lab: none of the three has deleted
+  anything, and whether a `ClusterAddon` outlives its `AddonInstall` for a visible time is not
+  known;
+- `CERT-MANAGER.md`: an install from nothing through the chapter's own blocks; the remove once
+  Headlamp is gone (does it pass the `Certificate` guard); the "what is left" block (the chapter
+  expects no namespace and 0 object types);
+- `HEADLAMP.md`, add-on way: an install from nothing through the blocks; the install's refusal
+  on a cluster without cert-manager and on a cluster with the helm Headlamp; logging in to the
+  page in a browser with the read-only token (the warning's wording, the field and button
+  names, and that Headlamp accepts another account's token); the remove, and that VKS deletes
+  the namespace with the read-only account in it;
+- `HEADLAMP.md`, *Change the add-on's settings (optional)*, both blocks: **never run.** The two
+  settings are read from the add-on's schema. Unknown: whether a new `hostname` re-issues the
+  certificate and how long that takes; whether the Secret has `ca.crt`; what `gatewayApi.enabled`
+  creates beyond the schema's defaults and whether the `LoadBalancer` Service stays;
+- `ISTIO.md`: the changed uninstall block; the Service block as changed after the walk (it
+  notes the earlier type in an annotation); nothing about an app that ArgoCD deployed (the
+  chapter's two sentences on `selfHeal` are from ARGOCD-app.md's text, not from a run);
+- `HEADLAMP.md`, desktop: macOS `open -n -a Headlamp --args`, the `.deb` on Ubuntu.
+
+Not built from phase 9: the Image Updater measurement (D11). `check-vks-templates.sh` does not
+read `vks/addons/templates/`; that each template's variables equal the guides' `envsubst` lists
+was checked by hand.
 
 ## Gate: known gaps
 
@@ -265,6 +430,9 @@ None blocks a phase; each is a place where a green gate says nothing.
 
 - **HTML links:** `<img src="…">` and `<a href="…">` targets are not resolved; only markdown
   `[text](target)` and `![alt](target)` are.
+- **Step-number references:** no check. A reference by number that crosses files would pass.
+- **HTML comments:** not read. `README.md`, *Where to go next*, has two that name a chapter to
+  link once it exists.
 - **Emoji in a heading:** the anchor the gate computes for such a heading may differ from
   GitHub's. The guides have none today.
 - **`walk.sh remote`, dry run:** it does not check that local paths (`--env-file`,

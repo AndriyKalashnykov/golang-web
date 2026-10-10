@@ -37,7 +37,8 @@ The main guide's [terms](README.md#learn-the-terms) apply. New here:
 
 ## Gather what you need
 
-- Steps 1, 2 and 7 of [the main guide](README.md) done on this machine. You need no container
+- [The main guide](README.md) done on this machine, up to and including its
+  [Log in to the Supervisor](README.md#log-in-to-the-supervisor). You need no container
   engine and no Harbor for this guide. Step 8 uses Broadcom's `argocd` program, which step 1
   downloads and installs (an Intel/AMD Linux machine or any Mac; on another machine use step 8's
   alternative, which needs no program).
@@ -53,8 +54,8 @@ The main guide's [terms](README.md#learn-the-terms) apply. New here:
 
 Your Supervisor login from the main guide lasts about 10 hours. When a `kubectl` command in this
 guide answers `error: You must be logged in to the server (Unauthorized)`, run the main guide's
-*Renew the Supervisor login* block (step 7), then the command again. If you logged in with the
-certificate-checking alternative, use the renew block inside that alternative instead.
+[Renew the Supervisor login](README.md#renew-the-supervisor-login) block, then the
+command again. If you logged in with the certificate-checking alternative, use the renew block inside that alternative instead.
 
 ## 1. Download the ArgoCD files
 
@@ -365,6 +366,10 @@ For anything beyond trying this out, copy the `vks/argocd/guest-cluster` folder 
 repository of your own and use its address and commit in the Application and in step 6's
 project: then only you decide what ArgoCD applies.
 
+You need no `helm` program for this: ArgoCD renders the chart itself, from Git.
+[Where the chart lives and what changes when you host it yourself](ARGOCD.md#where-the-chart-lives-and-what-changes-when-you-host-it-yourself)
+lists everything to change for a repository of your own.
+
 ### Choose the cluster's values
 
 List what you can choose from. Three commands, three lists:
@@ -576,6 +581,9 @@ this block again. `current-context is not set`, then `context  does not exist in
 the first block of this step did not run, or `NEW_CLUSTER` is not set
 (`NEW_CLUSTER="<the name from step 7>"`).
 
+With the cluster a destination, ArgoCD can deploy this repository's app into it:
+[Deploy golang-web with ArgoCD](ARGOCD-app.md).
+
 ### How long this login lasts
 
 ArgoCD keeps a login for each destination. Which one it keeps depends on the kubeconfig you gave
@@ -655,6 +663,10 @@ name.
 </details>
 
 ## 9. Clean up (optional)
+
+If you deployed the app with ArgoCD ([ARGOCD-app.md](ARGOCD-app.md)), do that chapter's
+[Delete the Application](ARGOCD-app.md#delete-the-application) first: an Application can be
+deleted only while ArgoCD runs and still reaches the cluster.
 
 Do these in order. ArgoCD must still exist while it deletes the cluster, and the service must
 still exist while the instance is deleted.
@@ -790,8 +802,8 @@ if /usr/local/bin/argocd version --client 2>/dev/null | grep -q -e -vcf; then su
 
 | symptom | fix |
 |---|---|
-| `error: You must be logged in to the server (Unauthorized)` | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's *Renew the Supervisor login* block (step 7), then the command again. If you logged in with the certificate-checking alternative, use the renew block inside that alternative instead. |
-| `error: stat …supervisor.kubeconfig: no such file or directory`, or an empty `--kubeconfig` error | The block's first line did not run, or the main guide's step 7 was never done on this machine. |
+| `error: You must be logged in to the server (Unauthorized)` | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's [Renew the Supervisor login](README.md#renew-the-supervisor-login) block, then the command again. If you logged in with the certificate-checking alternative, use the renew block inside that alternative instead. |
+| `error: stat …supervisor.kubeconfig: no such file or directory`, or an empty `--kubeconfig` error | The block's first line did not run, or the main guide's [Log in to the Supervisor](README.md#log-in-to-the-supervisor) was never done on this machine. |
 | The browser refuses the ArgoCD page with no way to go on | Some company browsers forbid pages with a certificate they cannot check. Use [ARGOCD-auto.md](ARGOCD-auto.md), which needs no browser. |
 | A destination that worked for months now fails with a certificate or `Unauthorized` error | The certificate ArgoCD holds for it has ended. Step 8's *How long this login lasts* block shows the date; renew as described under it. |
 | The Application shows **OutOfSync** right after a sync | `kubernetesVersion` has a `-vkr.N` ending. Open the Application's **DETAILS** → **PARAMETERS**, remove the ending, save, and sync again. |

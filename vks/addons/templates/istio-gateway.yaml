@@ -1,0 +1,43 @@
+# The way in to golang-web through Istio. vks/addons/ISTIO.md fills this file with envsubst and
+# applies it to the GUEST cluster. Istio starts one proxy pod and one LoadBalancer Service for the
+# Gateway, named <gateway>-istio, in the Gateway's namespace.
+# Only /myhello is routed: the app's other paths are not reachable through the gateway.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: ${ISTIO_GATEWAY}
+  namespace: ${ISTIO_GATEWAY_NAMESPACE}
+  labels:
+    vks-golang-web/created-by: addons-guide
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: ${ISTIO_APP_NAMESPACE}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: golang-web
+  namespace: ${ISTIO_APP_NAMESPACE}
+  labels:
+    vks-golang-web/created-by: addons-guide
+spec:
+  parentRefs:
+    - name: ${ISTIO_GATEWAY}
+      namespace: ${ISTIO_GATEWAY_NAMESPACE}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /myhello
+      backendRefs:
+        - name: golang-web-service
+          port: 8080

@@ -7,8 +7,8 @@
 
 A Go HTTP server with Prometheus metrics, a health endpoint and Kubernetes pod identity,
 packaged as a multi-arch image with a KinD end-to-end harness. It is also the example app for the
-step-by-step guides that [deploy it onto VMware VKS](#deploy-onto-vmware-vks): build the
-image, push it to Harbor, run it on a VKS cluster.
+step-by-step guides that [deploy it onto VMware VKS](#deploy-onto-vmware-vks): run the
+published image on a VKS cluster, or build your own and push it to Harbor.
 
 | Component | Technology |
 |-----------|-----------|
@@ -640,19 +640,25 @@ When you are done, remove the token from this terminal with `unset REGISTRY_TOKE
 
 ## Deploy onto VMware VKS
 
-[`vks/README.md`](vks/README.md) takes this app from source code to a running service on
-VMware vSphere Kubernetes Service (VKS), step by step: build the image, push it to
-Harbor, and run it on a VKS cluster. A second guide, [`vks/ARGOCD.md`](vks/ARGOCD.md),
-installs ArgoCD on the Supervisor and creates a VKS cluster with it, by hand in the web
-pages or with scripts.
+[`vks/README.md`](vks/README.md) takes this app to a running service on VMware vSphere
+Kubernetes Service (VKS), block by block: set up your machine, log in to the Supervisor,
+check your vSphere Namespace and your VKS cluster, deploy the published image and open it.
+Its chapters create what you do not have yet, and add the other ways to deploy.
 
 The chapters, in the order to use them:
 
-1. [`vks/NAMESPACE.md`](vks/NAMESPACE.md): use or create a vSphere Namespace
-2. [`vks/CLUSTER.md`](vks/CLUSTER.md): create a guest cluster with kubectl
+1. [`vks/SETUP.md`](vks/SETUP.md): install the tools, on macOS and on Debian or Ubuntu
+2. [`vks/NAMESPACE.md`](vks/NAMESPACE.md): use or create a vSphere Namespace
 3. [`vks/HARBOR.md`](vks/HARBOR.md): use the Harbor you have, or install one on the Supervisor
-4. [`vks/README.md`](vks/README.md): build, push, deploy
-5. [`vks/ARGOCD.md`](vks/ARGOCD.md): ArgoCD on the Supervisor, and a cluster made with it
+4. [`vks/CLUSTER.md`](vks/CLUSTER.md): create a guest cluster with kubectl
+5. [`vks/README.md`](vks/README.md): deploy the published image and reach the app
+6. [`vks/REGISTRY.md`](vks/REGISTRY.md): build the image yourself, push it to Harbor, deploy it by digest
+7. [`vks/ARGOCD.md`](vks/ARGOCD.md): ArgoCD on the Supervisor, and a cluster made with it, by
+   hand in the web pages or with scripts
+8. [`vks/ARGOCD-app.md`](vks/ARGOCD-app.md): deploy the app as an ArgoCD Application
+9. [`vks/addons/README.md`](vks/addons/README.md): add-ons for the guest cluster, Headlamp and Istio
+10. [`vks/CLEANUP.md`](vks/CLEANUP.md): remove what the guides created
+11. [`vks/TROUBLESHOOTING.md`](vks/TROUBLESHOOTING.md): errors by their text, with the fix for each
 
 ## Architecture
 

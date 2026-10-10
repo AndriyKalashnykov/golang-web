@@ -1,7 +1,7 @@
 # Install Harbor onto Supervisor — by hand
 
 This guide installs the Harbor Supervisor Service on a vSphere Supervisor, gets Harbor a DNS
-name, and prepares it for [the main guide](README.md): a trusted CA, a project and a robot
+name, and prepares it for [REGISTRY.md](REGISTRY.md): a trusted CA, a project and a robot
 account. You click through the vSphere Client for the install; the files it needs, and
 everything after it, are short command blocks. It has 11 steps; step 11 is optional clean-up. It
 was written for VMware Cloud Foundation 9.1.1 and Harbor Service 2.15.2, and run on a Supervisor
@@ -396,9 +396,9 @@ create clusters, or in a maintenance window; see
 [Install Harbor before you create clusters](CLUSTER.md#install-harbor-before-you-create-clusters).
 
 **A second install, after an uninstall, makes a new Harbor**: it has a new address and a new CA.
-Afterwards have the DNS record changed (step 7), do the main guide's
-[Download and check the Harbor CA](README.md#download-and-check-the-harbor-ca) and
-[Install the CA for your engine](README.md#install-the-ca-for-your-engine) again
+Afterwards have the DNS record changed (step 7), do
+[Download and check the Harbor CA](REGISTRY.md#download-and-check-the-harbor-ca) and
+[Install the CA for your engine](REGISTRY.md#install-the-ca-for-your-engine) again
 (step 8), and create the project and the robot again (step 9).
 
 The install window has a box for the service's configuration. You paste your configuration file
@@ -641,14 +641,14 @@ step 7.
 
 ### Download the CA and trust it
 
-Now do three parts of [the main guide](README.md), in this order:
+Now do three parts of [REGISTRY.md](REGISTRY.md), in this order:
 
-1. [Download and check the Harbor CA](README.md#download-and-check-the-harbor-ca). The
+1. [Download and check the Harbor CA](REGISTRY.md#download-and-check-the-harbor-ca). The
    fingerprint it prints must equal the one printed above, ignoring colons and upper/lower case.
    If it differs, do not continue: the name leads to another server.
-2. [Install the CA for your engine](README.md#install-the-ca-for-your-engine), if you will push
+2. [Install the CA for your engine](REGISTRY.md#install-the-ca-for-your-engine), if you will push
    images from this machine.
-3. [Check the CA file](README.md#check-the-ca-file). It must print `http=200`.
+3. [Check the CA file](REGISTRY.md#check-the-ca-file). It must print `http=200`.
 
 ### Log in as admin
 
@@ -699,7 +699,7 @@ A new Harbor has one project, `library`. Images go into a project of your own.
 ### Create the project
 
 This creates the project named by `HARBOR_PROJECT`, as a **private** one (Harbor's default): the
-cluster then needs a pull secret, which the main guide creates. For a project anyone who reaches
+cluster then needs a pull secret, which [REGISTRY.md](REGISTRY.md) creates. For a project anyone who reaches
 Harbor may pull from without a login, change `false` to `true` before you run the block.
 
 ```sh
@@ -718,12 +718,12 @@ left as it is, also its public or private setting).
 
 ### Create a robot account and log in
 
-Do the main guide's [Option A — create a robot account](README.md#option-a--create-a-robot-account),
+Do [Option A — create a robot account](REGISTRY.md#option-a--create-a-robot-account),
 which makes a robot that may push to and pull from this project only, and put its name and secret
 in the env file as that section says. Then run
-[Log the container engine in to Harbor](README.md#log-the-container-engine-in-to-harbor).
+[Log the container engine in to Harbor](REGISTRY.md#log-the-container-engine-in-to-harbor).
 
-The main guide goes on from there: it builds the image, pushes it to this Harbor and deploys it.
+[REGISTRY.md](REGISTRY.md) goes on from there: it builds the image, pushes it to this Harbor and deploys it.
 
 ## 10. Check that a guest cluster can pull from Harbor
 
@@ -749,7 +749,8 @@ certificate.
 The block asks the cluster to start a pod from an image that does not exist in your project, and
 reads why the pull failed. *Not found* or *access denied* is the good answer: the node found
 Harbor, trusted it, and Harbor said no. Nothing has to be pushed first, and the pod never runs.
-The real proof is the main guide's deploy step, which pulls your image.
+The real proof is [Deploy the image you pushed](REGISTRY.md#deploy-the-image-you-pushed), which pulls
+your image.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -914,8 +915,8 @@ Run this when the Harbor is gone for good. It deletes the configuration file, th
 and the record step 1 made: after that, nobody can install this Harbor again with the same
 values. The secrets file is the only copy of the admin password, so the block deletes nothing
 while a Harbor is still on the Supervisor, or while it cannot check that. Ask for the DNS record
-to be removed too, and remove Harbor's CA from your machine with the main guide's
-*Remove the Harbor CA*.
+to be removed too, and remove Harbor's CA from your machine with
+[Remove the Harbor CA](CLEANUP.md#remove-the-harbor-ca).
 
 ```sh
 source ~/.vks-golang-web.env

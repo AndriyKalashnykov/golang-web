@@ -375,6 +375,21 @@ fixture; printf '# Shout\n\n```sh\nif then\n```\n' > "$D/vks/LOUD.MD"
 fixture; printf '# Long\n' > "$D/vks/sub/long.markdown"
                                                        run "a guide named *.markdown"              "[file] vks/sub/long.markdown: a markdown file the gate does not read"
 
+# 13 a guide in a subdirectory (vks/addons/) gets every block check, and its table row and its
+# allowlist entries are written with the directory: `sub/DEEP.md`
+deep() { printf '# Deep\n\n```sh\n%s\n```\n%b' "$1" "$2" > "$D/vks/sub/DEEP.md"; }
+fixture; deep 'echo ok' '\n**Expect:** ok.\n';         run "subdirectory: a correct guide"         pass
+fixture; deep 'if then' '\n**Expect:** ok.\n';         run "subdirectory: block that does not parse" "[syntax] vks/sub/DEEP.md:4: the block does not parse in bash"
+fixture; deep 'echo ok # why' '\n**Expect:** ok.\n';   run "subdirectory: comment in a block"      "[comment] vks/sub/DEEP.md:4: a comment on a command line"
+fixture; deep 'echo "$APP_HOST"' '\n**Expect:** ok.\n'; run "subdirectory: env variable without the source line" "[env] vks/sub/DEEP.md:4: uses APP_HOST, which ~/.fx.env provides"
+fixture; deep 'echo ok' '';                            run "subdirectory: block without an Expect" "[expect] vks/sub/DEEP.md:4: no **Expect:**"
+fixture; deep 'echo ok' ''; echo 'expect | sub/DEEP.md | a reason | echo ok' > "$D/allow"
+                                                       run "subdirectory: allowed finding, file written with its directory" pass
+fixture; deep 'echo ok' ''; echo 'expect | DEEP.md | a reason | echo ok' > "$D/allow"
+                                                       run_has "subdirectory: an allowlist entry without the directory allows nothing" "this entry allows nothing any more"
+fixture; RECOUNT=0; recount; deep 'echo ok' '\n**Expect:** ok.\n'
+                                                       run "subdirectory: new guide with a block, not in the table" "add the line 'sub/DEEP.md 1'"
+
 # The repository's own guides pass, with the table and the allowlist it ships.
 out=$(cd "$ROOT" && env -u CI bash "$SCRIPT" 2>&1); rc=$?; cases=$((cases + 1))
 if [ "$rc" -eq 0 ] && grep -q '^check-vks-docs: checked [1-9][0-9]* block(s) in [1-9][0-9]* file(s); 0 error(s)' <<<"$out"; then

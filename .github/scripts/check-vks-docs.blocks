@@ -2,12 +2,21 @@
 #   <file relative to vks/> <number of sh blocks>
 # A new guide: add its line; 0 for a guide with no sh block (a chooser such as ARGOCD.md).
 # A block added or removed: change the number. The gate prints the line to write.
+ARGOCD-app.md 20
 ARGOCD-auto.md 23
 ARGOCD-manual.md 28
 ARGOCD.md 0
+CLEANUP.md 8
 CLUSTER.md 17
 HARBOR-auto.md 23
 HARBOR-manual.md 23
 HARBOR.md 0
 NAMESPACE.md 15
-README.md 55
+README.md 22
+REGISTRY.md 16
+SETUP.md 20
+TROUBLESHOOTING.md 0
+addons/CERT-MANAGER.md 9
+addons/HEADLAMP.md 26
+addons/ISTIO.md 19
+addons/README.md 1
