@@ -19,7 +19,8 @@
 # An alias takes the place of the real owner of an address. `up` therefore refuses, before any
 # change, a lab IP that is this Mac's default gateway, one of its DNS resolvers, one of its own
 # addresses or inside the network of one of its interfaces, and names what it collided with.
-# `--allow-onlink <ip>` overrides that for one address.
+# When the gateway, the resolvers or the interfaces cannot be read it refuses too, and says
+# which. `--allow-onlink <ip>` overrides both for one address.
 #
 # Ownership: everything `up` creates is written to
 #   ${XDG_STATE_HOME:-$HOME/.local/state}/vks-mac-route/state
@@ -285,16 +286,33 @@ EOF
 int2ip() { echo "$((($1 >> 24) & 255)).$((($1 >> 16) & 255)).$((($1 >> 8) & 255)).$(($1 & 255))"; }
 
 # What an alias could shadow. Read once, before any change.
-NET_GW=""; NET_DNS=""; NET_IF=""
+# A source that fails, or in which nothing is found, is named in NET_UNREAD: the check then
+# cannot tell, and `up` refuses instead of passing an empty list.
+NET_GW=""; NET_DNS=""; NET_IF=""; NET_UNREAD=""
 read_network() {
-  NET_GW=$("$ROUTE" -n get default 2>/dev/null | awk '$1 == "gateway:" { print $2; exit }')
-  NET_DNS=$("$SCUTIL" --dns 2>/dev/null | awk '$1 ~ /^nameserver\[/ { print $3 }' | sort -u)
-  NET_IF=$("$IFCONFIG" -a 2>/dev/null | awk '
+  local out
+  NET_UNREAD=""
+  if out=$("$ROUTE" -n get default 2>/dev/null); then
+    NET_GW=$(printf '%s\n' "$out" | awk '$1 == "gateway:" { print $2; exit }')
+  fi
+  [ -n "$NET_GW" ] || NET_UNREAD="$NET_UNREAD, the default gateway (route -n get default)"
+  if out=$("$SCUTIL" --dns 2>/dev/null); then
+    NET_DNS=$(printf '%s\n' "$out" | awk '$1 ~ /^nameserver\[/ { print $3 }' | sort -u)
+  fi
+  [ -n "$NET_DNS" ] || NET_UNREAD="$NET_UNREAD, the DNS resolvers (scutil --dns)"
+  if out=$("$IFCONFIG" -a 2>/dev/null); then
+    NET_IF=$(printf '%s\n' "$out" | net_interfaces)
+  fi
+  [ -n "$NET_IF" ] || NET_UNREAD="$NET_UNREAD, the interfaces' addresses (ifconfig -a)"
+  NET_UNREAD=${NET_UNREAD#, }
+}
+net_interfaces() {
+  awk '
     /^[^ \t]/ { iface = $1; sub(/:$/, "", iface); next }
     $1 == "inet" && iface != "lo0" {
       mask = "-"; peer = "-"
       for (i = 3; i <= NF; i++) { if ($i == "netmask") mask = $(i + 1); if ($i == "-->") peer = $(i + 1) }
-      print iface, $2, mask, peer }')
+      print iface, $2, mask, peer }'
 }
 
 # onlink <ip>: 0 when an lo0 alias for it shadows nothing this Mac uses; else 1 with REASON
@@ -890,6 +908,7 @@ cmd_up() {
   read_network
   for ip in $(printf '%s' "$FWD" | awk 'NF { print $1 }' | sort -u); do
     for a in $ALLOW; do [ "$a" = "$ip" ] && continue 2; done
+    [ -z "$NET_UNREAD" ] || die "refused: cannot tell whether an lo0 alias for $ip would take the place of an address this Mac uses: could not read $NET_UNREAD. Nothing was changed. Only if you know that it does not: --allow-onlink $ip"
     onlink "$ip" || die "refused: $REASON; an lo0 alias would take its place on this Mac. Nothing was changed. Only if that is what you want: --allow-onlink $ip"
   done
 
@@ -1035,9 +1054,9 @@ cmd_status() {
     say "no state file ($STATE): this script has nothing up."
     [ -f "$STATE_DIR/hosts.backup" ] && say "a backup of the hosts file from an earlier run is kept: $STATE_DIR/hosts.backup"
     [ -d "$LOCK" ] && say "a lock is held: $LOCK (PID $(cat "$LOCK/pid" 2>/dev/null))"
-    leftovers || return 1
-    say "no leftovers found."
-    return 0
+    damaged && rc=1
+    if leftovers; then say "no leftovers found."; else rc=1; fi
+    return $rc
   fi
   state_audit
   [ "$STATE_BAD" -eq 0 ] || rc=1
@@ -1072,9 +1091,24 @@ EOF
     tunnel_line "$(state_forwards)"
   fi
   leftovers || rc=1
+  damaged && rc=1
   if [ $rc -eq 0 ]; then say "all of it is up. Undo it: $SELF down"
   else say "NOT all of it is up (see above). Start again with \`$SELF up …\`, or undo it: $SELF down"; fi
   return $rc
+}
+
+# damaged: 0 when a run left a copy of the hosts file that it could not put back; says where
+# the copies are and what to do. `status` and `down` end with status 1 while one exists.
+damaged() {
+  local f found=1
+  for f in "$STATE_DIR"/hosts.snap.*; do
+    [ -e "$f" ] || continue
+    found=0
+    say "hosts  !!! A RUN COULD NOT FINISH WRITING $HOSTS AND COULD NOT RESTORE IT. What it held before that run is kept in $f"
+    say "hosts  !!! the hosts file from before this script's first change is kept in $STATE_DIR/hosts.backup"
+    say "hosts  !!! look at the difference (diff $f $HOSTS), put it back (sudo cp $f $HOSTS), then delete that copy (rm $f) and run: $SELF down"
+  done
+  return $found
 }
 
 # --- down -------------------------------------------------------------------------------------
@@ -1117,6 +1151,7 @@ cmd_down() {
       if down_backup ""; then rm -rf "$LOCK"; LOCKED=0; rmdir "$STATE_DIR" 2>/dev/null; fi
     fi
     leftovers || true
+    damaged && return 1
     return 0
   fi
   lock
@@ -1197,12 +1232,14 @@ EOF
     fi
     leftovers || true
     say "the tunnels are the owner's: he ends his ssh on the lab host."
+    damaged && return 1
     return 0
   fi
   rm -f "$pre"
   say "NOT everything was removed. What is left is still recorded in $STATE:"
   sed 's/^/  /' "$STATE"
   [ ! -f "$STATE_DIR/hosts.backup" ] || say "the first original of the hosts file is kept: $STATE_DIR/hosts.backup"
+  damaged
   return 1
 }
 

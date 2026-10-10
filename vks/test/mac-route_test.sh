@@ -58,7 +58,7 @@ lo0() {
 }
 case "$*" in
   lo0) lo0 ;;
-  -a) lo0; cat "$FAKE/ifaces" ;;
+  -a) [ -z "${FAKE_IFCONFIG_A_FAIL:-}" ] || exit 1; lo0; cat "$FAKE/ifaces" ;;
   "lo0 alias "*" netmask 255.255.255.255")
     [ $# -eq 5 ] || exit 64
     [ -n "${FAKE_IFCONFIG_FAIL:-}" ] && exit 1
@@ -158,7 +158,7 @@ ST=$SD/state
 reset_fakes() {
   local p
   while read -r p; do [ -n "$p" ] && kill "$p" 2>/dev/null; done < "$F/pids"
-  : > "$F/pids"; : > "$F/sudo.log"; : > "$F/py.log"; : > "$F/dns"; : > "$F/gateway"; rm -f "$F/cp.once" "$F/py.stdin"
+  : > "$F/pids"; : > "$F/sudo.log"; : > "$F/py.log"; echo 172.20.10.1 > "$F/dns"; echo 172.20.10.1 > "$F/gateway"; rm -f "$F/cp.once" "$F/py.stdin"
   printf '%s\n' 192.168.101.128 > "$F/lo0"
   printf '%s\n' 18443 18444 18445 18446 > "$F/listening"
   printf 'en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500\n\tinet6 fe80::1%%en0 prefixlen 64\n\tinet 172.20.10.5 netmask 0xfffffff0 broadcast 172.20.10.15\n' > "$F/ifaces"
@@ -292,11 +292,11 @@ echo 192.168.100.50 > "$F/gateway"
 mr X=1 -- up "${ONE[@]}"
 has "the default gateway: refused, with what it collided with" "$rc $out" "2 mac-route: refused: 192.168.100.50 is this Mac's default gateway (route -n get default); an lo0 alias would take its place on this Mac. Nothing was changed. Only if that is what you want: --allow-onlink 192.168.100.50"
 unchanged "the default gateway"
-: > "$F/gateway"; printf '%s\n' 9.9.9.9 192.168.100.50 > "$F/dns"
+echo 172.20.10.1 > "$F/gateway"; printf '%s\n' 9.9.9.9 192.168.100.50 > "$F/dns"
 mr X=1 -- up "${ONE[@]}"
 has "a DNS resolver: refused" "$rc $out" "2 mac-route: refused: 192.168.100.50 is a DNS resolver of this Mac (scutil --dns); an lo0 alias would take its place"
 unchanged "a DNS resolver"
-: > "$F/dns"; printf 'en1: flags=8863<UP> mtu 1500\n\tinet 192.168.100.50 netmask 0xffffffff broadcast 192.168.100.50\n' >> "$F/ifaces"
+echo 172.20.10.1 > "$F/dns"; printf 'en1: flags=8863<UP> mtu 1500\n\tinet 192.168.100.50 netmask 0xffffffff broadcast 192.168.100.50\n' >> "$F/ifaces"
 mr X=1 -- up "${ONE[@]}"
 has "the Mac's own address: refused" "$rc $out" "2 mac-route: refused: 192.168.100.50 is this Mac's own address on en1; an lo0 alias would take its place"
 unchanged "the Mac's own address"
@@ -324,6 +324,36 @@ printf 'en1: flags=8863<UP> mtu 1500\n\tinet 192.168.7.1 netmask 255.255.255.0\n
 mr X=1 -- up "${ONE[@]}"
 has "a netmask it cannot read: refused, not guessed" "$rc $out" "2 mac-route: refused: cannot read the netmask '255.255.255.0' of en1 (192.168.7.1), so 192.168.100.50 cannot be checked against it"
 unchanged "an unreadable netmask"
+
+# what the check reads cannot be read: it cannot tell, so it refuses and says which
+CANT="mac-route: refused: cannot tell whether an lo0 alias for 192.168.100.50 would take the place of an address this Mac uses: could not read"
+reset_fakes; : > "$F/gateway"
+mr X=1 -- up "${ONE[@]}"
+has "route fails: refused, naming it" "$rc $out" "2 $CANT the default gateway (route -n get default). Nothing was changed. Only if you know that it does not: --allow-onlink 192.168.100.50"
+unchanged "route fails"
+reset_fakes; : > "$F/dns"
+mr X=1 -- up "${ONE[@]}"
+has "scutil names no resolver: refused, naming it" "$rc $out" "2 $CANT the DNS resolvers (scutil --dns). Nothing was changed."
+unchanged "scutil names no resolver"
+reset_fakes
+mr FAKE_IFCONFIG_A_FAIL=1 -- up "${ONE[@]}"
+has "ifconfig -a fails: refused, naming it" "$rc $out" "2 $CANT the interfaces' addresses (ifconfig -a). Nothing was changed."
+unchanged "ifconfig -a fails"
+printf 'en0: flags=8863<UP> mtu 1500\n\tinet6 fe80::1%%en0 prefixlen 64\n' > "$F/ifaces"
+mr X=1 -- up "${ONE[@]}"
+has "ifconfig -a shows no interface address but lo0's: refused, naming it" "$rc $out" "2 $CANT the interfaces' addresses (ifconfig -a). Nothing was changed."
+unchanged "no interface address"
+: > "$F/gateway"; : > "$F/dns"
+mr X=1 -- up "${ONE[@]}"
+has "none of the three can be read: all three are named" "$rc $out" "2 $CANT the default gateway (route -n get default), the DNS resolvers (scutil --dns), the interfaces' addresses (ifconfig -a). Nothing was changed."
+unchanged "none of the three"
+mr X=1 -- up "${ONE[@]}" --forward 192.168.100.60:443:18444 --allow-onlink 192.168.100.50
+has "unreadable, --allow-onlink for one of two: the other is still refused" "$rc $out" "2 mac-route: refused: cannot tell whether an lo0 alias for 192.168.100.60 would take"
+unchanged "unreadable, --allow-onlink for one of two"
+mr X=1 -- up "${ONE[@]}" --allow-onlink 192.168.100.50
+eq "unreadable, --allow-onlink for the address: it is forwarded" "$rc" 0
+has "unreadable, --allow-onlink: its alias is added" "$out" "mac-route: alias  192.168.100.50 on lo0: added"
+mr X=1 -- down
 
 # --- the state directory and the lock ---------------------------------------------------------
 reset_fakes
@@ -640,15 +670,33 @@ has "cp empties the file and fails, twice: says loudly that the file is damaged"
 has "… with the command that puts it back" "$out" "mac-route: hosts  !!! put it back by hand, now: sudo cp $snap $T/hosts"
 cmp -s "$snap" "$T/hosts.orig" && ok "… and that file holds the original" || bad "… and that file holds the original" "differs"
 eq "(the stand-in did leave the hosts file empty)" "$(wc -c < "$T/hosts" | tr -d ' ')" 0
+DMG1="mac-route: hosts  !!! A RUN COULD NOT FINISH WRITING $T/hosts AND COULD NOT RESTORE IT. What it held before that run is kept in $snap"
+DMG2="mac-route: hosts  !!! the hosts file from before this script's first change is kept in $SD/hosts.backup"
+DMG3="mac-route: hosts  !!! look at the difference (diff $snap $T/hosts), put it back (sudo cp $snap $T/hosts), then delete that copy (rm $snap) and run: $MR down"
+mr X=1 -- status
+eq "status while the hosts file is damaged: exit 1" "$rc" 1
+has "status while damaged: names the copy from before the failed run" "$out" "$DMG1"
+has "status while damaged: names the backup" "$out" "$DMG2"
+has "status while damaged: the sudo cp that puts it back" "$out" "$DMG3"
 mr X=1 -- down
+eq "down while the hosts file is damaged: exit 1" "$rc" 1
+has "down while damaged: names the copy from before the failed run" "$out" "$DMG1"
+has "down while damaged: names the backup" "$out" "$DMG2"
+has "down while damaged: the sudo cp that puts it back" "$out" "$DMG3"
 has "down after a damaged hosts file: the backup is KEPT" "$out" "mac-route: hosts  the backup $SD/hosts.backup is KEPT: a run could not finish writing $T/hosts, and what it held before is in $snap"
 cmp -s "$SD/hosts.backup" "$T/hosts.orig" && ok "… the backup still holds the original" || bad "… the backup still holds the original" "differs or gone"
 cmp -s "$snap" "$T/hosts.orig" && ok "… and so does the copy from before the failed run" || bad "… and so does the copy from before the failed run" "differs or gone"
 eq "… while its aliases and relays are removed" "$(cat "$F/lo0")" 192.168.101.128
 mr X=1 -- down
 [ -f "$SD/hosts.backup" ] && ok "… and a second down keeps it too" || bad "… and a second down keeps it too" "gone"
+eq "… and a second down (no state file left) still exits 1" "$rc" 1
+has "… and still says how to put the file back" "$out" "$DMG3"
+mr X=1 -- status
+eq "… and status (no state file left) still exits 1" "$rc" 1
+has "… and still names the copy" "$out" "$DMG1"
 cp "$snap" "$T/hosts"; rm "$snap"
 mr X=1 -- down
+eq "… once the file is put back and that copy deleted: down exits 0" "$rc" 0
 [ ! -e "$SD" ] && ok "… until the file is put back and that copy deleted: then the state directory goes" || bad "… then the state directory goes" "$(ls -a "$SD")"
 
 # --- the state file is never left short -------------------------------------------------------

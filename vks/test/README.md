@@ -164,8 +164,11 @@ What to know:
 - **An alias takes an address away from its real owner.** Before any change `up` refuses a lab
   IP that is the Mac's default gateway, one of its DNS resolvers, one of its own addresses, or
   inside the network of one of its interfaces, and says what it collided with. On a Mac whose
-  own network overlaps the lab's, that is every forward. `--allow-onlink <ip>` lets one address
-  through; give it only when the Mac needs nothing at that address during the walk.
+  own network overlaps the lab's, that is every forward. When the gateway
+  (`route -n get default`), the resolvers (`scutil --dns`) or the interfaces (`ifconfig -a`)
+  cannot be read, it cannot tell and refuses as well, naming which one. `--allow-onlink <ip>`
+  lets one address through in both cases; give it only when the Mac needs nothing at that
+  address during the walk.
 - **Root.** The alias, a relay on a port below 1024 and the `/etc/hosts` change need root. Only
   `sudo -n` is used, and what it runs is named by absolute path. When sudo would ask for a
   password the script stops before changing anything and says to run `sudo -v` first. It reads
@@ -184,7 +187,9 @@ What to know:
   the expected number of lines, every other line still there); after it, the result is
   compared. When the copy or the compare fails, what the file held before that run is copied
   back and the script says whether that worked; when it did not, it prints the `sudo cp` line
-  that restores it from the copy it kept.
+  that restores it from the copy it kept (`hosts.snap.*` in the state directory). While such
+  a copy exists, `status` and `down` end with status 1 and print where that copy and the
+  backup are and the same `sudo cp` line; put the file back, delete the copy, run `down`.
 - **`hosts.backup`** in the state directory is the hosts file from before the first change.
   `down` deletes it, and the state directory, only when the hosts file then has no marked line
   and still has every other line it had before that `down`. Otherwise both stay and `down`
