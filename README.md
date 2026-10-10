@@ -711,6 +711,7 @@ Intel Macs are not covered.
 | `make static-check` | Runs the linters and security scanners only |
 | `make ci-run` | Runs the GitHub Actions workflow on this machine with [act](https://github.com/nektos/act) (needs Docker) |
 | `make check-env` | Fails if `.env.example` misses a setting the Makefile or the Go code reads |
+| `make check-vks-docs` | Fails if a guide under `vks/` has a block that does not parse, lacks its **Expect**, uses a setting without loading the env file, or has a broken link |
 | `make check-kind-kubeconfig` | Fails if a KinD or e2e command could read or write your own kubeconfig instead of the cluster's own file, or if the default of `KIND_KUBECONFIG` is not an absolute path. Starts no cluster. |
 | `make release` | Asks for a new `vX.Y.Z` tag, writes it to `version.txt`, commits, tags and pushes. The tag starts the CI job that publishes and signs the image. |
 

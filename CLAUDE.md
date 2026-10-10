@@ -28,9 +28,10 @@ command line > shell > `.env` > default). act is told to ignore `.env`.
 make deps           # Install the pinned toolchain via mise (.mise.toml)
 make build          # Build the Go binary
 make test           # Run tests with coverage
-make static-check   # All quality + security checks (check-env, check-kind-kubeconfig, check-toolchain-alignment, lint-ci, lint, sec, vulncheck, secrets, trivy-fs, trivy-config, diagrams-check, scripts-test)
+make static-check   # All quality + security checks (check-env, check-kind-kubeconfig, check-vks-docs, check-toolchain-alignment, lint-ci, lint, sec, vulncheck, secrets, trivy-fs, trivy-config, diagrams-check, scripts-test)
 make check-env      # .env.example documents every setting the Makefile and Go code read
 make check-kind-kubeconfig  # kind-*/e2e use only KIND_KUBECONFIG (~/.kube/kind-golang-web.yaml), never the ambient kubeconfig; reads `make -n`, starts nothing
+make check-vks-docs # The vks/ guides: every `sh` block parses (bash, zsh), has an Expect, sources its env file; links resolve; prints "checked N block(s) in M file(s)"
 make format         # Auto-format Go source files
 make ci             # Full local CI pipeline (deps, deps-verify, format, deps-prune-check, static-check, coverage-check, build)
 make ci-run         # Run GitHub Actions workflow locally via act (jobs in the Docker engine's arch; ACT_ARCH overrides)
@@ -69,7 +70,8 @@ make version        # Print current version tag
 - `k8s/kind-config.yaml` -- KinD cluster configuration
 - `.mise.toml` -- **tool version single source of truth** (Renovate-tracked)
 - `.env.example` -- every setting, commented (`make check-env` keeps it complete); `.env` is gitignored
-- `.github/scripts/` -- `check-env.sh`, `check-kind-kubeconfig.sh` and `ghcr-prune-untagged.sh`, each with a `_test.sh`, and `k8s-context-guard_test.sh` (the `k8s-apply`/`k8s-delete` context guard), all run by `make scripts-test`
+- `.github/scripts/` -- `check-env.sh`, `check-kind-kubeconfig.sh`, `check-vks-docs.sh` (with its allowlist `check-vks-docs.allow` and its table of guides `check-vks-docs.blocks`: a new guide under `vks/` needs one line there) and `ghcr-prune-untagged.sh`, each with a `_test.sh`, and `k8s-context-guard_test.sh` (the `k8s-apply`/`k8s-delete` context guard), all run by `make scripts-test`
+- `vks/test/` -- `walk.sh`, the harness that extracts and runs the guides' blocks (the gate uses its extractor), with `walk_test.sh`
 - `.github/workflows/` -- CI and cleanup. The two Claude workflows are
   present but `.disabled` (see the Upgrade Backlog for why and how to restore)
 - `.github/CODEOWNERS` -- Workflow file protection (requires owner review)

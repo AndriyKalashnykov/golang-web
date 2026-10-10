@@ -175,6 +175,24 @@ tunnels.
 | 9 | Add-ons: Headlamp (Desktop, chart), Istio (install, gateway namespace, route); the Image Updater measurement | Headlamp serves view-only under `restricted`; the app answers through the gateway; the main flow is unchanged without add-ons |
 | 10 | Full walk from a BARE lab on Ubuntu and on the Mac, every door; tested-platforms record; final adversary over the whole | one clean pass per OS |
 
+## Gate: known gaps
+
+What `make check-vks-docs` and `vks/test/walk.sh` do not cover after the review of 2026-10-10.
+None blocks a phase; each is a place where a green gate says nothing.
+
+- **HTML links:** `<img src="…">` and `<a href="…">` targets are not resolved; only markdown
+  `[text](target)` and `![alt](target)` are.
+- **Emoji in a heading:** the anchor the gate computes for such a heading may differ from
+  GitHub's. The guides have none today.
+- **`walk.sh remote`, dry run:** it does not check that local paths (`--env-file`,
+  `--workdir`) exist on the far side before the real run.
+- **`walk.sh container`:** an `--env-file` path with a space breaks the mount list (`$mounts`
+  is built unquoted).
+- **bash 3.2 and BSD awk:** neither script has run under them. The owner runs the harness on
+  the Mac; that run is the proof.
+- **zsh in CI:** the CI job has no zsh, so `zsh -n` runs only locally (`vks/HANDOFF.md`, "The
+  doc gate").
+
 ## Risks to a customer walk (from the review)
 
 1. **Rights:** the reader lacks vCenter rights for a namespace, **Manage Supervisor Services**
