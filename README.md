@@ -655,8 +655,10 @@ The chapters, in the order to use them:
 6. [`vks/REGISTRY.md`](vks/REGISTRY.md): build the image yourself, push it to Harbor, deploy it by digest
 7. [`vks/ARGOCD.md`](vks/ARGOCD.md): ArgoCD on the Supervisor, and a cluster made with it, by
    hand in the web pages or with scripts
-8. [`vks/CLEANUP.md`](vks/CLEANUP.md): remove what the guides created
-9. [`vks/TROUBLESHOOTING.md`](vks/TROUBLESHOOTING.md): errors by their text, with the fix for each
+8. [`vks/ARGOCD-app.md`](vks/ARGOCD-app.md): deploy the app as an ArgoCD Application
+9. [`vks/addons/README.md`](vks/addons/README.md): add-ons for the guest cluster, Headlamp and Istio
+10. [`vks/CLEANUP.md`](vks/CLEANUP.md): remove what the guides created
+11. [`vks/TROUBLESHOOTING.md`](vks/TROUBLESHOOTING.md): errors by their text, with the fix for each
 
 ## Architecture
 

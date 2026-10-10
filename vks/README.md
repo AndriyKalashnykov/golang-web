@@ -731,14 +731,14 @@ The chapters, in the order to use them. Each says what it needs and where it lea
    install one, do it before chapter 4 where you can: an install replaces the nodes of every
    cluster.
 4. [CLUSTER.md](CLUSTER.md): create a guest cluster with kubectl.
-5. This guide, from [Deploy the app](#deploy-the-app): run the published image.
+5. [Deploy the app](#deploy-the-app), on this page: run the published image on your cluster and
+   reach it.
 6. [REGISTRY.md](REGISTRY.md): build the image yourself, push it to Harbor and run that one.
 7. [ARGOCD.md](ARGOCD.md): install ArgoCD on the Supervisor and create a guest cluster with
    it, [by hand](ARGOCD-manual.md) in the vSphere Client and the ArgoCD web page, or
    [with scripts](ARGOCD-auto.md).
-8. `ARGOCD-app.md`: deploy the app as an ArgoCD Application.
-   <!-- link when merged: ARGOCD-app.md -->
-9. `addons/README.md`: add-ons for the guest cluster, Headlamp and Istio.
-   <!-- link when merged: addons/README.md -->
+8. [ARGOCD-app.md](ARGOCD-app.md): deploy the app as an ArgoCD Application.
+9. [addons/README.md](addons/README.md): add-ons for the guest cluster, [Headlamp](addons/HEADLAMP.md)
+   and [Istio](addons/ISTIO.md).
 10. [CLEANUP.md](CLEANUP.md): remove what these guides created.
 11. [TROUBLESHOOTING.md](TROUBLESHOOTING.md): errors by their text, with the fix for each.

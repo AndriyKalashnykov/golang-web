@@ -339,6 +339,51 @@ in the guest cluster against the Supervisor's ArgoCD API has not been tried. `AR
 therefore says "not covered" and claims nothing about it; the update it describes is "set the
 new digest".
 
+### Phase 9 (add-ons): built, nothing walked on a lab
+
+`vks/addons/README.md`, `HEADLAMP.md` and `ISTIO.md`, with three files under
+`vks/addons/templates/` (`headlamp-values.yaml`, `addoninstall.yaml`, `istio-gateway.yaml`; the
+document map above names `vks/templates/` for them, which is not where they are). **No block of
+these chapters has run against a Supervisor or a guest cluster.**
+
+Done without a lab (2026-10-10, Linux):
+
+- the gate: 39 blocks in the three files, 0 errors, no allowlist entry;
+- every block that guards, waits or deletes ran against stand-in `kubectl`, `helm`, `curl` and
+  `sleep` programs, 80 cases, each in bash and zsh with equal output (refusals call nothing that
+  changes anything; waits end on the answer and on the limit). Three guards were removed in turn
+  and the cases went red;
+- Headlamp chart 0.45.0 rendered with `helm template` and the values file: the pod spec meets
+  each rule of Pod Security `restricted` (checked rule by rule with `yq` and `jq`; the chart's
+  defaults fail three of them), and the binding's role is `view`;
+- `istio-gateway.yaml` validates against the Gateway API v1 schemas (`kubeconform -strict`).
+  `addoninstall.yaml` has no public schema: its fields are the ones `nested-vsphere-lab`
+  (`stages/nested-vsphere/workload.sh`, `_wl_render_addoninstall`) applies on its lab.
+
+Walk first, in this order, because a later block depends on what an earlier one shows:
+
+1. ISTIO: *Choose the Istio release* (the release names' form), *Fill and check*, *Install Istio*
+   (does VKS set `.spec.clusterName` on the `AddonConfig` it makes: the next block's guard reads
+   it), *Set Istio's size* (the JSON patch on `/spec/values`; `status.outputHash` changing),
+   *Wait*, *Check Istio on the guest cluster* (the names `istiod` and `istio-cni-node`).
+2. ISTIO: *Check that the cluster can make gateways* (is the Gateway API on a 3.7.2 cluster by
+   default; is `GatewayClass istio` there), the gateway's namespace, the gateway and route, the
+   `--dry-run=server` label check (which of its two answers this Istio gives), *Reach the app*.
+3. ISTIO: the Service patch to `ClusterIP` and back; the mesh option under `restricted`;
+   *Uninstall Istio* and what it leaves (the chapter expects no Istio CRDs and no namespace).
+4. HEADLAMP, helm: the server dry run, the install under `restricted` (the pod runs with a
+   read-only root filesystem: not proven to start), the four `can-i` answers, token login in the
+   page (the field and button names are from memory).
+5. HEADLAMP, desktop: macOS (`open -n -a Headlamp --args`, and whether the app gets `KUBECONFIG`)
+   and the `.deb` on Ubuntu.
+6. HEADLAMP *As a VKS add-on*: every block; keep or cut the section on the result. Unknown: the
+   release's name, the namespace, account and Service names, and whether cert-manager is needed.
+
+Not built from phase 9: the Image Updater measurement (D11). `check-vks-templates.sh` does not
+read `vks/addons/templates/`; that each template's variables equal the guides' `envsubst` lists
+was checked by hand. `SETUP.md` does not exist yet, so HEADLAMP's *Check helm* points at helm's
+own install page.
+
 ## Gate: known gaps
 
 What `make check-vks-docs` and `vks/test/walk.sh` do not cover after the review of 2026-10-10.

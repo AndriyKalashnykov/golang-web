@@ -26,7 +26,7 @@ The terms *Application*, *destination*, *project* and *sync* are explained in th
   saved. Either the ArgoCD guide created it (*Create a guest cluster with ArgoCD*), or you did
   with [CLUSTER.md](CLUSTER.md). In both cases finish with *Get the cluster's kubeconfig* in
   [CLUSTER.md](CLUSTER.md).
-- **An image.** Either the image you built and pushed to your Harbor (you need its digest;
+- **An image.** Either the image you built and pushed to your Harbor ([REGISTRY.md](REGISTRY.md); you need its digest;
   *Choose the image* below looks it up), or the published image on `ghcr.io`, which needs no
   Harbor: the guest cluster's nodes must then reach `ghcr.io`.
 - The Supervisor must reach the Git repository (`github.com` for this one): ArgoCD reads the
@@ -226,7 +226,7 @@ fi
 
 **Expect:** one line, `export APP_IMAGE="<Harbor's name>/<project>/golang-web@sha256:…"`.
 
-**If not:** `NOT FOUND: …` explains itself; build and push the image first (the main guide).
+**If not:** `NOT FOUND: …` explains itself; build and push the image first ([REGISTRY.md](REGISTRY.md)).
 
 Open the env file and replace the `export APP_IMAGE=""` line with the printed line.
 

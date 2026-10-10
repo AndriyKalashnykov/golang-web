@@ -21,20 +21,19 @@ hasnt() { if grep -qF -- "$3" <<<"$2"; then bad "$1" "did not want '$3' in: $2";
 eq()   { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "got '$2', want '$3'"; fi; }
 
 # --- extraction of the real guides: the counts the gate's floors were set from ---------------
-for pair in README.md:22 SETUP.md:20 REGISTRY.md:16 CLEANUP.md:8 TROUBLESHOOTING.md:0 ARGOCD-auto.md:23 ARGOCD-manual.md:28 ARGOCD.md:0 HARBOR-auto.md:23 HARBOR-manual.md:23 HARBOR.md:0; do
-  g=${pair%%:*}; want=${pair##*:}
-  bash "$WALK" extract "$VKS/$g" "$T/real-$g" || bad "extract $g" "exit $?"
-  eq "extract $g: $want blocks" "$(grep -c . "$T/real-$g/manifest.tsv")" "$want"
-  eq "extract $g: one file per block" "$(find "$T/real-$g" -name '[0-9][0-9][0-9].sh' | grep -c .)" "$want"
+# The counts come from the gate's own table, so a guide added there is extracted here too and
+# the two lists cannot drift.
+BLOCKS_TABLE="$VKS/../.github/scripts/check-vks-docs.blocks"
+n_guides=0
+while read -r g want; do
+  case "$g" in ''|'#'*) continue ;; esac
+  n_guides=$((n_guides + 1)); d="$T/real-$(printf '%s' "$g" | tr '/' '_')"
+  bash "$WALK" extract "$VKS/$g" "$d" || bad "extract $g" "exit $?"
+  eq "extract $g: $want blocks" "$(grep -c . "$d/manifest.tsv")" "$want"
+  eq "extract $g: one file per block" "$(find "$d" -name '[0-9][0-9][0-9].sh' | grep -c .)" "$want"
   eq "extract $g: as many fences as blocks" "$(grep -c '^```sh$' "$VKS/$g")" "$want"
-done
-# A guide added later gets its own line here, so that two changes never meet on the line above.
-for pair in ARGOCD-app.md:19; do
-  g=${pair%%:*}; want=${pair##*:}
-  bash "$WALK" extract "$VKS/$g" "$T/real-$g" || bad "extract $g" "exit $?"
-  eq "extract $g: $want blocks" "$(grep -c . "$T/real-$g/manifest.tsv")" "$want"
-  eq "extract $g: as many fences as blocks" "$(grep -c '^```sh$' "$VKS/$g")" "$want"
-done
+done < "$BLOCKS_TABLE"
+if [ "$n_guides" -ge 10 ]; then ok "the table lists $n_guides guides"; else bad "the table of guides" "only $n_guides line(s) read from $BLOCKS_TABLE"; fi
 eq "README: alternatives marked" "$(awk -F'\t' '$2 == "alt"' "$T/real-README.md/manifest.tsv" | grep -c .)" 3
 eq "ARGOCD-manual: one 'this terminal' block, until the end of step 8" "$(awk -F'\t' '$3 ~ /^T/ { print $3 "/" $6 }' "$T/real-ARGOCD-manual.md/manifest.tsv")" 'T8/NEW_CLUSTER="my-new-cluster"'
 eq "README block 1 is written verbatim" "$(awk -v n="$(grep -c '' "$T/real-README.md/001.sh")" '!s && /^```sh$/ { s = NR; next } s && NR <= s + n' "$VKS/README.md" | cksum)" "$(cksum < "$T/real-README.md/001.sh")"
