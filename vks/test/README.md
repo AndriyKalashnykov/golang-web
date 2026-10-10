@@ -151,31 +151,62 @@ port of the list is not listening on the Mac, names every such port and prints t
 |---|---|---|
 | an alias for the lab IP on `lo0`, unless `lo0` has it already | `ifconfig lo0` | `ifconfig lo0 -alias <ip>`, only for an alias it added |
 | a relay process listening on `<lab ip>:<port>`, connecting to `127.0.0.1:<tunnel port>` | `mac-route.sh status`; its log is `relay-<ip>-<port>.log` in the state directory | `kill` of the recorded PID, only while that PID still has the relay's start time and command line |
-| a line in `/etc/hosts` ending in `# vks-mac-route` | `grep vks-mac-route /etc/hosts` | the recorded line is taken out; the first original is kept as `hosts.backup` in the state directory |
+| a line in `/etc/hosts` ending in `# vks-mac-route` | `grep vks-mac-route /etc/hosts` | the recorded line is taken out, only when it still carries the marker |
 
 Everything it creates is written to `~/.local/state/vks-mac-route/state` (under
-`XDG_STATE_HOME` when that is set), and `down` removes only what is recorded there. An alias
-or a hosts line that was there before `up` is used and left alone. After a clean `down` the
-state directory is gone too. `down` twice is safe. When `status` finds a relay or a marked
-hosts line that no state file records, it lists it with the command that removes it by hand.
+`XDG_STATE_HOME` when that is set) before it is created, and `down` removes only what is
+recorded there. An alias or a hosts line that was there before `up` is used and left alone.
+`down` twice is safe. When `status` finds a relay or a marked hosts line that no state file
+records, it lists it with the command that removes it by hand.
 
 What to know:
 
+- **An alias takes an address away from its real owner.** Before any change `up` refuses a lab
+  IP that is the Mac's default gateway, one of its DNS resolvers, one of its own addresses, or
+  inside the network of one of its interfaces, and says what it collided with. On a Mac whose
+  own network overlaps the lab's, that is every forward. `--allow-onlink <ip>` lets one address
+  through; give it only when the Mac needs nothing at that address during the walk.
 - **Root.** The alias, a relay on a port below 1024 and the `/etc/hosts` change need root. Only
-  `sudo -n` is used. When sudo would ask for a password the script stops before changing
-  anything and says to run `sudo -v` first. It reads and stores no password.
-- **The relay** is `/usr/bin/python3` (it comes with the Command Line Tools:
-  `xcode-select --install`) running a small script that `up` writes to the state directory. One
-  process per forward, so adding a forward does not cut the others. A relay binds its lab IP
-  only, never every address, and runs as root only for a port below 1024. It logs connections
-  and byte counts, never the bytes.
+  `sudo -n` is used, and what it runs is named by absolute path. When sudo would ask for a
+  password the script stops before changing anything and says to run `sudo -v` first. It reads
+  and stores no password.
+- **The relay** is `/usr/bin/python3 -I -` (it comes with the Command Line Tools:
+  `xcode-select --install`). Its code is fed on stdin from `mac-route.sh` itself, so root never
+  runs a file from a directory a user can write. One process per forward, so adding a forward
+  does not cut the others. A relay binds its lab IP only, never every address. One on a port
+  below 1024 is started through sudo, binds, then becomes the calling user for good before it
+  opens its log, and ends instead when it cannot. It serves at most 64 connections at a time,
+  closes one after 1800 s without data, and logs connections and byte counts, never the bytes.
 - **Addresses.** Only private addresses are accepted (10/8, 172.16/12, 192.168/16). A name that
   `/etc/hosts` already gives another address, in a line the script did not write, is refused.
-- **`/etc/hosts`** is written through a temp file and `sudo -n cp`, so its mode and owner stay.
+- **`/etc/hosts`** is replaced as a whole by `sudo -n /bin/cp` of a file built in the state
+  directory, so its mode and owner stay. Before the copy the new file is checked (not empty,
+  the expected number of lines, every other line still there); after it, the result is
+  compared. When the copy or the compare fails, what the file held before that run is copied
+  back and the script says whether that worked; when it did not, it prints the `sudo cp` line
+  that restores it from the copy it kept.
+- **`hosts.backup`** in the state directory is the hosts file from before the first change.
+  `down` deletes it, and the state directory, only when the hosts file then has no marked line
+  and still has every other line it had before that `down`. Otherwise both stay and `down`
+  says why.
+- **The state file is not trusted.** Every value read back from it is checked like a
+  command-line value (a private address, a numeric PID, a marked hosts line). A line that
+  does not pass is left alone and reported, `down` and `status` then end with status 1, and
+  `up` refuses until the line is corrected or deleted.
+- **One run at a time.** `up` and `down` hold a lock directory in the state directory. A run
+  that was killed leaves it; the next run names the PID and prints the `rm -r` that clears it.
+  An `up` killed while adding an alias leaves it recorded as pending: `status` shows it and
+  `down` removes it.
 - **The tunnel check** is `lsof -nP -iTCP@127.0.0.1:<port> -sTCP:LISTEN`: it reads the socket
   table. A connect test would open a connection to the lab service through the tunnel.
+  `status` warns when a tunnel port listens on every address of the Mac instead of
+  `127.0.0.1` (`GatewayPorts` in the Mac's `sshd_config`): the lab service is then open to
+  whoever reaches the Mac.
 - **Not the engine VMs.** The podman machine and the Colima VM resolve the lab's names through
   the Mac and need no entry of their own.
+- **`MAC_ROUTE_TEST=1`** exists only for `mac-route_test.sh`. With it the script takes its hosts
+  file, interpreter and system tools from `MAC_ROUTE_HOSTS`, `MAC_ROUTE_PYTHON` and
+  `MAC_ROUTE_BIN`; without it those variables are refused. Never set it for a walk.
 
 ## Not proven
 
@@ -187,10 +218,21 @@ What to know:
 - bash 3.2 was not available where the harness was written: `walk.sh` avoids what 3.2 lacks,
   and its first run on the Mac is the proof.
 - `mac-route.sh` has never run on a Mac. Its tests run on Linux with stand-ins for `uname`,
-  `ifconfig`, `sudo`, `lsof` and the relay's interpreter; the relay itself is run once for real
-  on `127.0.0.1`, and the script (not its tests) ran under bash 3.2 with the same stand-ins.
-  Not proven: a bind to an `lo0` alias, a relay started through the real `sudo` staying up
-  after sudo returns, what macOS `ps` prints for the start time and command line, `lsof` seeing
-  the tunnel's socket (it belongs to the Mac's sshd), and a name from `/etc/hosts` resolving
-  without a cache flush. It does not check that a lab address is not also on a network the Mac
-  is attached to.
+  `ifconfig`, `route`, `scutil`, `sudo`, `lsof` and the relay's interpreter; the relay itself
+  is run for real on `127.0.0.1`, and the script (not its tests) ran under bash 3.2 with the
+  same stand-ins. Not proven, each of them on macOS:
+  - a bind to an `lo0` alias, and the argument shape `ifconfig lo0 alias <ip> netmask
+    255.255.255.255`;
+  - whether an `lo0` alias can be reached from outside the Mac (another host that routes the
+    lab's address to it);
+  - the relay's drop from root (`setgroups`, `setgid`, `setuid` to `SUDO_UID`/`SUDO_GID`): the
+    tests run its logic with the system calls replaced, never as root;
+  - a relay started through the real `sudo` staying up after sudo returns, and sudo's handling
+    of `PATH`, `HOME` and stdin for `python3 -I -`;
+  - what `ps` prints for the start time and command line, and whether it shows a non-root
+    caller the arguments of a process that was started as root;
+  - `lsof` seeing the tunnel's socket (it belongs to the Mac's sshd), and its `TCP *:<port>`
+    form for a port open on every address;
+  - the output of `route -n get default`, `scutil --dns` and `ifconfig -a` as the address
+    check reads them (the stand-ins print those formats from memory, not from a Mac);
+  - a name from `/etc/hosts` resolving without a cache flush.

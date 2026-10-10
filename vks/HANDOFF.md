@@ -191,6 +191,10 @@ harbor.env1.lab.test=192.168.101.130
   The running forwards keep their connections.
 - `m1` has passwordless sudo on this Mac, so the script's `sudo -n` works without `sudo -v`
   (which would ask for the login password).
+- `up` refuses a lab address that the Mac's own network uses (its gateway, a resolver, an
+  interface's network) and says which; `--allow-onlink <ip>` is the override, per address.
+  The Scaleway Mac's network was not compared with the lab's `192.168.100.0/24` and
+  `192.168.101.0/24`.
 - Neither engine VM needs its own `/etc/hosts` entry: the podman machine and the Colima VM
   resolve Harbor's name through the Mac.
 - Copy the Darwin VCF CLI archives from the lab host's `~/Downloads/vcf` into the Mac's
