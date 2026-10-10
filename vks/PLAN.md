@@ -175,6 +175,43 @@ tunnels.
 | 9 | Add-ons: Headlamp (Desktop, chart), Istio (install, gateway namespace, route); the Image Updater measurement | Headlamp serves view-only under `restricted`; the app answers through the gateway; the main flow is unchanged without add-ons |
 | 10 | Full walk from a BARE lab on Ubuntu and on the Mac, every door; tested-platforms record; final adversary over the whole | one clean pass per OS |
 
+## Phase state
+
+Phases 0 to 3 are not tracked here. For phases 4 and 5 the chapters, the two templates and
+`check-vks-templates.sh` are on the branch `docs/vks-namespace-cluster`.
+
+| # | Walked on the lab (VCF 9.1.1, VKS 3.7.2; Linux, bash and zsh) | Not walked |
+|---|---|---|
+| 4 | The check blocks; the namespace by the vCenter API (settings, session, network type, the two lists, fill, create, the stops); the namespace by self-service (`kubectl create namespace`). After the vCenter helpers moved into the main guide's step 1: the step 1 block, the namespace settings block, the open-session block and `vc_logout` | macOS and bash 3.2; the vSphere Client click list (not clicked); a Supervisor on NSX; an SSO user with only the Edit role (the first two NAMESPACE blocks are that reader's whole path, and they have never run as such a user) |
+| 5 | Lookups, fill, server dry run, create, the wait, the machines, the cluster check, delete. After the helper move: the cluster settings block, the machines block under *Install Harbor before you create clusters*, and the kubeconfig block twice with a kubectl within one minor version (no change) | macOS and bash 3.2; `kubectl_install`'s install branches on a real machine (`KUBECTL_DIR`, `sudo -n`, the `~/.local/bin` fallback, the three failure messages: run only against stand-in `curl`, `sudo` and `kubectl` programs); the two re-used-name stops on a lab |
+
+Changed after those walks, and run only against stand-in `curl`, `kubectl` and `sleep` programs,
+in bash and zsh (not on a lab):
+
+- the namespace's `description` marker in `templates/namespace-spec.json`, and the delete by the
+  vCenter API that refuses a namespace without it. That vCenter stores `description` and
+  returns it on a read is not measured;
+- the `kubectl delete namespace` block refusing a namespace without the self-service annotation;
+- the create and delete calls gating their waits on the answer (namespace create and delete,
+  cluster delete), with the vCenter session closed on every path;
+- the cluster create block refusing a cluster it did not create (no
+  `kubectl.kubernetes.io/last-applied-configuration` annotation) or one with ArgoCD's mark, and
+  the cluster delete refusing one with ArgoCD's mark. A cluster somebody else made with
+  `kubectl apply` carries the same annotation and is NOT refused;
+- the two re-used-name stops: both fired against a stand-in `kubectl` (a
+  `VirtualMachineService` of the name before the dry run; a cluster address that differs from
+  its load balancer's during the wait). Neither has fired on a lab;
+- both kubeconfig blocks keeping an earlier kubeconfig when the read fails; `vc_login` replacing
+  an older session file and checking the new one's content; the main guide's clean-up block.
+
+Not done from phase 5's "done when": the check that the chart commit pinned in the ArgoCD guides
+is not older than the chart. `check-vks-templates.sh` (chart = template, and the namespace
+marker in step with NAMESPACE.md) runs in `make static-check`, and so in CI, where it fails if
+`helm` or `yq` is missing.
+
+No place for OPTIONAL tools exists yet (`SETUP.md` is phase 3), so the clipboard tool the manual
+Harbor chapter wants on Linux (`wl-clipboard` on Wayland, `xclip` on X11) has no home to link to.
+
 ## Gate: known gaps
 
 What `make check-vks-docs` and `vks/test/walk.sh` do not cover after the review of 2026-10-10.

@@ -21,7 +21,7 @@ hasnt() { if grep -qF -- "$3" <<<"$2"; then bad "$1" "did not want '$3' in: $2";
 eq()   { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "got '$2', want '$3'"; fi; }
 
 # --- extraction of the real guides: the counts the gate's floors were set from ---------------
-for pair in README.md:54 ARGOCD-auto.md:23 ARGOCD-manual.md:28 ARGOCD.md:0; do
+for pair in README.md:55 ARGOCD-auto.md:23 ARGOCD-manual.md:28 ARGOCD.md:0; do
   g=${pair%%:*}; want=${pair##*:}
   bash "$WALK" extract "$VKS/$g" "$T/real-$g" || bad "extract $g" "exit $?"
   eq "extract $g: $want blocks" "$(grep -c . "$T/real-$g/manifest.tsv")" "$want"

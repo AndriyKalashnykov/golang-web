@@ -233,6 +233,14 @@ fixture; block "$(printf 'echo start\nsource ~/.fx.env\necho "$APP_HOST"')"
                                                        run "source line is not the first line"     "uses APP_HOST, which ~/.fx.env provides, but does not start with 'source ~/.fx.env'"
 fixture; block 'fx_cfg admin';                         run "env function without the source line"  "uses fx_cfg, which ~/.fx.env provides, but does not start with"
 fixture; block "$(printf 'source ~/.fx.env\necho "$EXTRA"')"; run "variable of another env file"    "uses EXTRA, which ~/.fx2.env provides, but starts by sourcing another file"
+# A later chapter appends helper commands and settings to the files step 1 wrote.
+APPEND=$(printf '%s\n' "[ ! -f ~/.fx.functions ] || grep -qs '^fx_more()' ~/.fx.functions || cat >> ~/.fx.functions <<'EOF'" 'fx_more() {' '  local n="$1"' '  echo "more $n"' '}' 'EOF' "grep -qs '^export MORE_HOST=' ~/.fx.env || printf '%s\\n' 'export MORE_HOST=\"\"' >> ~/.fx.env")
+fixture; block "$APPEND"; block "$(printf 'source ~/.fx.env\nfx_more 1\necho "$MORE_HOST"')"
+                                                       run "appended function and setting, sourced" pass
+fixture; block "$APPEND"; block 'fx_more 1';           run "appended function without the source line" "uses fx_more, which ~/.fx.env provides, but does not start with"
+fixture; block "$APPEND"; block 'echo "$MORE_HOST"';   run "appended setting without the source line" "uses MORE_HOST, which ~/.fx.env provides, but does not start with"
+fixture; block "$(printf '%s\n' 'E="$HOME/.fx.env"' "printf '%s\\n' 'export HIDDEN_HOST=\"\"' >> \"\$E\"")"; block "$(printf 'source ~/.fx.env\necho "$HIDDEN_HOST"')"
+                                                       run "setting appended through a variable path is not in the contract" "uses \$HIDDEN_HOST, which nothing sets"
 fixture; block 'echo "$NOWHERE_SET"';                  run "variable nothing sets"                 "uses \$NOWHERE_SET, which nothing sets"
 fixture; block 'echo "$ID"';                           run "os-release name without sourcing it"   "uses \$ID, which nothing sets"
 fixture; block "$(printf 'Y=2\necho "$Y ${Z:-default} $HOME"')"; run "set in the block, defaulted, ambient" pass

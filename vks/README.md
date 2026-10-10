@@ -58,8 +58,8 @@ in the vSphere Client and the ArgoCD web page, and [with scripts](ARGOCD-auto.md
 
 ## Gather what you need
 
-Ask your platform administrator for the first five rows. No cluster yet? The
-[ArgoCD guide](ARGOCD.md) creates one.
+Ask your platform administrator for the first five rows. No vSphere Namespace yet? See
+[NAMESPACE.md](NAMESPACE.md). No cluster yet? See [CLUSTER.md](CLUSTER.md), or the [ArgoCD guide](ARGOCD.md).
 
 | you need | used in |
 |---|---|
@@ -81,8 +81,10 @@ This block creates two files in your home directory, which every later step read
 
 - `~/.vks-golang-web.env` (the *env file*) — your settings and passwords, readable only by you. If it already
   exists, it is kept as it is.
-- `~/.vks-golang-web.functions` — two helper commands used later (`harbor_cfg`,
-  `kubectl_install`). It is rewritten every time, so running the block again updates them.
+- `~/.vks-golang-web.functions` — the helper commands used later (`harbor_cfg`,
+  `kubectl_install`, and five for vCenter's API: `vc_login`, `vc_api`, `vc`, `vc_cluster_id`,
+  `vc_logout`). It is rewritten every time, so running the block again updates them and never
+  changes your settings.
 
 ```sh
 ( umask 077; set -C; cat > ~/.vks-golang-web.env <<'EOF'
@@ -103,6 +105,10 @@ export HARBOR_CA="$HOME/.config/vks-golang-web/harbor-ca.crt"
 export SUPERVISOR_CA="$HOME/.config/vks-golang-web/vmca-root.pem"
 export SUPERVISOR_KUBECONFIG="$HOME/.kube/supervisor.kubeconfig"
 export GUEST_KUBECONFIG="$HOME/.kube/${VKS_CLUSTER}.kubeconfig"
+
+export VC_SESSION="$HOME/.config/vks-golang-web/vc-session"   # where vc_login keeps its vCenter session
+export KUBECTL_DIR="/usr/local/bin"              # where kubectl_install puts kubectl
+export KUBECTL_MATCH="minor"                     # "exact": always install the cluster's own kubectl version
 
 export KUBECONFIG="$GUEST_KUBECONFIG"
 export VCF_CLI_ESSENTIALS_PLUGIN_GROUP_VERSION="v9.1.1"   # keeps vcf from trying to fetch a plugin Broadcom has not published
@@ -125,32 +131,120 @@ harbor_cfg() {
   CFG="$(mktemp)"; ( umask 077; printf 'user = "%s:%s"\n' "$u" "$p" > "$CFG" )
 }
 
-# kubectl_install VERSION: installs upstream kubectl VERSION from dl.k8s.io into /usr/local/bin
+: "${VC_SESSION:=$HOME/.config/vks-golang-web/vc-session}"
+
+# vc_login: opens ONE vCenter API session as SSO_USERNAME and saves its token in $VC_SESSION, as a
+# curl config, so neither the password nor the token is on a command line. The file is made new
+# each time (an older file would keep its permissions) and must hold a token to count.
+vc_login() {
+  local u="$SSO_USERNAME" p="$VCF_CLI_VSPHERE_PASSWORD" cfg
+  if [ -z "$p" ] || [ "${p#<}" != "$p" ]; then
+    echo "vc_login: set VCF_CLI_VSPHERE_PASSWORD in ~/.vks-golang-web.env first" >&2; return 1
+  fi
+  u="${u//\\/\\\\}"; u="${u//\"/\\\"}"; p="${p//\\/\\\\}"; p="${p//\"/\\\"}"
+  vc_logout >/dev/null
+  cfg="$(mktemp)" || return 1
+  mkdir -p "$(dirname "$VC_SESSION")"
+  rm -f "$VC_SESSION"
+  ( umask 077; printf 'user = "%s:%s"\n' "$u" "$p" > "$cfg" )
+  ( umask 077; curl -fsS --connect-timeout 10 --max-time 60 --cacert "$SUPERVISOR_CA" -K "$cfg" -X POST "https://${VCENTER_FQDN}/api/session" \
+      | jq -r '"header = \"vmware-api-session-id: \(.)\""' > "$VC_SESSION" )
+  rm -f "$cfg"
+  if [ -f "$VC_SESSION" ] && [ ! -L "$VC_SESSION" ] && [ -O "$VC_SESSION" ] \
+     && grep -q '^header = "vmware-api-session-id: [0-9A-Za-z-]\{16,\}"$' "$VC_SESSION"; then echo "vCenter session opened"; else
+    rm -f "$VC_SESSION"; echo "vc_login: no session (see the curl error above) — do not retry a wrong password" >&2; return 1
+  fi
+}
+
+# vc_api API-PATH [curl options]: one call to https://<vCenter>/api/vcenter<API-PATH> with the
+# saved session.
+vc_api() {
+  local p="$1"; shift
+  [ -s "$VC_SESSION" ] || { echo "vc_api: no vCenter session — run vc_login" >&2; return 1; }
+  curl -sS --connect-timeout 10 --max-time 60 --cacert "$SUPERVISOR_CA" -K "$VC_SESSION" "$@" \
+    "https://${VCENTER_FQDN}/api/vcenter${p}"
+}
+
+# vc API-PATH [curl options]: the same, for vCenter's Supervisor API (paths under
+# /api/vcenter/namespace-management).
+vc() {
+  local p="$1"; shift
+  vc_api "/namespace-management${p}" "$@"
+}
+
+# vc_cluster_id: prints the ID of the vSphere cluster the Supervisor runs on: VSPHERE_CLUSTER_ID
+# when it is set, otherwise the only cluster vCenter has; nothing when there are several.
+vc_cluster_id() {
+  if [ -n "$VSPHERE_CLUSTER_ID" ]; then printf '%s\n' "$VSPHERE_CLUSTER_ID"; return 0; fi
+  vc_api /cluster | jq -r 'if type == "array" and length == 1 then .[0].cluster else empty end'
+}
+
+# vc_logout: ends the vCenter session and deletes its file.
+vc_logout() {
+  [ -s "$VC_SESSION" ] || return 0
+  curl -sS --connect-timeout 10 --max-time 60 --cacert "$SUPERVISOR_CA" -K "$VC_SESSION" -X DELETE "https://${VCENTER_FQDN}/api/session"
+  rm -f "$VC_SESSION"; echo "vCenter session closed"
+}
+
+# kubectl_install VERSION: installs upstream kubectl VERSION from dl.k8s.io into $KUBECTL_DIR
 # (a "+vmware.N" suffix is dropped; if that exact patch has no upstream build, the newest patch of
-# the same minor is used). The checksum guards against a corrupt download. On any failure the
-# existing kubectl is left as it was.
+# the same minor is used). It changes nothing when the kubectl you have is within one minor
+# version of VERSION, unless KUBECTL_MATCH is "exact". It never asks for a password: when
+# $KUBECTL_DIR needs administrator rights and sudo would ask, it installs into ~/.local/bin and
+# says so. The checksum guards against a corrupt download. On any failure the existing kubectl
+# is left as it was.
 kubectl_install() {
-  local v="${1%%+*}" m os arch u t h
+  local v="${1%%+*}" m os arch u t h d="${KUBECTL_DIR:-/usr/local/bin}" s="" cur x cm sm
   case "$v" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "kubectl_install: no version ('$1') — not logged in, or the server unreachable?" >&2; return 1 ;; esac
   case "$(uname -s)" in Linux) os=linux ;; Darwin) os=darwin ;; *) echo "kubectl_install: unsupported OS $(uname -s)" >&2; return 1 ;; esac
   case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; arm64|aarch64) arch=arm64 ;; *) echo "kubectl_install: unsupported CPU $(uname -m)" >&2; return 1 ;; esac
+  cur="$(kubectl version --client 2>/dev/null | sed -n 's/^Client Version: \(v[0-9][0-9.]*\).*/\1/p')"
+  if [ -n "$cur" ] && [ "${KUBECTL_MATCH:-minor}" != exact ]; then
+    x="${cur#v*.}"; cm="${x%%.*}"; x="${v#v*.}"; sm="${x%%.*}"
+    case "${cm}${sm}" in
+      *[!0-9]*) ;;
+      *) if [ "${cur%%.*}" = "${v%%.*}" ] && [ "$((cm - sm))" -ge -1 ] && [ "$((cm - sm))" -le 1 ]; then
+           echo "kubectl ${cur} is within one minor version of ${v}: supported, not changed (set KUBECTL_MATCH=\"exact\" in the env file to install ${v})"
+           return 0
+         fi ;;
+    esac
+  fi
   if ! curl -fsIL --connect-timeout 10 --retry 3 -o /dev/null "https://dl.k8s.io/release/${v}/bin/${os}/${arch}/kubectl"; then
     m="${v#v}"; m="${m%.*}"
     v="$(curl -fsSL --connect-timeout 10 --retry 3 "https://dl.k8s.io/release/stable-${m}.txt")" \
-      || { echo "kubectl_install: cannot reach dl.k8s.io (blocked or offline?)" >&2; return 1; }
+      || { echo "kubectl_install: cannot reach dl.k8s.io (blocked or offline?) — kubectl NOT changed" >&2; return 1; }
     echo "note: no upstream kubectl ${1%%+*}; using ${v}, the newest of that minor" >&2
   fi
   u="https://dl.k8s.io/release/${v}/bin/${os}/${arch}/kubectl"
   t="$(mktemp -d)" || return 1
-  if curl -fsSL --connect-timeout 10 --retry 3 -o "$t/kubectl" "$u" \
-     && h="$(curl -fsSL --connect-timeout 10 --retry 3 "${u}.sha256")" && [ -n "$h" ] \
-     && [ "$( (sha256sum "$t/kubectl" 2>/dev/null || shasum -a 256 "$t/kubectl") | awk '{print $1}')" = "$h" ] \
-     && sudo install -d /usr/local/bin && sudo install -m 0755 "$t/kubectl" /usr/local/bin/kubectl; then
-    rm -rf "$t"; /usr/local/bin/kubectl version --client
-    [ "$(command -v kubectl)" = /usr/local/bin/kubectl ] \
-      || echo "WARNING: 'kubectl' on your PATH is '$(command -v kubectl || echo not found)', not /usr/local/bin/kubectl" >&2
+  if ! curl -fsSL --connect-timeout 10 --retry 3 -o "$t/kubectl" "$u" \
+     || ! h="$(curl -fsSL --connect-timeout 10 --retry 3 "${u}.sha256")" || [ -z "$h" ]; then
+    rm -rf "$t"; echo "kubectl_install: cannot reach dl.k8s.io: the download failed (${u}) — kubectl NOT changed" >&2; return 1
+  fi
+  if [ "$( (sha256sum "$t/kubectl" 2>/dev/null || shasum -a 256 "$t/kubectl") | awk '{print $1}')" != "$h" ]; then
+    rm -rf "$t"; echo "kubectl_install: the checksum of the download does not match (${u}) — kubectl NOT changed" >&2; return 1
+  fi
+  if [ -d "$d" ] && [ -w "$d" ]; then s=""
+  elif [ ! -e "$d" ] && mkdir -p "$d" 2>/dev/null; then s=""
+  elif sudo -n true 2>/dev/null; then s=sudo
   else
-    rm -rf "$t"; echo "kubectl_install: cannot reach dl.k8s.io, the checksum did not match, or sudo failed (${u}) — kubectl NOT changed" >&2; return 1
+    echo "kubectl_install: ${d} needs administrator rights and sudo would ask for a password: installing into ${HOME}/.local/bin instead (to use ${d}: run 'sudo -v', then this block again)" >&2
+    d="${HOME}/.local/bin"; mkdir -p "$d"
+  fi
+  if { [ -n "$s" ] && sudo -n install -d "$d" && sudo -n install -m 0755 "$t/kubectl" "$d/kubectl"; } \
+     || { [ -z "$s" ] && install -m 0755 "$t/kubectl" "$d/kubectl"; }; then
+    rm -rf "$t"; "$d/kubectl" version --client
+    case ":${PATH}:" in
+      *":${d}:"*) ;;
+      *) PATH="${d}:${PATH}"; hash -r 2>/dev/null
+         echo "kubectl_install: ${d} was not on your PATH: added for this terminal only. To keep it, add the next line to ~/.zshrc (zsh) or ~/.bashrc (bash), then open a new terminal:" >&2
+         echo "  export PATH=\"${d}:\$PATH\"" >&2 ;;
+    esac
+    hash -r 2>/dev/null
+    [ "$(command -v kubectl)" = "$d/kubectl" ] \
+      || echo "WARNING: 'kubectl' on your PATH is '$(command -v kubectl || echo not found)', not $d/kubectl" >&2
+  else
+    rm -rf "$t"; echo "kubectl_install: could not write ${d}/kubectl (see the error above) — kubectl NOT changed" >&2; return 1
   fi
 }
 EOF
@@ -356,10 +450,27 @@ colons and upper/lower case.
 
 ### Install kubectl
 
-`kubectl` is the Kubernetes command-line tool. This block installs the newest stable release from
-the official site (dl.k8s.io) into `/usr/local/bin`; its `sudo` asks for your password. It is only a
-starting point: your guest cluster's version is not known yet. Step 7 reads that version from the
-cluster and installs the matching kubectl over this one.
+`kubectl` is the Kubernetes command-line tool. The second block below installs the newest stable
+release from the official site (dl.k8s.io). It is only a starting point: your guest cluster's
+version is not known yet. Step 7 reads that version from the cluster and replaces this kubectl
+only if it is more than one minor version away (Kubernetes supports a client within one minor
+version of the cluster).
+
+kubectl goes into `/usr/local/bin` (`KUBECTL_DIR` in the env file). That directory needs
+administrator rights on most machines, and the install never asks for a password: if `sudo`
+would ask, kubectl goes into `~/.local/bin` instead, and the block says so. To have it in
+`/usr/local/bin`, give `sudo` your password first, as a block of its own (skip it if you have no
+`sudo` rights on this machine):
+
+```sh
+sudo -v
+```
+
+**Expect:** a password prompt, then no output; no prompt and no output at all when `sudo` still
+remembers your password or never asks for one. **If not:** `… is not in the sudoers file`, or
+`a terminal is required` — you have no `sudo` here: go on, kubectl goes into `~/.local/bin`.
+
+Now install kubectl:
 
 ```sh
 source ~/.vks-golang-web.env
@@ -367,15 +478,24 @@ V="$(curl -fsSL --connect-timeout 10 https://dl.k8s.io/release/stable.txt)"
 if [ -n "$V" ]; then kubectl_install "$V"; else echo "kubectl_install: cannot reach dl.k8s.io (blocked or offline?)"; fi
 ```
 
-**Expect:** `Client Version: v1.…` (and a `Kustomize Version` line), and no `WARNING` line.
+**Expect:** `Client Version: v1.…` (and a `Kustomize Version` line), and no `WARNING` line. If
+this machine already has a kubectl within one minor version of the newest release, the block
+prints `kubectl v1.… is within one minor version of v1.…: supported, not changed` instead.
 
 **If not:**
-- `WARNING: 'kubectl' on your PATH is …`: another kubectl is found first, or (`not found`)
-  `/usr/local/bin` is not in your `PATH`. Put `/usr/local/bin` first in your `PATH`, and remove
-  the other kubectl if there is one.
-- `cannot reach dl.k8s.io`: if a `sudo:` line is printed above it, sudo failed: run the block
-  again and enter your password. Otherwise ask your administrator to allow dl.k8s.io, or use the
-  alternative below.
+- `… installing into <your home>/.local/bin instead`: not an error. `sudo` would have asked for a
+  password, so kubectl is in `~/.local/bin`. If a line `… was not on your PATH` follows, add the
+  line it prints to `~/.zshrc` (zsh) or `~/.bashrc` (bash), so that new terminals find kubectl;
+  this terminal already does.
+- `WARNING: 'kubectl' on your PATH is …`: another kubectl is found first. Put the directory named
+  at the end of the line first in your `PATH`, or remove the other kubectl.
+- `kubectl_install: cannot reach dl.k8s.io`: ask your administrator to allow dl.k8s.io, or use
+  the alternative below.
+- `kubectl_install: the checksum of the download does not match`: the download arrived damaged.
+  Run the block again; if it repeats, tell your administrator. (The checksum comes from the same
+  site as the download, so it catches a damaged file, not one that was replaced on purpose.)
+- `kubectl_install: could not write …`: the error above that line says why (a full disk, or a home
+  directory you may not write to).
 
 <details>
 <summary><b>Alternative: download kubectl from your Supervisor</b> (only if dl.k8s.io is blocked)</summary>
@@ -743,9 +863,9 @@ output above. `401` — check the `REGISTRY_*` values.
 ## 7. Get the kubeconfigs
 
 This logs you in to the Supervisor and fetches your guest cluster's kubeconfig, using step 2's
-kubectl for the few read commands this needs. Then it installs the kubectl that matches the guest
-cluster, which you use from then on (kubectl should be within one minor version of the cluster it
-manages).
+kubectl for the few read commands this needs. Then it checks that kubectl against the guest
+cluster: kubectl must be within one minor version of the cluster it manages, and only when it is
+not does this step install the cluster's version.
 
 ### Log in to the Supervisor
 
@@ -874,29 +994,41 @@ command still answers `Unauthorized`, the login is not the cause: check that the
 ### Get the guest cluster's kubeconfig
 
 This reads the guest cluster's kubeconfig from the Supervisor, saves it as `$GUEST_KUBECONFIG`
-(the env file already points `kubectl` there), and installs the kubectl version that matches the
-guest cluster.
+(the env file already points `kubectl` there), and compares your kubectl with the guest cluster's
+version. Within one minor version it changes nothing; otherwise it installs the cluster's
+version, the way step 2 did, without asking for a password. To always get the cluster's exact
+version, set `KUBECTL_MATCH="exact"` in the env file.
 
 ```sh
 source ~/.vks-golang-web.env
 ( umask 077
   kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" \
     get secret "${VKS_CLUSTER}-kubeconfig" -o jsonpath='{.data.value}' \
-    | base64 -d > "$GUEST_KUBECONFIG" )
+    | base64 -d > "${GUEST_KUBECONFIG}.new" )
+if [ -s "${GUEST_KUBECONFIG}.new" ]; then
+  mv "${GUEST_KUBECONFIG}.new" "$GUEST_KUBECONFIG"
+else
+  rm -f "${GUEST_KUBECONFIG}.new"; echo "No kubeconfig read (see the error above): ${GUEST_KUBECONFIG} is as it was"
+fi
 V="$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')"
 echo "Guest cluster: ${V:-unknown}"
 kubectl_install "$V"
 ```
 
-**Expect:** `Guest cluster: v1.<minor>…`, then `Client Version:` with the same `v1.<minor>`.
+**Expect:** `Guest cluster: v1.<minor>…`, then
+`kubectl v1.… is within one minor version of v1.…: supported, not changed`, or, when kubectl was
+further away, `Client Version:` with the cluster's `v1.<minor>`.
 
-**If not:** `secrets "<name>-kubeconfig" not found` — check `VKS_CLUSTER`. `Forbidden` — the
-**Edit** role is missing. Either way `kubectl_install: no version` follows (the kubeconfig file is
-left empty): fix the cause and run the block again.
+**If not:** `No kubeconfig read …`, under a `kubectl` error: `secrets "<name>-kubeconfig" not
+found` — check `VKS_CLUSTER`; `Forbidden` — the **Edit** role is missing; `Unauthorized` — run
+*Renew the Supervisor login* above. A kubeconfig you saved earlier is kept. With none,
+`Guest cluster: unknown` and `kubectl_install: no version` follow: fix the cause and run the block
+again. For any other `kubectl_install:` line, see the list under step 2's *Install kubectl*; the
+kubeconfig itself is saved either way.
 
 ### Check the guest cluster
 
-This confirms that kubectl now reaches the guest cluster, and that its version matches the
+This confirms that kubectl now reaches the guest cluster, and shows its version beside the
 cluster's.
 
 ```sh
@@ -905,7 +1037,7 @@ kubectl get nodes
 kubectl version -o json | jq -r '"client \(.clientVersion.gitVersion)  server \(.serverVersion.gitVersion)"'
 ```
 
-**Expect:** every node `Ready`, and client and server on the same `v1.<minor>` (e.g. `v1.36.2` and `v1.36.2+vmware.2`).
+**Expect:** every node `Ready`, and client and server at most one minor version apart (e.g. `v1.37.1` and `v1.36.2+vmware.2`).
 From here on, kubectl talks to the guest cluster; the Supervisor is used only through `vcf`.
 
 **If not:** a node `NotReady` is a cluster problem: tell your administrator.
@@ -1168,18 +1300,22 @@ colima ssh -- sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
 
 ### Delete the files this guide wrote
 
-This deletes the CA files and kubeconfigs this guide saved. Empty directories are removed;
-anything else in them is kept, as are the installed tools, base images, build cache and kubectl's
-`~/.kube/cache`.
+This ends an open vCenter session and deletes the files this guide and its chapters
+([NAMESPACE.md](NAMESPACE.md), [CLUSTER.md](CLUSTER.md)) saved: the two CA files, the two
+kubeconfigs, the vCenter session file and the two filled descriptions. Empty directories are
+removed; anything else in them is kept, as are the installed tools, base images, build cache and
+kubectl's `~/.kube/cache`.
 
 ```sh
 source ~/.vks-golang-web.env
-rm -f  "$HARBOR_CA" "$SUPERVISOR_CA" "$SUPERVISOR_KUBECONFIG" "$GUEST_KUBECONFIG"
+if command -v vc_logout >/dev/null 2>&1; then vc_logout; fi
+rm -f  "$HARBOR_CA" "$SUPERVISOR_CA" "$SUPERVISOR_KUBECONFIG" "$GUEST_KUBECONFIG" "${GUEST_KUBECONFIG}.new"
+rm -f  "${VC_SESSION:-$HOME/.config/vks-golang-web/vc-session}" "$HOME/.config/vks-golang-web/namespace-spec.json" "$HOME/.config/vks-golang-web/cluster.yaml"
 rmdir  "$HOME/.config/vks-golang-web" 2>/dev/null
 rmdir "$HOME/.config/containers/certs.d" "$HOME/.config/containers" "$HOME/.kube" 2>/dev/null
 ```
 
-**Expect:** no output.
+**Expect:** no output (`vCenter session closed` if a session was still open).
 
 ### Delete the clone
 
@@ -1204,8 +1340,9 @@ rm -f ~/.vks-golang-web.env ~/.vks-golang-web.functions
 unset HARBOR_FQDN HARBOR_PROJECT SUPERVISOR_ENDPOINT VCENTER_FQDN VKS_CLUSTER VKS_NAMESPACE \
       SSO_USERNAME VCF_CLI_VSPHERE_PASSWORD HARBOR_ADMIN_PASSWORD REGISTRY_USERNAME \
       REGISTRY_TOKEN HARBOR_CA SUPERVISOR_CA SUPERVISOR_KUBECONFIG GUEST_KUBECONFIG \
-      IMAGE KUBECONFIG APP_IP CONTAINER_ENGINE VCF_CLI_ESSENTIALS_PLUGIN_GROUP_VERSION
-unset -f harbor_cfg kubectl_install 2>/dev/null || true
+      IMAGE KUBECONFIG APP_IP CONTAINER_ENGINE VCF_CLI_ESSENTIALS_PLUGIN_GROUP_VERSION \
+      VC_SESSION KUBECTL_DIR KUBECTL_MATCH
+unset -f harbor_cfg kubectl_install vc_login vc_api vc vc_cluster_id vc_logout 2>/dev/null || true
 ```
 
 **Expect:** no output.
@@ -1225,7 +1362,12 @@ unset -f harbor_cfg kubectl_install 2>/dev/null || true
 | `kubectl_install: command not found` | Re-run step 1's block; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | `kubectl_install: no version` in step 7 | The guest cluster did not answer: check the kubeconfig block's output; if it shows `Unauthorized`, run step 7's *Renew the Supervisor login* block, then the kubeconfig block again. |
 | `error: You must be logged in to the server (Unauthorized)` from a Supervisor command | Your Supervisor login ended (it lasts about 10 hours). Run step 7's *Renew the Supervisor login* block (the one inside the alternative if you logged in with the certificate checked), then the command again. |
-| `kubectl_install: cannot reach dl.k8s.io` | If a `sudo:` line is printed above it, sudo failed: run the block again and enter your password. Otherwise ask your administrator to allow dl.k8s.io (the real fix). Until then, run step 2's *Alternative: download kubectl from your Supervisor* block (under *Install kubectl*): Intel/AMD machines only, and the Supervisor's older version. |
+| `kubectl_install: cannot reach dl.k8s.io` | Ask your administrator to allow dl.k8s.io (the real fix). Until then, run step 2's *Alternative: download kubectl from your Supervisor* block (under *Install kubectl*): Intel/AMD machines only, and the Supervisor's older version. |
+| `kubectl_install: the checksum of the download does not match` | The download arrived damaged. Run the block again; if it repeats, tell your administrator and do not install kubectl by hand from that download. |
+| `kubectl_install: … installing into <your home>/.local/bin instead` | Not an error: `sudo` would have asked for a password, and the install never asks. To have kubectl in `/usr/local/bin`, run `sudo -v` as a block of its own, then the block again. |
+| `kubectl_install: … was not on your PATH` | kubectl works in this terminal. For new terminals, add the `export PATH=…` line it printed to `~/.zshrc` (zsh) or `~/.bashrc` (bash). |
+| `kubectl_install: could not write …` | The error above that line says why. Set `KUBECTL_DIR` in the env file to a directory you may write to, then run the block again. |
+| `vc_login: command not found`, or `vc_api: command not found` | Your `~/.vks-golang-web.functions` was written by an older version of step 1. Re-run step 1's block: it rewrites that file and keeps your values. |
 | `ImagePullBackOff` with `x509` in `kubectl describe pod` | The guest cluster does not trust Harbor's CA. Ask your administrator to add Harbor's CA certificate (your `$HARBOR_CA` file) to the trusted CAs of the guest cluster `$VKS_CLUSTER`. |
 | `ImagePullBackOff` with `pull access denied` or `no basic auth credentials` in `kubectl describe pod` | The project is private: run step 8's pull-secret block, then `kubectl rollout restart deploy/golang-web` (running pods keep their old pull settings). |
 | `403` on the step 6 or 8 lookup | The robot needs `artifact` read and list; create it with step 5. |
