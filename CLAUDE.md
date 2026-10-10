@@ -79,6 +79,11 @@ make version        # Print current version tag
 
 ## Upgrade Backlog
 
+- [ ] **`vks/` becomes one end-to-end story (owner, 2026-10-10): the plan and its ten phases
+      are in [`vks/PLAN.md`](vks/PLAN.md).** Use or create a vSphere Namespace and a guest
+      cluster, install Harbor (manual and auto), add-ons (Headlamp, Istio), three ways to
+      deploy the app, a doc gate and a committed walk harness. Work the phases in order;
+      phase 1 is the gate and the harness.
 - [x] **The app's LoadBalancer address reached from the Mac, 2026-10-05** (vks guide, step 9's
       first block). It was the one Expect of that day's macOS lab walk that had not matched:
       the address is a private lab IP and had no tunnel. The guide was run again on the Mac

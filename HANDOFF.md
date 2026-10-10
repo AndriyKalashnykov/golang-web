@@ -28,6 +28,8 @@ Nothing is in progress. The last work, 2026-10-06:
 
 ## Next
 
+0. **In progress since 2026-10-10: the `vks/` end-to-end story.** Plan, decisions and phases:
+   [vks/PLAN.md](vks/PLAN.md). Start at the first phase not marked done there.
 1. **After 2026-10-19:** read the first CI run that lands on Ubuntu 26 (`ubuntu-latest` moves).
 2. **At the next release:** check `/healthz` of the released image shows a build timestamp, not
    `now` (#247; it runs only on a tag, so a local build is the only proof so far).
