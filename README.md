@@ -646,6 +646,14 @@ Harbor, and run it on a VKS cluster. A second guide, [`vks/ARGOCD.md`](vks/ARGOC
 installs ArgoCD on the Supervisor and creates a VKS cluster with it, by hand in the web
 pages or with scripts.
 
+The chapters, in the order to use them:
+
+1. [`vks/NAMESPACE.md`](vks/NAMESPACE.md): use or create a vSphere Namespace
+2. [`vks/CLUSTER.md`](vks/CLUSTER.md): create a guest cluster with kubectl
+3. [`vks/HARBOR.md`](vks/HARBOR.md): use the Harbor you have, or install one on the Supervisor
+4. [`vks/README.md`](vks/README.md): build, push, deploy
+5. [`vks/ARGOCD.md`](vks/ARGOCD.md): ArgoCD on the Supervisor, and a cluster made with it
+
 ## Architecture
 
 A statically linked Go binary in a distroless image, behind a LoadBalancer Service.

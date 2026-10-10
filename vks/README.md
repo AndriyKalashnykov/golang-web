@@ -58,8 +58,18 @@ in the vSphere Client and the ArgoCD web page, and [with scripts](ARGOCD-auto.md
 
 ## Gather what you need
 
-Ask your platform administrator for the first five rows. No vSphere Namespace yet? See
-[NAMESPACE.md](NAMESPACE.md). No cluster yet? See [CLUSTER.md](CLUSTER.md), or the [ArgoCD guide](ARGOCD.md).
+Ask your platform administrator for the first five rows of the table below. What you were not
+given, you can make. The chapters, in the order to use them:
+
+1. [Use or create a vSphere Namespace](NAMESPACE.md)
+2. [Create a guest cluster with kubectl](CLUSTER.md)
+3. [Harbor: use the one you have, or install one](HARBOR.md) (if you install one, do it before
+   chapter 2 where you can: an install replaces the nodes of every cluster)
+4. this guide: build, push, deploy
+5. [Install ArgoCD onto Supervisor and create a VKS guest cluster with it](ARGOCD.md)
+
+Chapters 1 to 3 start after this guide's Supervisor login ([step 7](#log-in-to-the-supervisor));
+each says what it needs.
 
 | you need | used in |
 |---|---|
@@ -1341,7 +1351,9 @@ unset HARBOR_FQDN HARBOR_PROJECT SUPERVISOR_ENDPOINT VCENTER_FQDN VKS_CLUSTER VK
       SSO_USERNAME VCF_CLI_VSPHERE_PASSWORD HARBOR_ADMIN_PASSWORD REGISTRY_USERNAME \
       REGISTRY_TOKEN HARBOR_CA SUPERVISOR_CA SUPERVISOR_KUBECONFIG GUEST_KUBECONFIG \
       IMAGE KUBECONFIG APP_IP CONTAINER_ENGINE VCF_CLI_ESSENTIALS_PLUGIN_GROUP_VERSION \
-      VC_SESSION KUBECTL_DIR KUBECTL_MATCH
+      VC_SESSION KUBECTL_DIR KUBECTL_MATCH \
+      HARBOR_MANIFEST HARBOR_VALUES_TEMPLATE HARBOR_STORAGE_CLASS HARBOR_REGISTRY_SIZE \
+      HARBOR_VALUES HARBOR_SECRETS HARBOR_SERVICE_VERSION SUPERVISOR_ID
 unset -f harbor_cfg kubectl_install vc_login vc_api vc vc_cluster_id vc_logout 2>/dev/null || true
 ```
 
