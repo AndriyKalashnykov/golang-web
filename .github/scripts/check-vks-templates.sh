@@ -6,10 +6,10 @@
 #      template names a variable that is not in its list (it would stay a literal "${...}"), when a
 #      listed variable is not used, when any value renders empty, or when the JSON does not parse;
 #      and when the namespace template's "description" (the marker the guide's delete block
-#      compares) is not the one vks/NAMESPACE.md carries.
+#      compares) is not the one vks/NAMESPACE-auto.md carries.
 #   2. When helm and yq are installed, the chart vks/argocd/guest-cluster is rendered with the same
 #      values and compared with the rendered cluster template, both as key-sorted JSON. They must
-#      be the same object: vks/CLUSTER.md and the ArgoCD guides promise the same cluster.
+#      be the same object: vks/CLUSTER-auto.md and the ArgoCD guides promise the same cluster.
 #
 # The last line says which arms ran. Arm 2 is SKIPPED, not failed, without helm or yq, unless
 # REQUIRE_HELM=1 (set that in CI, where a skip would be a green that compared nothing).
@@ -105,14 +105,14 @@ if command -v jq >/dev/null 2>&1; then
         "$T/namespace-spec.json" >/dev/null; then
     err "$NS_TPL did not render the expected object (a value landed in the wrong field, or a storage limit was added)"
   fi
-  # The marker: vks/NAMESPACE.md deletes a namespace only when its description equals the
+  # The marker: vks/NAMESPACE-auto.md deletes a namespace only when its description equals the
   # template's. The guide's delete block must carry the same text, or it would refuse every
   # namespace this guide created.
   marker=$(jq -r '.description // empty' "$T/namespace-spec.json")
   if [ -z "$marker" ]; then
     err "$NS_TPL has no description: the guide's delete block could not tell its own namespaces"
-  elif [ "$(grep -cF "M=\"$marker\"" vks/NAMESPACE.md)" -ne 1 ]; then
-    err "vks/NAMESPACE.md does not hold the line M=\"$marker\" exactly once: its delete block and $NS_TPL disagree on the marker"
+  elif [ "$(grep -cF "M=\"$marker\"" vks/NAMESPACE-auto.md)" -ne 1 ]; then
+    err "vks/NAMESPACE-auto.md does not hold the line M=\"$marker\" exactly once: its delete block and $NS_TPL disagree on the marker"
   fi
   json_arm="checked"
 else

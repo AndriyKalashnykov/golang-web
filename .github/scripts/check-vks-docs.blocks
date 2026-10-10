@@ -1,17 +1,21 @@
 # The guides under vks/ and how many `sh` blocks each has (read by check-vks-docs.sh).
 #   <file relative to vks/> <number of sh blocks>
-# A new guide: add its line; 0 for a guide with no sh block (a chooser such as ARGOCD.md).
+# A new guide: add its line; 0 for a guide with no sh block (such as TROUBLESHOOTING.md).
 # A block added or removed: change the number. The gate prints the line to write.
 ARGOCD-app.md 20
 ARGOCD-auto.md 23
 ARGOCD-manual.md 28
-ARGOCD.md 0
+ARGOCD.md 1
 CLEANUP.md 8
-CLUSTER.md 17
+CLUSTER-auto.md 14
+CLUSTER-manual.md 2
+CLUSTER.md 4
 HARBOR-auto.md 23
 HARBOR-manual.md 23
-HARBOR.md 0
-NAMESPACE.md 15
+HARBOR.md 1
+NAMESPACE-auto.md 13
+NAMESPACE-manual.md 2
+NAMESPACE.md 2
 README.md 22
 REGISTRY.md 16
 SETUP.md 20

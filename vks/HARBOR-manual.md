@@ -1,4 +1,4 @@
-# Install Harbor onto Supervisor — by hand
+# Install Harbor on the Supervisor, by hand
 
 This guide installs the Harbor Supervisor Service on a vSphere Supervisor, gets Harbor a DNS
 name, and prepares it for [REGISTRY.md](REGISTRY.md): a trusted CA, a project and a robot
@@ -42,8 +42,8 @@ The main guide's [terms](README.md#learn-the-terms) apply. New here:
 - A browser on a machine that reaches vCenter.
 - A vCenter user with the privileges **Manage Supervisor Services** and **Manage Supervisor
   Services on Supervisors**, who can also read Secrets on the Supervisor (a vCenter
-  administrator can). If yours lacks them, send your vCenter administrator the request in
-  [HARBOR.md](HARBOR.md).
+  administrator can). If yours lacks them,
+  [HARBOR.md](HARBOR.md#if-you-are-not-a-vcenter-administrator) lists what to ask for.
 - A Broadcom support account that can download **vSphere Supervisor Services** (step 2).
 - The Supervisor must reach `projects.packages.broadcom.com` (it downloads Harbor from there).
   Harbor's scanner, Trivy, also fetches its data from `ghcr.io`.
@@ -384,7 +384,8 @@ Supervisors, and a new **Harbor** card showing **Active Versions 1** and **Super
 ![The Services tab after registration, with the green success line and the Harbor card](img/harbor/03-registered.jpg)
 
 **If not:** the **ADD** button is missing or the upload is refused — your user lacks **Manage
-Supervisor Services**: send your vCenter administrator the request in [HARBOR.md](HARBOR.md). An
+Supervisor Services**: [HARBOR.md](HARBOR.md#if-you-are-not-a-vcenter-administrator) lists what
+to ask a vCenter administrator for. An
 error naming the YAML — you chose the wrong file (the data values, for example); do not edit the
 manifest.
 
@@ -728,7 +729,7 @@ in the env file as that section says. Then run
 ## 10. Check that a guest cluster can pull from Harbor
 
 This needs a guest cluster and its kubeconfig, the file `GUEST_KUBECONFIG` names in the env
-file. [Create a guest cluster with kubectl](CLUSTER.md) makes the cluster, and its
+file. [Use or create a guest cluster](CLUSTER.md) makes the cluster, and its
 [Get the cluster's kubeconfig](CLUSTER.md#get-the-clusters-kubeconfig) writes the file (for a
 cluster you were given: [the main guide](README.md#get-the-guest-clusters-kubeconfig)). Skip
 this step until you have both; without the file the block says so and does nothing.

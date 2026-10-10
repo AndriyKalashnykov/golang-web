@@ -56,8 +56,6 @@ to do. [TROUBLESHOOTING.md](TROUBLESHOOTING.md) lists the errors by their text.
 
 ## Gather what you need
 
-Ask your platform administrator for what the table lists.
-
 | you need | used in |
 |---|---|
 | Supervisor endpoint, vCenter DNS name, vSphere Namespace, guest cluster name | [Set the variables](#set-the-variables) |
@@ -66,8 +64,11 @@ Ask your platform administrator for what the table lists.
 | a Broadcom support account that can download VMware vSphere Foundation 9 | [Install the VCF CLI and its plugins](SETUP.md#install-the-vcf-cli-and-its-plugins) |
 | sudo rights on this machine | [Install the tools](#install-the-tools) |
 
-What you were not given, you can make: a vSphere Namespace with [NAMESPACE.md](NAMESPACE.md)
-and a guest cluster with [CLUSTER.md](CLUSTER.md). This guide tells you when to go there. You
+Every value can be looked up or made. A vCenter administrator finds the
+Supervisor's address and vCenter's CA in the vSphere Client
+([NAMESPACE-manual.md](NAMESPACE-manual.md#1-find-the-supervisor-its-address-and-vcenters-ca)
+shows where), and makes a vSphere Namespace with [NAMESPACE.md](NAMESPACE.md) and a guest
+cluster with [CLUSTER.md](CLUSTER.md). This guide tells you when to go there. You
 need a Harbor registry only when you build the image yourself ([REGISTRY.md](REGISTRY.md)).
 
 This machine must reach all of the above, and the internet: your package repositories,
@@ -494,8 +495,9 @@ namespace can hold a cluster.
 The app runs on a guest cluster in your vSphere Namespace.
 
 - **You have one:** `VKS_CLUSTER` in the env file is its name. Run the two blocks below.
-- **You have none:** create it with [Create a guest cluster with kubectl](CLUSTER.md), or let
-  ArgoCD create it ([ARGOCD.md](ARGOCD.md)). The cluster chapter saves the kubeconfig and
+- **You have none:** create it with [Use or create a guest cluster](CLUSTER.md), by hand in
+  the vSphere Client or with scripts, or let ArgoCD create it ([ARGOCD.md](ARGOCD.md)). The
+  cluster chapter saves the kubeconfig and
   checks the cluster itself, so afterwards continue at [Deploy the app](#deploy-the-app). If
   you will also install Harbor on this Supervisor, do that first ([HARBOR.md](HARBOR.md)): an
   install replaces the nodes of every cluster.
@@ -559,7 +561,7 @@ This deploys the image the project publishes at ghcr.io, as `k8s/golang-web.yaml
 names it: by tag and digest. A tag can later point to another image; a digest cannot. The image
 is public, so the cluster needs no login to download it. Two other ways to deploy are chapters
 of their own: an image you build yourself and push to Harbor ([REGISTRY.md](REGISTRY.md)), and
-an ArgoCD Application ([ARGOCD.md](ARGOCD.md) installs ArgoCD).
+an ArgoCD Application ([ARGOCD-app.md](ARGOCD-app.md); [ARGOCD.md](ARGOCD.md) installs ArgoCD).
 
 ### Create the app's namespace
 
@@ -725,18 +727,22 @@ The chapters, in the order to use them. Each says what it needs and where it lea
 
 1. [SETUP.md](SETUP.md): install the tools, on macOS and on Debian or Ubuntu. Comes after
    [Set the variables](#set-the-variables).
-2. [NAMESPACE.md](NAMESPACE.md): use or create a vSphere Namespace. Comes after
+2. [NAMESPACE.md](NAMESPACE.md): use or create a vSphere Namespace,
+   [by hand](NAMESPACE-manual.md) in the vSphere Client or
+   [with scripts](NAMESPACE-auto.md). Comes after
    [Log in to the Supervisor](#log-in-to-the-supervisor), as do chapters 3, 4 and 7.
-3. [HARBOR.md](HARBOR.md): use the Harbor you have, or install one on the Supervisor. If you
+3. [HARBOR.md](HARBOR.md): use or install Harbor on the Supervisor,
+   [by hand](HARBOR-manual.md) in the vSphere Client or [with scripts](HARBOR-auto.md). If you
    install one, do it before chapter 4 where you can: an install replaces the nodes of every
    cluster.
-4. [CLUSTER.md](CLUSTER.md): create a guest cluster with kubectl.
+4. [CLUSTER.md](CLUSTER.md): use or create a guest cluster, [by hand](CLUSTER-manual.md) in the
+   vSphere Client or [with scripts](CLUSTER-auto.md).
 5. [Deploy the app](#deploy-the-app), on this page: run the published image on your cluster and
    reach it.
 6. [REGISTRY.md](REGISTRY.md): build the image yourself, push it to Harbor and run that one.
-7. [ARGOCD.md](ARGOCD.md): install ArgoCD on the Supervisor and create a guest cluster with
-   it, [by hand](ARGOCD-manual.md) in the vSphere Client and the ArgoCD web page, or
-   [with scripts](ARGOCD-auto.md).
+7. [ARGOCD.md](ARGOCD.md): use or install ArgoCD on the Supervisor, and create a guest
+   cluster with it, [by hand](ARGOCD-manual.md) in the vSphere Client and the ArgoCD web page,
+   or [with scripts](ARGOCD-auto.md).
 8. [ARGOCD-app.md](ARGOCD-app.md): deploy the app as an ArgoCD Application.
 9. [addons/README.md](addons/README.md): add-ons for the guest cluster,
    [cert-manager](addons/CERT-MANAGER.md), [Istio](addons/ISTIO.md) and [Headlamp](addons/HEADLAMP.md).

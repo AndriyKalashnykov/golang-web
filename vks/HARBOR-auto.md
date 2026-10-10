@@ -1,4 +1,4 @@
-# Install Harbor onto Supervisor
+# Install Harbor on the Supervisor, with scripts
 
 This guide installs the Harbor Supervisor Service on a vSphere Supervisor with vCenter's API,
 gets Harbor a DNS name, and prepares it for [REGISTRY.md](REGISTRY.md): a trusted CA, a project
@@ -39,8 +39,8 @@ The main guide's [terms](README.md#learn-the-terms) apply. New here:
   it).
 - An SSO user with the vCenter privileges **Manage Supervisor Services** and **Manage Supervisor
   Services on Supervisors**, who can also read Secrets on the Supervisor (a vCenter
-  administrator can). If yours lacks them, send your vCenter administrator the request in
-  [HARBOR.md](HARBOR.md).
+  administrator can). If yours lacks them,
+  [HARBOR.md](HARBOR.md#if-you-are-not-a-vcenter-administrator) lists what to ask for.
 - A Broadcom support account that can download **vSphere Supervisor Services** (step 2).
 - The Supervisor must reach `projects.packages.broadcom.com` (it downloads Harbor from there).
   Harbor's scanner, Trivy, also fetches its data from `ghcr.io`.
@@ -436,8 +436,9 @@ vc "$A/versions" | jq -r '.[] | "version \(.version)  \(.state)"'
 
 **Expect:** `HTTP 201` (or `already registered`), then `version 2.15.2+vmware.1-vks.1  ACTIVATED`.
 
-**If not:** `HTTP 403` — your user lacks **Manage Supervisor Services**: send your vCenter
-administrator the request in [HARBOR.md](HARBOR.md). `HTTP 400` with a message saying the service
+**If not:** `HTTP 403` — your user lacks **Manage Supervisor Services**:
+[HARBOR.md](HARBOR.md#if-you-are-not-a-vcenter-administrator) lists what to ask a vCenter
+administrator for. `HTTP 400` with a message saying the service
 already exists — vCenter knows Harbor in another version only; adding a version to it is an
 upgrade, which this guide does not cover. Any other `HTTP 400` — send the message to your
 administrator; do not edit the manifest.
@@ -766,7 +767,7 @@ in the env file as that section says. Then run
 ## 9. Check that a guest cluster can pull from Harbor
 
 This needs a guest cluster and its kubeconfig, the file `GUEST_KUBECONFIG` names in the env
-file. [Create a guest cluster with kubectl](CLUSTER.md) makes the cluster, and its
+file. [Use or create a guest cluster](CLUSTER.md) makes the cluster, and its
 [Get the cluster's kubeconfig](CLUSTER.md#get-the-clusters-kubeconfig) writes the file (for a
 cluster you were given: [the main guide](README.md#get-the-guest-clusters-kubeconfig)). Skip
 this step until you have both; without the file the block says so and does nothing.

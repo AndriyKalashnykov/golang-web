@@ -73,6 +73,6 @@ written, and a cluster without add-ons needs none of it.
 | Headlamp, helm chart | the main guide's tools | you also need `helm`, only for this |
 | Headlamp, helm chart | the main guide's clean-up | one more namespace on the guest cluster (`headlamp`), removed by the chapter's own uninstall block |
 | Headlamp, desktop | none | nothing |
-| Istio | [Create a guest cluster with kubectl](../CLUSTER.md), *Choose the cluster's values* | larger workers, or one more: the sizes table there has the row |
+| Istio | [Choose the cluster's values](../CLUSTER-auto.md#choose-the-clusters-values) | larger workers, or one more: the sizes table there has the row |
 | Istio | the main guide's deploy and reach steps | the app's Service becomes `ClusterIP`, and you reach the app through the gateway's address on port 80, not the Service's own address on port 8080 |
 | Istio | the main guide's clean-up | one more namespace on the guest cluster (`istio-ingress`) and one object on the Supervisor, removed by the chapter's own uninstall blocks |

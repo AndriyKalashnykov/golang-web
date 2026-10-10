@@ -1,4 +1,4 @@
-# One VKS guest cluster. vks/CLUSTER.md fills this file with envsubst from your env file.
+# One VKS guest cluster. vks/CLUSTER-auto.md fills this file with envsubst from your env file.
 # It describes the same object as the chart in vks/argocd/guest-cluster.
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster

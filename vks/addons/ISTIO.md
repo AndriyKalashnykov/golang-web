@@ -40,7 +40,7 @@ Nothing else in the main guide changes.
 
 Two workers of 4 GB cannot hold two copies of `istiod` at 2 GB each beside your apps: the copies
 stay `Pending`. Either make the workers larger
-([Choose the cluster's values](../CLUSTER.md#choose-the-clusters-values) has the row), or keep
+([Choose the cluster's values](../CLUSTER-auto.md#choose-the-clusters-values) has the row), or keep
 this chapter's settings, which ask for one copy with 1 GB. One copy means Istio's control
 program is away while its node is replaced; gateways and proxies that already run keep working
 during that time.

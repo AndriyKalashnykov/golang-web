@@ -21,9 +21,11 @@ Application can be deleted only while ArgoCD runs and still reaches the cluster)
 | [addons/HEADLAMP.md](addons/HEADLAMP.md) | [Remove the add-on](addons/HEADLAMP.md#remove-the-add-on), or [Uninstall Headlamp](addons/HEADLAMP.md#uninstall-headlamp) for the one installed with helm |
 | [addons/CERT-MANAGER.md](addons/CERT-MANAGER.md) | [Remove cert-manager](addons/CERT-MANAGER.md#remove-cert-manager), after the add-ons that use it |
 | [ARGOCD-auto.md](ARGOCD-auto.md) or [ARGOCD-manual.md](ARGOCD-manual.md) | that guide's *Clean up (optional)* step: the guest cluster it created, then the ArgoCD instance |
-| [CLUSTER.md](CLUSTER.md) | [Delete the cluster](CLUSTER.md#delete-the-cluster) |
+| [CLUSTER-auto.md](CLUSTER-auto.md) | its [Delete the cluster](CLUSTER-auto.md#delete-the-cluster) |
+| [CLUSTER-manual.md](CLUSTER-manual.md) | its [Delete the cluster (optional)](CLUSTER-manual.md#8-delete-the-cluster-optional) |
 | [HARBOR-auto.md](HARBOR-auto.md) or [HARBOR-manual.md](HARBOR-manual.md) | that guide's *Uninstall Harbor (optional)* step |
-| [NAMESPACE.md](NAMESPACE.md) | [Remove the namespace](NAMESPACE.md#remove-the-namespace) |
+| [NAMESPACE-auto.md](NAMESPACE-auto.md) | its [Remove the namespace](NAMESPACE-auto.md#remove-the-namespace) |
+| [NAMESPACE-manual.md](NAMESPACE-manual.md) | its [Remove the namespace (optional)](NAMESPACE-manual.md#9-remove-the-namespace-optional) |
 
 ## Delete the image and the robot in Harbor
 
@@ -114,7 +116,7 @@ colima ssh -- sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
 ## Delete the files these guides wrote
 
 This ends an open vCenter session and deletes the files the main guide and its chapters
-([NAMESPACE.md](NAMESPACE.md), [CLUSTER.md](CLUSTER.md), [REGISTRY.md](REGISTRY.md)) saved: the
+([NAMESPACE-auto.md](NAMESPACE-auto.md), [CLUSTER.md](CLUSTER.md), [CLUSTER-auto.md](CLUSTER-auto.md), [REGISTRY.md](REGISTRY.md)) saved: the
 two CA files, the two kubeconfigs, the vCenter session file and the two filled descriptions.
 Empty directories are removed; anything else in them is kept.
 
