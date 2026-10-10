@@ -28,13 +28,18 @@ you what to do.
 brew install gettext
 ```
 
+**Expect:** Homebrew's install lines, ending without an `Error:` line.
+
 **Linux (Debian/Ubuntu):**
 
 ```sh
 sudo apt-get update && sudo apt-get install -y gettext-base
 ```
 
-**Expect:** the install ends without an error. Then check the tools and the namespace:
+**Expect:** the install ends without an error (`gettext-base is already the newest version` is
+fine).
+
+Then, on both, check the tools and the namespace:
 
 ```sh
 source ~/.vks-golang-web.env
@@ -56,31 +61,31 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE"
 
 ## Add the cluster's settings
 
-This adds the cluster's nine settings to your env file, each only if it is not there yet. Values
+This adds the cluster's ten settings to your env file, each only if it is not there yet. Values
 you already set are kept.
 
 ```sh
-E="$HOME/.vks-golang-web.env"
-if [ -f "$E" ]; then
-  grep -qs '^export K8S_VERSION=' "$E" || printf '%s\n' 'export K8S_VERSION=""' >> "$E"
-  grep -qs '^export CLUSTER_CLASS=' "$E" || printf '%s\n' 'export CLUSTER_CLASS=""' >> "$E"
-  grep -qs '^export CLUSTER_CLASS_NAMESPACE=' "$E" || printf '%s\n' 'export CLUSTER_CLASS_NAMESPACE="vmware-system-vks-public"' >> "$E"
-  grep -qs '^export VM_CLASS=' "$E" || printf '%s\n' 'export VM_CLASS=""' >> "$E"
-  grep -qs '^export STORAGE_CLASS=' "$E" || printf '%s\n' 'export STORAGE_CLASS=""' >> "$E"
-  grep -qs '^export CONTROL_PLANE_REPLICAS=' "$E" || printf '%s\n' 'export CONTROL_PLANE_REPLICAS="1"' >> "$E"
-  grep -qs '^export WORKER_REPLICAS=' "$E" || printf '%s\n' 'export WORKER_REPLICAS="2"' >> "$E"
-  grep -qs '^export PODS_CIDR=' "$E" || printf '%s\n' 'export PODS_CIDR="172.20.0.0/16"' >> "$E"
-  grep -qs '^export SERVICES_CIDR=' "$E" || printf '%s\n' 'export SERVICES_CIDR="172.21.0.0/16"' >> "$E"
-  grep -c -E '^export (K8S_VERSION|CLUSTER_CLASS|CLUSTER_CLASS_NAMESPACE|VM_CLASS|STORAGE_CLASS|CONTROL_PLANE_REPLICAS|WORKER_REPLICAS|PODS_CIDR|SERVICES_CIDR)=' "$E"
+if [ -f ~/.vks-golang-web.env ]; then
+  grep -qs '^export K8S_VERSION=' ~/.vks-golang-web.env || printf '%s\n' 'export K8S_VERSION=""' >> ~/.vks-golang-web.env
+  grep -qs '^export CLUSTER_CLASS=' ~/.vks-golang-web.env || printf '%s\n' 'export CLUSTER_CLASS=""' >> ~/.vks-golang-web.env
+  grep -qs '^export CLUSTER_CLASS_NAMESPACE=' ~/.vks-golang-web.env || printf '%s\n' 'export CLUSTER_CLASS_NAMESPACE="vmware-system-vks-public"' >> ~/.vks-golang-web.env
+  grep -qs '^export VM_CLASS=' ~/.vks-golang-web.env || printf '%s\n' 'export VM_CLASS=""' >> ~/.vks-golang-web.env
+  grep -qs '^export STORAGE_CLASS=' ~/.vks-golang-web.env || printf '%s\n' 'export STORAGE_CLASS=""' >> ~/.vks-golang-web.env
+  grep -qs '^export CONTROL_PLANE_REPLICAS=' ~/.vks-golang-web.env || printf '%s\n' 'export CONTROL_PLANE_REPLICAS="1"' >> ~/.vks-golang-web.env
+  grep -qs '^export WORKER_REPLICAS=' ~/.vks-golang-web.env || printf '%s\n' 'export WORKER_REPLICAS="2"' >> ~/.vks-golang-web.env
+  grep -qs '^export PODS_CIDR=' ~/.vks-golang-web.env || printf '%s\n' 'export PODS_CIDR="172.20.0.0/16"' >> ~/.vks-golang-web.env
+  grep -qs '^export SERVICES_CIDR=' ~/.vks-golang-web.env || printf '%s\n' 'export SERVICES_CIDR="172.21.0.0/16"' >> ~/.vks-golang-web.env
+  grep -qs '^export CLUSTER_WAIT_MINUTES=' ~/.vks-golang-web.env || printf '%s\n' 'export CLUSTER_WAIT_MINUTES="15"' >> ~/.vks-golang-web.env
+  grep -c -E '^export (K8S_VERSION|CLUSTER_CLASS|CLUSTER_CLASS_NAMESPACE|VM_CLASS|STORAGE_CLASS|CONTROL_PLANE_REPLICAS|WORKER_REPLICAS|PODS_CIDR|SERVICES_CIDR|CLUSTER_WAIT_MINUTES)=' ~/.vks-golang-web.env
 else
   echo "No env file: do the main guide's first step, then run this block again"
 fi
 ```
 
-**Expect:** `9`.
+**Expect:** `10`.
 
 **If not:** `No env file: …` — the main guide's first step has not been done on this machine. A
-number above 9 means a setting is in the file twice: open the file and delete the line you do
+number above 10 means a setting is in the file twice: open the file and delete the line you do
 not want (the last one wins).
 
 ## Look up what your Supervisor offers
@@ -149,7 +154,9 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n vmware-system-vks-public get cl
 
 **Expect:** one class per line, such as `builtin-generic-v3.7.0  Kubernetes v1.33 to v1.36`. Take
 the newest class whose range includes the version you chose. A class that is too old for the
-version is refused when you apply the cluster.
+version is refused when you apply the cluster. The number in a class's name is not your VKS
+version: a class is made for each minor release of VKS, so `builtin-generic-v3.7.0` is still the
+newest one under VKS 3.7.2.
 
 **If not:** a range shown as `? to ?`: this VKS version does not publish the range; take the
 newest class. No output: the VKS service is not running on this Supervisor; tell your
@@ -169,10 +176,14 @@ Open the env file and set these lines:
 | `CONTROL_PLANE_REPLICAS` | `1`, or `3` for a cluster that must stay up when a node fails |
 | `WORKER_REPLICAS` | the number of worker nodes (see the sizes below) |
 | `PODS_CIDR`, `SERVICES_CIDR` | the address ranges used inside the cluster |
+| `CLUSTER_WAIT_MINUTES` | how long *Create the cluster and wait for it* waits; keep `15` |
 
 ```sh
 "${EDITOR:-nano}" ~/.vks-golang-web.env
 ```
+
+**Expect:** the editor opens the env file, and nothing is printed. Save and close it; the next
+block reads the new values.
 
 **Sizes.** Only worker nodes run your apps; the control-plane node does not.
 
@@ -276,7 +287,10 @@ fi
 
 This applies the description, then waits until VKS reports the cluster available. It prints one
 line every 30 seconds, with what the first machine is waiting for. Expect 4 to 9 minutes. The
-wait gives up after 15; set `CLUSTER_WAIT_MINUTES` in the env file for another limit.
+first cluster of a Kubernetes release takes longer: vCenter downloads that release's node image
+(about 6 GB) once, and until it has it the line ends with `cached files not ready`. The wait
+gives up after 15 minutes; set `CLUSTER_WAIT_MINUTES` in the env file for another limit, and run
+the block again to keep waiting.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -315,12 +329,14 @@ minute or so with an address, and finally `Available=True` — then the cluster 
 **If not:**
 - `STOP: the cluster uses the address …`: the name was used before. Run *Delete the cluster*
   below, set `VKS_CLUSTER` to a new name, and start again at *Fill the cluster's description*.
-- `NOT AVAILABLE after … waiting: … cached files not ready`: vCenter is downloading the node
-  image for this Kubernetes release, which happens once per release and takes a few minutes.
-  If the line does not change for 10 minutes, the download is failing: ask your vSphere
-  administrator to open the content library that holds the Kubernetes releases in the vSphere
-  Client and synchronize it. An error there about the publisher's certificate means the
-  library's stored certificate fingerprint is out of date and must be accepted again.
+- `NOT AVAILABLE after … waiting: … cached files not ready`: vCenter is still downloading the
+  node image for this Kubernetes release (once per release). Run the block again to keep
+  waiting. If the line has not changed after 10 minutes, the download is failing: ask your
+  vSphere administrator to open the content library that holds the Kubernetes releases in the
+  vSphere Client and synchronize it. An error there about the publisher's certificate means the
+  library's stored certificate fingerprint is out of date and must be accepted again. After the
+  administrator's repair, a cluster that already tried keeps showing `cached files not ready`
+  for up to 30 minutes and then goes on by itself: do not delete it, keep waiting.
 - `NOT AVAILABLE after …` with another reason, or none:
   `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" describe clusters.cluster.x-k8s.io "$VKS_CLUSTER"`
   shows the condition that is waiting. A VM class that is too small, a namespace limit that is

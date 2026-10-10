@@ -120,28 +120,28 @@ you have, and the create block refuses the wrong one.
 
 ### Add the settings and the helper commands
 
-This adds five settings to your env file (each only if it is not there yet) and writes
-`~/.vks-golang-web.vcenter.functions`, which is rewritten every time. The file holds five
-helper commands: `vc_login` opens one vCenter API session as your SSO user and saves its token in
-a file only you can read, so neither the password nor the token is on a command line; `vc_api`
-and `vc` make one call with that session (`vc` for paths under `namespace-management`);
+This adds five settings to your env file (each only if it is not there yet), and five helper
+commands to `~/.vks-golang-web.functions`, the helper file the env file already loads (only if
+they are not there yet). `vc_login` opens one vCenter API session as your SSO user and saves its
+token in a file only you can read, so neither the password nor the token is on a command line;
+`vc_api` and `vc` make one call with that session (`vc` for paths under `namespace-management`);
 `vc_cluster_id` prints the ID of the vSphere cluster your Supervisor runs on; `vc_logout` ends
-the session.
+the session. Other chapters that call vCenter use these same commands and send you to this
+block.
 
 ```sh
-E="$HOME/.vks-golang-web.env"
-if [ -f "$E" ]; then
-  grep -qs '^export VC_SESSION=' "$E" || printf '%s\n' 'export VC_SESSION="$HOME/.config/vks-golang-web/vc-session"' >> "$E"
-  grep -qs '^export VSPHERE_CLUSTER_ID=' "$E" || printf '%s\n' 'export VSPHERE_CLUSTER_ID=""' >> "$E"
-  grep -qs '^export STORAGE_POLICY=' "$E" || printf '%s\n' 'export STORAGE_POLICY=""' >> "$E"
-  grep -qs '^export NAMESPACE_VM_CLASSES=' "$E" || printf '%s\n' 'export NAMESPACE_VM_CLASSES=""' >> "$E"
-  grep -qs '^export NAMESPACE_ROLE=' "$E" || printf '%s\n' 'export NAMESPACE_ROLE="EDIT"' >> "$E"
-  grep -qs 'vks-golang-web.vcenter.functions' "$E" || printf '%s\n' '. "$HOME/.vks-golang-web.vcenter.functions"' >> "$E"
+if [ -f ~/.vks-golang-web.env ] && [ -f ~/.vks-golang-web.functions ]; then
+  grep -qs '^export VC_SESSION=' ~/.vks-golang-web.env || printf '%s\n' 'export VC_SESSION="$HOME/.config/vks-golang-web/vc-session"' >> ~/.vks-golang-web.env
+  grep -qs '^export VSPHERE_CLUSTER_ID=' ~/.vks-golang-web.env || printf '%s\n' 'export VSPHERE_CLUSTER_ID=""' >> ~/.vks-golang-web.env
+  grep -qs '^export STORAGE_POLICY=' ~/.vks-golang-web.env || printf '%s\n' 'export STORAGE_POLICY=""' >> ~/.vks-golang-web.env
+  grep -qs '^export NAMESPACE_VM_CLASSES=' ~/.vks-golang-web.env || printf '%s\n' 'export NAMESPACE_VM_CLASSES=""' >> ~/.vks-golang-web.env
+  grep -qs '^export NAMESPACE_ROLE=' ~/.vks-golang-web.env || printf '%s\n' 'export NAMESPACE_ROLE="EDIT"' >> ~/.vks-golang-web.env
+  echo "settings: $(grep -c -E '^export (VC_SESSION|VSPHERE_CLUSTER_ID|STORAGE_POLICY|NAMESPACE_VM_CLASSES|NAMESPACE_ROLE)=' ~/.vks-golang-web.env) of 5"
 else
   echo "No env file: do the main guide's first step, then run this block again"
 fi
 
-cat >| ~/.vks-golang-web.vcenter.functions <<'EOF'
+[ ! -f ~/.vks-golang-web.functions ] || grep -qs '^vc_api()' ~/.vks-golang-web.functions || cat >> ~/.vks-golang-web.functions <<'EOF'
 vc_login() {
   local u="$SSO_USERNAME" p="$VCF_CLI_VSPHERE_PASSWORD" cfg
   if [ -z "$p" ] || [ "${p#<}" != "$p" ]; then
@@ -183,11 +183,21 @@ vc_logout() {
   rm -f "$VC_SESSION"; echo "vCenter session closed"
 }
 EOF
+grep -c -E '^(vc_login|vc_api|vc|vc_cluster_id|vc_logout)\(\)' ~/.vks-golang-web.functions
 ```
 
-**Expect:** no output.
+**Expect:** `settings: 5 of 5`, then `5` (the helper commands in the file).
 
-**If not:** `No env file: …` — the main guide's first step has not been done on this machine.
+**If not:**
+- `No env file: …`, or `No such file or directory`: the main guide's first step has not been done
+  on this machine.
+- `settings:` with a number above 5: a setting is in the env file twice. Open the file and
+  delete the line you do not want (the last one wins).
+- A number other than `5` on the last line: run the main guide's first block (it writes the
+  helper file again and keeps your values), then this block again.
+
+The main guide's first block writes the helper file from scratch, so run this block again after
+it whenever you run that one.
 
 ### Open a vCenter session and find the Supervisor's cluster
 
@@ -212,7 +222,8 @@ one, put the ID of the cluster your Supervisor runs on in `~/.vks-golang-web.env
 - `vc_login: no session`, with `401` in the curl error above it: the user name or the password
   is wrong. Fix the env file before you try again.
 - `ERROR: UNAUTHENTICATED`: the session ended. Run `vc_login`, then the block again.
-- `vc_login: command not found`: the block above did not run.
+- `vc_login: command not found`: the block above did not run, or the main guide's first block
+  was run after it. Run the block above again.
 
 ### Read the Supervisor's network type
 
@@ -287,6 +298,9 @@ Open the env file and set these lines:
 ```sh
 "${EDITOR:-nano}" ~/.vks-golang-web.env
 ```
+
+**Expect:** the editor opens the env file, and nothing is printed. Save and close it; the next
+block reads the new values.
 
 ### Fill the namespace's description
 
@@ -539,15 +553,15 @@ guide):
 ```sh
 source ~/.vks-golang-web.env
 vc_logout
-rm -f "$HOME/.config/vks-golang-web/namespace-spec.json" ~/.vks-golang-web.vcenter.functions
+rm -f "$HOME/.config/vks-golang-web/namespace-spec.json"
 unset VC_SESSION VSPHERE_CLUSTER_ID STORAGE_POLICY STORAGE_POLICY_ID NAMESPACE_VM_CLASSES \
       NAMESPACE_VM_CLASSES_JSON NAMESPACE_USER NAMESPACE_DOMAIN NAMESPACE_ROLE
 unset -f vc_login vc_api vc vc_cluster_id vc_logout 2>/dev/null || true
 ```
 
-**Expect:** no output (`vCenter session closed` if a session was still open). Then remove the
-line `. "$HOME/.vks-golang-web.vcenter.functions"` from `~/.vks-golang-web.env`, or every later
-`source` of it prints `No such file or directory`.
+**Expect:** no output (`vCenter session closed` if a session was still open). The five settings
+stay in the env file and the helper commands in `~/.vks-golang-web.functions`; both files are
+deleted by the main guide's last clean-up block.
 
 ## Fix common problems
 
@@ -555,7 +569,7 @@ line `. "$HOME/.vks-golang-web.vcenter.functions"` from `~/.vks-golang-web.env`,
 |---|---|
 | `vc_api: no vCenter session — run vc_login` | A block was run after `vc_logout`, or without *Open a vCenter session*. Run `vc_login`, then the block again. |
 | `ERROR: UNAUTHENTICATED`, or `HTTP 401`, from a vCenter block | The vCenter session ended. Run `vc_login` (once), then the block again. |
-| `vc_login: command not found` | Run *Add the settings and the helper commands* again; it rewrites the helper file and keeps your values. |
+| `vc_login: command not found`, or `vc_api: command not found` | The main guide's first block was run again and wrote the helper file from scratch. Run *Add the settings and the helper commands* again; it adds the commands back and keeps your values. |
 | `error: You must be logged in to the server (Unauthorized)` | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's *Renew the Supervisor login* block. |
 | The namespace exists in vCenter but `kubectl get ns` answers `Forbidden` | Your SSO user is not in the namespace's permissions, or it was added after you logged in. Ask for the **Edit** role, then run the main guide's *Delete the Supervisor login* block and log in again. |
 | A cluster is refused with a message about the VM class or the storage class | The namespace does not have that class. The second block of *Check the namespace you have* lists what it has. |

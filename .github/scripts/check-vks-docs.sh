@@ -14,7 +14,8 @@
 #   [env]        a block that uses a name its env file provides starts with `source ~/<env file>`,
 #                and every $VAR is set in the block, by the env contract, by an earlier
 #                "this terminal" block, or is a shell built-in name (AMBIENT below). The contract is
-#                read from the guides' own `cat > ~/<file> <<'EOF'` blocks; it is not typed here.
+#                read from the guides' own `cat > ~/<file> <<'EOF'` blocks (and `cat >> ~/<file>`
+#                heredocs and `… >> ~/<file>` lines that append to one); it is not typed here.
 #                What a "this terminal" block assigns counts to the END OF ITS NUMBERED STEP
 #                (the next `## N.` heading ends it), or to the end of step N when the guide's
 #                sentence says "this terminal until the end of step N"
@@ -238,15 +239,19 @@ function starts(s, w) { return s == w || index(s, w " ") == 1 }'
 
 # Reads every guide block, in order, and prints what each file written with
 # `cat > ~/FILE <<EOF` provides:  FILE<TAB>var|func|inc|prompt<TAB>NAME
+# The heredoc may also be APPENDED (`cat >> ~/FILE <<EOF`, a chapter adding its helper commands to
+# a file an earlier guide wrote), and one line may append one `export NAME=` or one include
+# (`printf … >> ~/FILE`). The target must be written as ~/FILE: a path held in a variable is not
+# read, and the names it adds then count as provided by nothing.
 CONTRACT="$CMDLIB"'
 function isname(s) { return s ~ /^[A-Za-z_][A-Za-z0-9_]*$/ }
 function out(kind, name) { if (!seen[tgt, kind, name]++) print tgt "\t" kind "\t" name }
 FNR == 1 { inhd = 0; fn = "" }
 !inhd {
-  if (match($0, /cat >\|? *~\/[^ ]+ <<-?[\047"]?[A-Za-z0-9_]+/)) {
+  if (match($0, /cat >[>|]? *~\/[^ ]+ <<-?[\047"]?[A-Za-z0-9_]+/)) {
     s = substr($0, RSTART, RLENGTH)
     del = s; sub(/.*<<-?[\047"]?/, "", del)
-    tgt = s; sub(/^cat >\|? *~\//, "", tgt); sub(/ .*/, "", tgt)
+    tgt = s; sub(/^cat >[>|]? *~\//, "", tgt); sub(/ .*/, "", tgt)
     inhd = 1; fn = ""; delete loc
   } else if (match($0, />> *~\/[^ ;|&]+/)) {
     tgt = substr($0, RSTART, RLENGTH); sub(/^>> *~\//, "", tgt)
