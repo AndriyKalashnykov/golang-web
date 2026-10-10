@@ -422,26 +422,34 @@ by this guide` when you run it again.
 
 ## Make the app's Service internal
 
-With a gateway in front, the app needs no address of its own. This changes the app's Service
-from `LoadBalancer` to `ClusterIP`; the cluster then gives the Service's address back.
+With a gateway in front, the app needs no address of its own. If the app's Service is a
+`LoadBalancer` (the main guide's alternative deploy), this changes it to `ClusterIP` and notes on
+the Service what it was, so that removing the gateway can put it back; the cluster then gives the
+Service's address back. A Service that is already `ClusterIP` (the main guide's default) is left
+as it is.
 
 Skip this block if you want to keep both ways in. The app is then also reachable directly, past
 the gateway, on every path it serves.
 
 ```sh
 source ~/.vks-golang-web.env
-kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$ISTIO_APP_NAMESPACE" patch service golang-web-service --type=merge -p '{"spec":{"type":"ClusterIP"}}'
+T="$(kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$ISTIO_APP_NAMESPACE" get service golang-web-service -o jsonpath='{.spec.type}')"
+if [ "$T" = LoadBalancer ]; then
+  kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$ISTIO_APP_NAMESPACE" annotate service golang-web-service vks-golang-web/type-before-gateway=LoadBalancer --overwrite
+  kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$ISTIO_APP_NAMESPACE" patch service golang-web-service --type=merge -p '{"spec":{"type":"ClusterIP"}}'
+fi
 kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$ISTIO_APP_NAMESPACE" get service golang-web-service
 ```
 
-**Expect:** `service/golang-web-service patched` (`patched (no change)` when you run it again),
-then the Service with `TYPE` `ClusterIP` and `EXTERNAL-IP` `<none>`.
+**Expect:** the Service with `TYPE` `ClusterIP` and `EXTERNAL-IP` `<none>`; before it, when the
+Service was a `LoadBalancer`, `service/golang-web-service annotated` and
+`service/golang-web-service patched`.
 
 **If not:** `services "golang-web-service" not found` — the app is not deployed in
 `ISTIO_APP_NAMESPACE`: do the main guide's deploy step first.
 
-Deploying the app again from `k8s/golang-web.yaml` makes the Service a `LoadBalancer` again; run
-this block after each deploy.
+Deploying the app again with the main guide's `LoadBalancer` alternative makes the Service a
+`LoadBalancer` again; run this block after such a deploy.
 
 ## Create the gateway and the route
 
@@ -607,8 +615,9 @@ set), `deployment.apps/golang-web patched`, then `successfully rolled out`.
 ## Remove the gateway and the route
 
 This deletes the route and the gateway, then the gateway's namespace, each only if this guide
-made it, and makes the app's Service a `LoadBalancer` again, as `k8s/golang-web.yaml` describes
-it. Take the app out of the mesh first if you put it in.
+made it. If *Make the app's Service internal* changed the Service from `LoadBalancer`, it is
+changed back; otherwise the Service is left as it is. Take the app out of the mesh first if you
+put it in.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -620,7 +629,10 @@ elif [ -n "$L" ] && [ "$L" != "${ISTIO_GATEWAY_NAMESPACE}/addons-guide" ]; then
 else
   kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$ISTIO_APP_NAMESPACE" delete httproutes.gateway.networking.k8s.io -l vks-golang-web/created-by=addons-guide --ignore-not-found
   [ -z "$L" ] || kubectl --kubeconfig "$GUEST_KUBECONFIG" delete namespace "$ISTIO_GATEWAY_NAMESPACE" --ignore-not-found
-  kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$ISTIO_APP_NAMESPACE" patch service golang-web-service --type=merge -p '{"spec":{"type":"LoadBalancer"}}'
+  if [ "$(kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$ISTIO_APP_NAMESPACE" get service golang-web-service --ignore-not-found -o jsonpath='{.metadata.annotations.vks-golang-web/type-before-gateway}')" = LoadBalancer ]; then
+    kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$ISTIO_APP_NAMESPACE" patch service golang-web-service --type=merge -p '{"spec":{"type":"LoadBalancer"}}'
+    kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$ISTIO_APP_NAMESPACE" annotate service golang-web-service vks-golang-web/type-before-gateway-
+  fi
   rm -f "$HOME/.config/vks-golang-web/istio-gateway.yaml"
   echo "left (nothing after the colon means gone): $(kubectl --kubeconfig "$GUEST_KUBECONFIG" get namespace "$ISTIO_GATEWAY_NAMESPACE" --ignore-not-found -o name || echo unknown)"
 fi
@@ -628,14 +640,13 @@ fi
 
 **Expect:** `httproute.gateway.networking.k8s.io "golang-web" deleted`,
 `namespace "istio-ingress" deleted` (it can take a minute; the gateway and its proxy go with
-it), `service/golang-web-service patched`, then `left (nothing after the colon means gone):`
-with nothing after it. The app is reached through its own address again (main guide, *Reach the
-app*).
+it), then `left (nothing after the colon means gone):` with nothing after it; before that
+line, `service/golang-web-service patched` and `annotated` when the Service was a `LoadBalancer`
+before the gateway. The app is reached as before the gateway (main guide, *Reach the app*).
 
 **If not:**
 - `Not removing: this guide did not make the namespace …`: the namespace does not carry this
   guide's mark. If it is yours, delete the gateway in it yourself.
-- `services "golang-web-service" not found`: the app is not deployed; nothing to change back.
 
 ## Uninstall Istio
 
