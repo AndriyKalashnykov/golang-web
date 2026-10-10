@@ -155,28 +155,53 @@ numbers move whenever a block is added.
 
 ### The Mac's route to the lab
 
-The lab's addresses live on the lab host's libvirt bridges and the Mac cannot reach them. The
-scaffolding below keeps every name, IP and port in the README unchanged. It is not under test,
-and all of it is removed after a walk.
+The lab's addresses live on the lab host's libvirt bridges and the Mac cannot reach them.
+`vks/test/mac-route.sh` keeps every name, IP and port in the README unchanged on the Mac, and
+removes what it added after a walk; `vks/test/README.md`, "The Mac's route to the lab", has
+the commands and what each one changes. The hand steps this section used to describe (an `lo0`
+alias per lab IP, a relay per forward, two `/etc/hosts` lines) are that script now.
 
-**The session may not open the tunnels or start the lab; the owner does both.** His two
-commands, run on the lab host:
+**The session may not open the tunnels or start the lab; the owner does both.** The session's
+part is to print his line and to run the script on the Mac:
 
 ```
-ssh -N -o ExitOnForwardFailure=yes -R 127.0.0.1:18443:192.168.100.50:443 -R 127.0.0.1:18444:192.168.101.128:443 -R 127.0.0.1:18445:192.168.101.128:6443 -R 127.0.0.1:18446:192.168.101.130:443 -R 127.0.0.1:18447:192.168.101.132:6443 m1@62.210.166.48
-ssh -N -o ExitOnForwardFailure=yes -R 127.0.0.1:18448:<the assigned address>:8080 m1@62.210.166.48
+vks/test/mac-route.sh print-tunnel --file <the list> --mac m1@62.210.166.48
+vks/test/mac-route.sh up --file <the list>
+vks/test/mac-route.sh status
+vks/test/mac-route.sh down
 ```
 
-The second is for the app's LoadBalancer address. The lab assigns it at deploy time (`.144`,
-`.146` and `.148` on 2026-10-05), so that tunnel can only be opened after step 8. Both were
-closed after the last walk.
+The list for this lab (the addresses are in "The lab" below; the tunnel ports are the ones the
+earlier walks used):
 
-The session's part, on the Mac: an `lo0` alias for each lab IP, a root `/usr/bin/python3` relay
-from each alias to its tunnel port (one argument per forward, `<lab ip>:<port>:<tunnel port>`),
-and two `/etc/hosts` lines for the vCenter and Harbor names. Neither engine VM needs its own
-`/etc/hosts` entry: the podman machine and the Colima VM resolve Harbor's name through the Mac.
-Copy the Darwin VCF CLI archives from the lab host's `~/Downloads/vcf` into the Mac's
-`~/Downloads`.
+```
+192.168.100.50:443:18443
+192.168.101.128:443:18444
+192.168.101.128:6443:18445
+192.168.101.130:443:18446
+192.168.101.132:6443:18447
+vcsa.env1.lab.test=192.168.100.50
+harbor.env1.lab.test=192.168.101.130
+```
+
+- The app's LoadBalancer address is assigned at deploy time (`.144`, `.146` and `.148` on
+  2026-10-05), so its forward can only be added after step 8: `up` again with
+  `--forward <the assigned address>:8080:18448` appended, after the owner has opened that one
+  tunnel (`print-tunnel --forward <the assigned address>:8080:18448 --mac m1@62.210.166.48`).
+  The running forwards keep their connections.
+- `m1` has passwordless sudo on this Mac, so the script's `sudo -n` works without `sudo -v`
+  (which would ask for the login password).
+- `up` refuses a lab address that the Mac's own network uses (its gateway, a resolver, an
+  interface's network) and says which; `--allow-onlink <ip>` is the override, per address.
+  The Scaleway Mac's network was not compared with the lab's `192.168.100.0/24` and
+  `192.168.101.0/24`.
+- Neither engine VM needs its own `/etc/hosts` entry: the podman machine and the Colima VM
+  resolve Harbor's name through the Mac.
+- Copy the Darwin VCF CLI archives from the lab host's `~/Downloads/vcf` into the Mac's
+  `~/Downloads`.
+- **Not yet run on the Mac:** `mac-route.sh` (its tests run on Linux with stand-ins; what that
+  leaves unproven is listed in `vks/test/README.md`, "Not proven"). The tunnels were closed
+  after the last walk, and no scaffolding is on the Mac.
 
 ## The lab
 

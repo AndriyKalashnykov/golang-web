@@ -520,6 +520,7 @@ scripts-test: deps
 	@bash .github/scripts/k8s-context-guard_test.sh
 	@bash .github/scripts/check-vks-docs_test.sh
 	@bash vks/test/walk_test.sh
+	@bash vks/test/mac-route_test.sh
 
 #check-kind-kubeconfig: @ Verify the KinD and e2e targets use only KinD's own kubeconfig file
 check-kind-kubeconfig:
