@@ -82,12 +82,11 @@ In this order:
    and [Add the new cluster to ArgoCD](ARGOCD-auto.md#8-add-the-new-cluster-to-argocd) with
    scripts. ArgoCD creates the cluster from the chart in
    [`argocd/guest-cluster`](argocd/guest-cluster); it is the same cluster that
-   [CLUSTER.md](CLUSTER.md) creates without ArgoCD.
+   [CLUSTER-auto.md](CLUSTER-auto.md) creates without ArgoCD.
 3. **Deploy this web app with it.** [Deploy golang-web with ArgoCD](ARGOCD-app.md) has ArgoCD
    deploy this repository's app into a guest cluster, whichever way that cluster was created.
-4. **The vSphere Namespace is not created with ArgoCD.** A Supervisor has no declarative object
-   for a vSphere Namespace. Where Namespace Self-Service is on, a `Namespace` created through
-   the Supervisor's Kubernetes API becomes one
+4. **The vSphere Namespace is not created with ArgoCD.** Where Namespace Self-Service is on, a
+   `Namespace` created through the Supervisor's Kubernetes API becomes one
    ([NAMESPACE-auto.md](NAMESPACE-auto.md#create-it-with-kubectl-namespace-self-service)), and
    creating it from an ArgoCD Application has not been run. So the guides create the namespace
    first ([NAMESPACE.md](NAMESPACE.md)) and ArgoCD works inside it.

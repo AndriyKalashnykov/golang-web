@@ -40,7 +40,7 @@ The main guide's [terms](README.md#learn-the-terms) apply. New here:
   **Resources** tab (step 3 says where to look if the tab is missing). Broadcom's page for it:
   [Provision a Kubernetes cluster using self-service](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-service-administration-and-development/9-0/managing-vsphere-kuberenetes-service-clusters-and-workloads/provision-and-manage-kubernetes-clusters/provision-a-kubernetes-cluster-using-the-iaas-services-console-in-vcf-automation.html)
   (written for 9.0).
-- Room in the namespace for three virtual machines.
+- Room in the namespace for two virtual machines (one control-plane node and one worker).
 - For steps 7 and 8: the main guide's env file, its tools and its Supervisor login on this
   machine.
 
@@ -140,7 +140,7 @@ tick, and the **Kubernetes Resource YAML** pane on the right changes as you type
    storage yourself, and click **NEXT**. (With **Default Configuration** the next step is
    already **Review and Confirm**.)
 
-   ![The New Kubernetes Cluster page, step 1 Configuration Type: Default Configuration and Custom Configuration, and the Kubernetes Resource YAML pane on the right](img/cluster/05-create-type.jpg)
+   ![The New Kubernetes Cluster page, step 1 Configuration Type: Default Configuration and Custom Configuration, and the Kubernetes Resource YAML pane on the right, as the page opens](img/cluster/05-create-type.jpg)
 
    Step 1 closes and now reads *Cluster Type: Cluster API; Configuration Type: Custom
    Configuration*.
@@ -151,7 +151,7 @@ tick, and the **Kubernetes Resource YAML** pane on the right changes as you type
    - **Cluster Class:** choose the newest `builtin-generic-…` in the list (on the lab,
      `builtin-generic-v3.7.0`).
    - **Kubernetes Release:** choose the release (on the lab, `v1.36.2---vmware.2-vkr.3`).
-   - **VM Class:** a table of the namespace's VM classes, five to a page. Select the class you
+   - **VM Class:** a table of the namespace's VM classes, in pages. Select the class you
      chose in step 2 with the round button at the left of its row.
    - **Storage Class:** choose your storage class in the list (on the lab, `wcp-vmfs`). It is
      for the nodes' own disks.
@@ -177,8 +177,7 @@ tick, and the **Kubernetes Resource YAML** pane on the right changes as you type
 
    **Network** is where the address ranges inside the cluster are changed. The YAML pane shows
    the defaults, `10.95.0.0/16` for pods and `10.96.0.0/12` for services; they must not overlap
-   any network the cluster has to reach (step 2). The walk this guide was written from kept the
-   defaults and did not open **Network**.
+   any network the cluster has to reach (step 2).
 
    ![Step 2 General Settings, lower part: the Storage section open, Persistent Volume Storage with Default Storage Class chosen, the Network section closed, and NEXT](img/cluster/07-create-storage.jpg)
 
@@ -237,7 +236,7 @@ storage class — that value is not one this namespace may use: go back and choo
 **Expect:** **Status** shows **Not Available** while VKS builds the virtual machines, then
 **Available** with a green tick; **Cluster Class** and **Kubernetes Release** show what you
 chose. On a small lab a cluster of one control-plane node and one worker was **Available** after
-about five and a half minutes, with the node image already downloaded. The first cluster of a
+about five minutes, with the node image already downloaded. The first cluster of a
 Kubernetes release takes longer: vCenter downloads that release's node image (several GB) once.
 
 ![The list with the cluster Available, its cluster class, Kubernetes release and age](img/cluster/12-cluster-available.jpg)
@@ -267,11 +266,11 @@ made by hand had the default storage class chosen in step 4 (`wcp-vmfs`).
 
 **By hand, in place of the first of those two blocks:** the cluster row's ⋮ menu (step 8 has
 its picture) has the entry **Download Kubeconfig File**. It saves the cluster's kubeconfig as a
-file in the browser's download folder. <!-- unverified --> Move that file to the path
+file in the browser's download folder. Move that file to the path
 `GUEST_KUBECONFIG` names in your env file and make it readable only by you (`chmod 600`), then
 run the block under [Check the cluster](CLUSTER.md#check-the-cluster). The download does not
 match your `kubectl` to the cluster's version; the block under *Get the cluster's kubeconfig*
-does.
+does. <!-- unverified -->
 
 ## 8. Delete the cluster (optional)
 

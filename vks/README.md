@@ -56,8 +56,6 @@ to do. [TROUBLESHOOTING.md](TROUBLESHOOTING.md) lists the errors by their text.
 
 ## Gather what you need
 
-Ask your platform administrator for what the table lists.
-
 | you need | used in |
 |---|---|
 | Supervisor endpoint, vCenter DNS name, vSphere Namespace, guest cluster name | [Set the variables](#set-the-variables) |
@@ -66,7 +64,7 @@ Ask your platform administrator for what the table lists.
 | a Broadcom support account that can download VMware vSphere Foundation 9 | [Install the VCF CLI and its plugins](SETUP.md#install-the-vcf-cli-and-its-plugins) |
 | sudo rights on this machine | [Install the tools](#install-the-tools) |
 
-What you were not given, you can look up or make. A vCenter administrator finds the
+Every value can be looked up or made. A vCenter administrator finds the
 Supervisor's address and vCenter's CA in the vSphere Client
 ([NAMESPACE-manual.md](NAMESPACE-manual.md#1-find-the-supervisor-its-address-and-vcenters-ca)
 shows where), and makes a vSphere Namespace with [NAMESPACE.md](NAMESPACE.md) and a guest

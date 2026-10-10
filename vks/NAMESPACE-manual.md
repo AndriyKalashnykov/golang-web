@@ -150,8 +150,7 @@ The row of tabs above them reads **Summary**, **Monitor**, **Configure**, **Perm
 **If not:** **NEW NAMESPACE** is greyed out or missing — your user may not create namespaces, or
 no Supervisor is running (step 1). An error about the name — a namespace of that name exists, or
 the name has a character that is not allowed. On a Supervisor with NSX the **Configuration**
-step asks for more network values: take what your network administrator names; this guide was
-not run there.
+step asks for more network values: take what your network administrator names.
 
 ## 4. Give your user a role
 
@@ -166,10 +165,9 @@ permissions card on the **Summary** page.
    **DELETE**. Click **ADD**.
 2. In the **Add Permission** window choose the **Domain** (`vsphere.local` for a user made in
    vCenter itself) and type the user's name in **User/Group**.
-3. Choose the **Role**. The list holds all vCenter roles; the three for a namespace are
-   **Namespaces View**, **Namespaces Edit** and **Namespaces Owner**. **Namespaces Edit** is the
-   *Edit role* these guides name, and is enough for everything in them; **Namespaces Owner** may
-   also delete the namespace with `kubectl`.
+3. Choose the **Role**. The list starts at **Administrator**: change it. It holds all vCenter
+   roles; the three for a namespace are **Namespaces View**, **Namespaces Edit** and
+   **Namespaces Owner**. **Namespaces Edit** is the *Edit role* these guides name.
 4. Leave **Propagate to children** ticked and click **OK**.
 
    ![The Add Permission window: Domain, User/Group, Role, and the ticked box Propagate to children](img/namespace/08-add-permissions.jpg)
@@ -202,14 +200,14 @@ after the policy, and a second one with `-latebinding` at its end (on the lab: `
 
    ![The Add VM Class window: the table of VM classes with CPU and Memory, and best-effort-small and best-effort-medium ticked](img/namespace/10-add-vm-class.jpg)
 
+   The yellow line about *Instance Storage* is a note, not an error.
+
 **Expect:** the **VM Service** card shows *2 Associated VM Classes* (the number you ticked), and
 its link now reads **MANAGE VM CLASSES**.
 
 Do not click **ADD CONTENT LIBRARY**: a guest cluster needs no content library in the
 namespace. Its Kubernetes releases come from the Supervisor's own library, which the
-**Kubernetes Service** card already counts (*1 Associated Content Libraries*). On the lab the
-check in step 8 listed 13 Kubernetes releases and 7 cluster classes for a namespace made this
-way.
+**Kubernetes Service** card already counts (*1 Associated Content Libraries*).
 
 ## 7. Set limits and check the status
 
