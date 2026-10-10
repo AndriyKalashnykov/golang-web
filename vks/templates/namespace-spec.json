@@ -1,0 +1,18 @@
+{
+  "namespace": "${VKS_NAMESPACE}",
+  "cluster": "${VSPHERE_CLUSTER_ID}",
+  "storage_specs": [
+    { "policy": "${STORAGE_POLICY_ID}" }
+  ],
+  "vm_service_spec": {
+    "vm_classes": ${NAMESPACE_VM_CLASSES_JSON}
+  },
+  "access_list": [
+    {
+      "subject_type": "USER",
+      "subject": "${NAMESPACE_USER}",
+      "domain": "${NAMESPACE_DOMAIN}",
+      "role": "${NAMESPACE_ROLE}"
+    }
+  ]
+}
