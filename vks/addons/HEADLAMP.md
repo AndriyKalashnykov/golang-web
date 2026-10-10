@@ -75,13 +75,22 @@ file; no block below names a version.
 
 VKS offers Headlamp in its add-on catalogue. You describe it in one object on the
 **Supervisor**, and VKS puts it into the guest cluster and keeps it there. You also need the
-main guide's Supervisor login, `envsubst` ([Install envsubst](../CLUSTER.md#install-envsubst))
+main guide's Supervisor login, `envsubst` ([Install envsubst](../SETUP.md#install-envsubst))
 and the **Edit** role on the vSphere Namespace. It was written for VMware Cloud Foundation 9.1.1
 and VKS 3.7.
 
 **The add-on needs cert-manager on the guest cluster first.** Without it VKS accepts the install
 and Headlamp never starts: the add-on stays not ready with `Expected to find kind
 'cert-manager.io/v1/Issuer', but did not`.
+
+**Know what you get before you install it.** With its own settings the add-on gives Headlamp a
+`LoadBalancer` address on port 443: its login page is open to everyone who can reach that
+network. Its namespace is at the Pod Security level `privileged`. And the add-on's own account
+is bound to `cluster-admin`: anyone who may create a token for it, or run a command in a pod of
+that namespace, is a full administrator of the cluster. If that is more than you want on this
+cluster, take [Headlamp in the cluster, with helm](#headlamp-in-the-cluster-with-helm): a
+read-only account and no `LoadBalancer`. *What the add-on put on the cluster* shows all three on
+your cluster after the install.
 
 ### Check that the cluster has cert-manager
 
@@ -158,7 +167,7 @@ elif [ -z "$REL" ]; then
 elif [ ! -f vks/addons/templates/addoninstall.yaml ]; then
   echo "Not filled: run this block from inside your golang-web clone"
 elif ! command -v envsubst >/dev/null 2>&1; then
-  echo "Not filled: envsubst is missing (CLUSTER.md, 'Install envsubst')"
+  echo "Not filled: envsubst is missing (SETUP.md, 'Install envsubst')"
 else
   mkdir -p "$(dirname "$OUT")"
   ( umask 077; envsubst '${ADDON_INSTALL} ${VKS_NAMESPACE} ${ADDON_NAME} ${ADDON_CATALOG_NAMESPACE} ${VKS_CLUSTER} ${ADDON_RELEASE}' \
@@ -279,10 +288,8 @@ That is what the add-on does unless you change its settings:
 | its own account | `headlamp`, bound to `cluster-admin` |
 | login | a token of any account of the cluster; what you see and can do is what that account may do |
 
-**What that means.** The login page is open to everyone who can reach the cluster's
-load-balancer network, and a token of the add-on's own account is a full administrator login to
-the cluster. So this chapter never makes a token for that account: the next block makes an
-account that can only read, and you log in with that one.
+This chapter never makes a token for the add-on's own account: the next block makes an account
+that can only read, and you log in with that one.
 
 **If not:** `Error from server (NotFound)` on the first line — the add-on is not ready (run
 *Install the add-on* again), or it runs in another namespace: set `HEADLAMP_ADDON_NAMESPACE`.
@@ -520,24 +527,35 @@ add-on makes that authority worthless; take it out of your trust store then.
 
 **This removes Headlamp from the guest cluster.** The block deletes this guide's `AddonInstall`
 on the Supervisor, only if this guide made it; VKS then removes what it installed. Only if the
-Supervisor accepted the delete does it wait (up to `ADDON_WAIT_MINUTES`), and then remove the
-read-only account's binding and the files this chapter saved. **cert-manager stays**: other
-things may use it, and [its own chapter](CERT-MANAGER.md) removes it.
+Supervisor accepted the delete does it wait (up to `ADDON_WAIT_MINUTES`). **cert-manager stays**:
+other things may use it, and [its own chapter](CERT-MANAGER.md) removes it.
+
+Whenever the block finds neither the `AddonInstall` nor the Headlamp add-on on the Supervisor
+(after its own delete, or when you run it again later), it cleans up what this chapter made
+beside the add-on: the read-only account's binding on the guest cluster, and the files it saved
+on this machine. So if a run ends before Headlamp is gone, run the block again.
 
 ```sh
 source ~/.vks-golang-web.env
 AI="${VKS_CLUSTER}-headlamp-addon"
 MINE="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get addoninstall "$AI" --ignore-not-found -o jsonpath='{.metadata.name}{"/"}{.metadata.labels.vks-golang-web/created-by}')" || MINE=unknown
+CA="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusteraddon "${VKS_CLUSTER}-headlamp" --ignore-not-found -o name)" || CA=unknown
 MIN="${ADDON_WAIT_MINUTES:-10}"
 case "$MIN" in
   ''|*[!0-9]*) MIN=10 ;;
 esac
+GONE=""
 if [ -z "$VKS_CLUSTER" ]; then
   echo "Not removing: VKS_CLUSTER is empty"
+elif [ "$MINE" = unknown ] || [ "$CA" = unknown ]; then
+  echo "Not removing '${AI}': the Supervisor did not answer (see the error above). Nothing was changed."
+elif [ -z "$MINE" ] && [ -z "$CA" ]; then
+  echo "Nothing to remove on the Supervisor: no AddonInstall '${AI}' in '${VKS_NAMESPACE}', and no Headlamp add-on on '${VKS_CLUSTER}'"
+  GONE=yes
 elif [ -z "$MINE" ]; then
-  echo "Nothing to remove: no AddonInstall '${AI}' in '${VKS_NAMESPACE}'"
+  echo "Not removing: the Headlamp add-on is still on '${VKS_CLUSTER}' and this guide's AddonInstall is not there. VKS is still removing it (run this block again in a minute), or another AddonInstall holds it."
 elif [ "$MINE" != "${AI}/addons-guide" ]; then
-  echo "Not removing '${AI}': this guide did not make it, or it could not be read. Nothing was changed."
+  echo "Not removing '${AI}': this guide did not make it. Nothing was changed."
 elif kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" delete addoninstall "$AI" --wait=false; then
   n=0; LEFT=unknown; MAX=$((MIN * 4))
   until [ -z "$LEFT" ] || [ "$n" -ge "$MAX" ]; do
@@ -546,31 +564,43 @@ elif kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" delete ad
     LEFT="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get "addoninstall/${AI}" "clusteraddon/${VKS_CLUSTER}-headlamp" --ignore-not-found -o name || echo unknown)"
   done
   echo "left on the Supervisor (nothing after the colon means gone): ${LEFT}"
-  if [ -z "$LEFT" ]; then
-    kubectl --kubeconfig "$GUEST_KUBECONFIG" delete clusterrolebinding -l vks-golang-web/created-by=headlamp-guide --ignore-not-found
-    rm -f "$HOME/.config/vks-golang-web/headlamp-addoninstall.yaml" "$HOME/.config/vks-golang-web/headlamp-ca.crt"
-    echo "left on the guest cluster (nothing after the colon means gone): $(kubectl --kubeconfig "$GUEST_KUBECONFIG" get "namespace/${HEADLAMP_ADDON_NAMESPACE}" clusterrolebinding/headlamp-admin --ignore-not-found -o name || echo unknown)"
-  fi
+  [ -n "$LEFT" ] || GONE=yes
 else
   echo "Not removed: the Supervisor refused (see the error above), so nothing is waited for."
+fi
+if [ "$GONE" = yes ]; then
+  if kubectl --kubeconfig "$GUEST_KUBECONFIG" delete clusterrolebinding -l vks-golang-web/created-by=headlamp-guide --ignore-not-found; then
+    rm -f "$HOME/.config/vks-golang-web/headlamp-addoninstall.yaml" "$HOME/.config/vks-golang-web/headlamp-ca.crt"
+    echo "cleaned: the read-only account's binding on the guest cluster (a 'deleted' line above, or it was gone already), and this chapter's two files on this machine"
+    echo "left on the guest cluster (nothing after the colon means gone): $(kubectl --kubeconfig "$GUEST_KUBECONFIG" get "namespace/${HEADLAMP_ADDON_NAMESPACE}" clusterrolebinding/headlamp-admin clusterrolebinding/headlamp-viewer-guide --ignore-not-found -o name | tr '\n' ' ' || echo unknown)"
+  else
+    echo "NOT CLEANED: the guest cluster did not answer (see the error above). The read-only account's binding may still be there: run this block again."
+  fi
 fi
 ```
 
 **Expect:** `addoninstall.addons.kubernetes.vmware.com "<your cluster>-headlamp-addon" deleted`,
 then `left on the Supervisor (nothing after the colon means gone):` with nothing after it,
-`clusterrolebinding.rbac.authorization.k8s.io "headlamp-viewer-guide" deleted`, and
-`left on the guest cluster (nothing after the colon means gone):` with nothing after it. Tokens
-made earlier stop working: their account went with the namespace.
+`clusterrolebinding.rbac.authorization.k8s.io "headlamp-viewer-guide" deleted`, the line
+`cleaned: …`, and `left on the guest cluster (nothing after the colon means gone):` with nothing
+after it. Tokens made earlier stop working. When you run it again afterwards:
+`Nothing to remove on the Supervisor: …`, then the `cleaned` and `left on the guest cluster`
+lines again.
 
 **If not:**
 - `Not removing … this guide did not make it`: the `AddonInstall` does not carry this guide's
   mark. Whoever installed Headlamp removes it.
-- A name, or `unknown`, after the first colon: VKS is still removing the add-on, or the
-  Supervisor login ended. Run the block again.
-- `namespace/headlamp` after the last colon: the namespace is still being deleted; a minute
-  later `kubectl --kubeconfig "$GUEST_KUBECONFIG" get namespace "$HEADLAMP_ADDON_NAMESPACE"` says
-  `NotFound`. If it stays, it holds the read-only account this guide made: delete the namespace
-  yourself if nothing else of yours is in it.
+- A name, or `unknown`, after the first colon, and no `cleaned` line: VKS is still removing the
+  add-on, or the Supervisor login ended. **Run the block again**: the read-only account's
+  binding is removed only by a run that finds Headlamp gone.
+- `Not removing: the Headlamp add-on is still on … and this guide's AddonInstall is not there`:
+  after your own delete, wait a minute and run the block again. If it stays, somebody else
+  installed Headlamp with another `AddonInstall`.
+- `NOT CLEANED: …`: this machine could not reach the guest cluster. Run the block again when it
+  can.
+- A name after the last colon: `namespace/headlamp` right after the removal is the namespace
+  still being deleted; run the block again a minute later. A binding there that stays is not
+  this guide's to remove.
 
 ## Headlamp in the cluster, with helm
 

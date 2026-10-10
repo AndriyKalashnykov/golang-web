@@ -9,7 +9,7 @@ that serves HTTPS can get its certificate from it.
 This chapter installs cert-manager as a VKS add-on. It is optional and comes after the main
 guide's *Check the guest cluster*. You need [the main guide](../README.md)'s env file, its
 Supervisor login, the guest cluster's kubeconfig, and `envsubst`
-([Install envsubst](../CLUSTER.md#install-envsubst)). Your SSO user needs the **Edit** role on the
+([Install envsubst](../SETUP.md#install-envsubst)). Your SSO user needs the **Edit** role on the
 vSphere Namespace. It was written for VMware Cloud Foundation 9.1.1 and VKS 3.7.
 
 cert-manager is installed from the **Supervisor**: you describe it in one object there, and VKS
@@ -147,7 +147,7 @@ elif [ -z "$REL" ]; then
 elif [ ! -f vks/addons/templates/addoninstall.yaml ]; then
   echo "Not filled: run this block from inside your golang-web clone"
 elif ! command -v envsubst >/dev/null 2>&1; then
-  echo "Not filled: envsubst is missing (CLUSTER.md, 'Install envsubst')"
+  echo "Not filled: envsubst is missing (SETUP.md, 'Install envsubst')"
 else
   mkdir -p "$(dirname "$OUT")"
   ( umask 077; envsubst '${ADDON_INSTALL} ${VKS_NAMESPACE} ${ADDON_NAME} ${ADDON_CATALOG_NAMESPACE} ${VKS_CLUSTER} ${ADDON_RELEASE}' \
@@ -279,12 +279,15 @@ removes what it installed. It refuses:
   ([Headlamp](HEADLAMP.md), *Remove the add-on*);
 - while any `Certificate` object is left on the cluster: something still uses cert-manager.
 
-Only if the Supervisor accepted the delete does it wait, up to `ADDON_WAIT_MINUTES`.
+Only if the Supervisor accepted the delete does it wait, up to `ADDON_WAIT_MINUTES`. Whenever it
+finds neither the `AddonInstall` nor cert-manager on the Supervisor (after its own delete, or
+when you run it again later), it removes the install description this chapter saved.
 
 ```sh
 source ~/.vks-golang-web.env
 AI="${VKS_CLUSTER}-cert-manager-addon"
 MINE="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get addoninstall "$AI" --ignore-not-found -o jsonpath='{.metadata.name}{"/"}{.metadata.labels.vks-golang-web/created-by}')" || MINE=unknown
+CA="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusteraddon "${VKS_CLUSTER}-cert-manager" --ignore-not-found -o name)" || CA=unknown
 HL="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusteraddon "${VKS_CLUSTER}-headlamp" --ignore-not-found -o name)" || HL=unknown
 CERTS="$(kubectl --kubeconfig "$GUEST_KUBECONFIG" get certificates.cert-manager.io --all-namespaces -o jsonpath='{range .items[*]}{.metadata.namespace}{"/"}{.metadata.name}{" "}{end}' 2>&1)" || case "$CERTS" in
   *"doesn't have a resource type"*) CERTS="" ;;
@@ -294,12 +297,18 @@ MIN="${ADDON_WAIT_MINUTES:-10}"
 case "$MIN" in
   ''|*[!0-9]*) MIN=10 ;;
 esac
+GONE=""
 if [ -z "$VKS_CLUSTER" ]; then
   echo "Not removing: VKS_CLUSTER is empty"
+elif [ "$MINE" = unknown ] || [ "$CA" = unknown ]; then
+  echo "Not removing '${AI}': the Supervisor did not answer (see the error above). Nothing was changed."
+elif [ -z "$MINE" ] && [ -z "$CA" ]; then
+  echo "Nothing to remove on the Supervisor: no AddonInstall '${AI}' in '${VKS_NAMESPACE}', and no cert-manager add-on on '${VKS_CLUSTER}'"
+  GONE=yes
 elif [ -z "$MINE" ]; then
-  echo "Nothing to remove: no AddonInstall '${AI}' in '${VKS_NAMESPACE}'"
+  echo "Not removing: cert-manager is still on '${VKS_CLUSTER}' and this guide's AddonInstall is not there. VKS is still removing it (run this block again in a minute), or another AddonInstall holds it."
 elif [ "$MINE" != "${AI}/addons-guide" ]; then
-  echo "Not removing '${AI}': this guide did not make it, or it could not be read. Nothing was changed."
+  echo "Not removing '${AI}': this guide did not make it. Nothing was changed."
 elif [ -n "$HL" ]; then
   echo "Not removing: the Headlamp add-on on '${VKS_CLUSTER}' needs cert-manager, or it could not be looked up (${HL}). Remove Headlamp first."
 elif [ -n "$CERTS" ]; then
@@ -312,16 +321,21 @@ elif kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" delete ad
     LEFT="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get "addoninstall/${AI}" "clusteraddon/${VKS_CLUSTER}-cert-manager" --ignore-not-found -o name || echo unknown)"
   done
   echo "left on the Supervisor (nothing after the colon means gone): ${LEFT}"
-  if [ -z "$LEFT" ]; then rm -f "$HOME/.config/vks-golang-web/cert-manager-addoninstall.yaml"; fi
+  [ -n "$LEFT" ] || GONE=yes
 else
   echo "Not removed: the Supervisor refused (see the error above), so nothing is waited for."
+fi
+if [ "$GONE" = yes ]; then
+  rm -f "$HOME/.config/vks-golang-web/cert-manager-addoninstall.yaml"
+  echo "cleaned on this machine: the saved install description (cert-manager-addoninstall.yaml)"
 fi
 ```
 
 **Expect:**
 `addoninstall.addons.kubernetes.vmware.com "<your cluster>-cert-manager-addon" deleted`, and
 within a few minutes `left on the Supervisor (nothing after the colon means gone):` with nothing
-after it.
+after it, then `cleaned on this machine: …`. When you run it again afterwards:
+`Nothing to remove on the Supervisor: …` and the `cleaned` line.
 
 **If not:**
 - `Not removing: the Headlamp add-on … needs cert-manager`: remove Headlamp first. `unknown` in
@@ -331,8 +345,12 @@ after it.
   `unknown (…)` holds the error that stopped the listing.
 - `Not removing … this guide did not make it`: the `AddonInstall` does not carry this guide's
   mark. Whoever installed cert-manager removes it.
-- A name, or `unknown`, after the colon: VKS is still removing cert-manager, or the Supervisor
-  login ended. Run the block again.
+- A name, or `unknown`, after the colon, and no `cleaned` line: VKS is still removing
+  cert-manager, or the Supervisor login ended. Run the block again: it finishes the clean-up
+  when cert-manager is gone.
+- `Not removing: cert-manager is still on … and this guide's AddonInstall is not there`: after
+  your own delete, wait a minute and run the block again. If it stays, somebody else installed
+  cert-manager with another `AddonInstall`.
 
 This shows what is left on the guest cluster.
 

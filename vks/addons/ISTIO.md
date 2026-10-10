@@ -7,7 +7,7 @@ mesh part is an option at the end.
 
 This chapter is optional and comes after the main guide's deploy step: `golang-web` runs on the
 guest cluster. You need [the main guide](../README.md)'s env file, its Supervisor login, the
-guest cluster's kubeconfig, and `envsubst` ([Install envsubst](../CLUSTER.md#install-envsubst)).
+guest cluster's kubeconfig, and `envsubst` ([Install envsubst](../SETUP.md#install-envsubst)).
 Your SSO user needs the **Edit** role on the vSphere Namespace. It was written for VMware Cloud
 Foundation 9.1.1 and VKS 3.7.
 
@@ -146,7 +146,7 @@ elif [ -z "$REL" ]; then
 elif [ ! -f vks/addons/templates/addoninstall.yaml ]; then
   echo "Not filled: run this block from inside your golang-web clone"
 elif ! command -v envsubst >/dev/null 2>&1; then
-  echo "Not filled: envsubst is missing (CLUSTER.md, 'Install envsubst')"
+  echo "Not filled: envsubst is missing (SETUP.md, 'Install envsubst')"
 else
   mkdir -p "$(dirname "$OUT")"
   ( umask 077; envsubst '${ADDON_INSTALL} ${VKS_NAMESPACE} ${ADDON_NAME} ${ADDON_CATALOG_NAMESPACE} ${VKS_CLUSTER} ${ADDON_RELEASE}' \
@@ -451,6 +451,11 @@ Service was a `LoadBalancer`, `service/golang-web-service annotated` and
 Deploying the app again with the main guide's `LoadBalancer` alternative makes the Service a
 `LoadBalancer` again; run this block after such a deploy.
 
+If ArgoCD deployed the app ([ARGOCD-app.md](../ARGOCD-app.md)), it puts back whatever this block
+and the mesh option below change by hand (its `selfHeal`). Choose the Service's type there, with
+`APP_SERVICE_TYPE`, and make the mesh change in Git (that chapter's *Use your own Git
+repository*).
+
 ## Create the gateway and the route
 
 This fills [`templates/istio-gateway.yaml`](templates/istio-gateway.yaml) and applies it to the
@@ -477,7 +482,7 @@ elif ! kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$ISTIO_APP_NAMESPACE" get se
 elif [ ! -f vks/addons/templates/istio-gateway.yaml ]; then
   echo "Not applied: run this block from inside your golang-web clone"
 elif ! command -v envsubst >/dev/null 2>&1; then
-  echo "Not applied: envsubst is missing (CLUSTER.md, 'Install envsubst')"
+  echo "Not applied: envsubst is missing (SETUP.md, 'Install envsubst')"
 else
   mkdir -p "$(dirname "$OUT")"
   ( umask 077; envsubst '${ISTIO_GATEWAY} ${ISTIO_GATEWAY_NAMESPACE} ${ISTIO_APP_NAMESPACE}' \
@@ -654,22 +659,31 @@ before the gateway. The app is reached as before the gateway (main guide, *Reach
 pods in the mesh keep their proxy until they are restarted. The block deletes this guide's
 `AddonInstall` on the Supervisor; VKS then removes what it installed. It refuses an
 `AddonInstall` this guide did not make, and it refuses while a gateway on the cluster still uses
-Istio. Only if the Supervisor accepted the delete does it wait (up to ten minutes).
+Istio. Only if the Supervisor accepted the delete does it wait (up to ten minutes). Whenever it
+finds neither the `AddonInstall` nor Istio on the Supervisor (after its own delete, or when you
+run it again later), it removes the install description this chapter saved.
 
 ```sh
 source ~/.vks-golang-web.env
 AI="${VKS_CLUSTER}-istio-addon"
 MINE="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get addoninstall "$AI" --ignore-not-found -o jsonpath='{.metadata.name}{"/"}{.metadata.labels.vks-golang-web/created-by}')" || MINE=unknown
+CA="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusteraddon "${VKS_CLUSTER}-istio" --ignore-not-found -o name)" || CA=unknown
 GW="$(kubectl --kubeconfig "$GUEST_KUBECONFIG" get gateways.gateway.networking.k8s.io --all-namespaces -o jsonpath='{range .items[?(@.spec.gatewayClassName=="istio")]}{.metadata.namespace}{"/"}{.metadata.name}{" "}{end}' 2>&1)" || case "$GW" in
   *"doesn't have a resource type"*) GW="" ;;
   *) GW="unknown (${GW})" ;;
 esac
+GONE=""
 if [ -z "$VKS_CLUSTER" ]; then
   echo "Not removing: VKS_CLUSTER is empty"
+elif [ "$MINE" = unknown ] || [ "$CA" = unknown ]; then
+  echo "Not removing '${AI}': the Supervisor did not answer (see the error above). Nothing was changed."
+elif [ -z "$MINE" ] && [ -z "$CA" ]; then
+  echo "Nothing to remove on the Supervisor: no AddonInstall '${AI}' in '${VKS_NAMESPACE}', and no Istio add-on on '${VKS_CLUSTER}'"
+  GONE=yes
 elif [ -z "$MINE" ]; then
-  echo "Nothing to remove: no AddonInstall '${AI}' in '${VKS_NAMESPACE}'"
+  echo "Not removing: Istio is still on '${VKS_CLUSTER}' and this guide's AddonInstall is not there. VKS is still removing it (run this block again in a minute), or another AddonInstall holds it."
 elif [ "$MINE" != "${AI}/addons-guide" ]; then
-  echo "Not removing '${AI}': this guide did not make it, or it could not be read. Nothing was changed."
+  echo "Not removing '${AI}': this guide did not make it. Nothing was changed."
 elif [ -n "$GW" ]; then
   echo "Not removing: gateways on the cluster still use Istio, or could not be listed: ${GW}"
 elif kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" delete addoninstall "$AI" --wait=false; then
@@ -680,15 +694,20 @@ elif kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" delete ad
     LEFT="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get "addoninstall/${AI}" "clusteraddon/${VKS_CLUSTER}-istio" --ignore-not-found -o name || echo unknown)"
   done
   echo "left on the Supervisor (nothing after the colon means gone): ${LEFT}"
-  if [ -z "$LEFT" ]; then rm -f "$HOME/.config/vks-golang-web/istio-addoninstall.yaml"; fi
+  [ -n "$LEFT" ] || GONE=yes
 else
   echo "Not removed: the Supervisor refused (see the error above), so nothing is waited for."
+fi
+if [ "$GONE" = yes ]; then
+  rm -f "$HOME/.config/vks-golang-web/istio-addoninstall.yaml"
+  echo "cleaned on this machine: the saved install description (istio-addoninstall.yaml)"
 fi
 ```
 
 **Expect:** `addoninstall.addons.kubernetes.vmware.com "<your cluster>-istio-addon" deleted`,
-and within a few minutes `left on the Supervisor (nothing after the colon means gone):` with
-nothing after it.
+within a few minutes `left on the Supervisor (nothing after the colon means gone):` with nothing
+after it, then `cleaned on this machine: …`. When you run it again afterwards:
+`Nothing to remove on the Supervisor: …` and the `cleaned` line.
 
 **If not:**
 - `Not removing: gateways on the cluster still use Istio …`: the line names them
@@ -696,8 +715,11 @@ nothing after it.
   made only with their agreement. `unknown (…)` holds the error that stopped the listing.
 - `Not removing … this guide did not make it`: the `AddonInstall` does not carry this guide's
   mark. Whoever installed Istio removes it.
-- A name, or `unknown`, after the colon: VKS is still removing Istio, or the Supervisor login
-  ended. Run the block again.
+- A name, or `unknown`, after the colon, and no `cleaned` line: VKS is still removing Istio, or
+  the Supervisor login ended. Run the block again: it finishes the clean-up when Istio is gone.
+- `Not removing: Istio is still on … and this guide's AddonInstall is not there`: after your own
+  delete, wait a minute and run the block again. If it stays, somebody else installed Istio with
+  another `AddonInstall`: `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get addoninstall` lists them.
 
 This shows what is left on the guest cluster.
 
