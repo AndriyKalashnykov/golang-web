@@ -35,7 +35,7 @@ to do. [TROUBLESHOOTING.md](TROUBLESHOOTING.md) lists the errors by their text.
 | Harbor project | a folder in Harbor that holds images and has its own permissions; *private* (Harbor's default) or *public* |
 | robot account | a Harbor login for scripts, limited to one project, that expires |
 | CA (certificate authority) certificate | the file your tools use to confirm they talk to the real server; company servers use a private CA your machine does not trust yet |
-| fingerprint | a short hash of a certificate, used to compare it with your administrator's copy |
+| fingerprint | a short hash of a certificate, used to check that two copies of it are the same |
 | SSO user | your vCenter login, e.g. `administrator@vsphere.local` |
 | vCenter CA | the certificate authority built into vCenter; it issued the Supervisor's certificate |
 | Supervisor | the vSphere control plane you log in to, to reach your cluster |
@@ -257,7 +257,8 @@ EOF
 `cannot overwrite existing file` and zsh prints `file exists`: that is fine, your earlier values
 are kept.
 
-Open the env file and replace each example value with what your administrator gave you. Put
+Open the env file and replace each example value with your own
+([Gather what you need](#gather-what-you-need) says where each one comes from). Put
 passwords in **single quotes** (a `'` inside one is written `'\''`). If you have no vSphere
 Namespace or no guest cluster yet, write the names you will give them. The Harbor lines matter
 only when you build the image yourself: leave them as they are until
@@ -330,7 +331,10 @@ trust yet. This block downloads that CA from vCenter and saves it as `$SUPERVISO
 alternative under [Log in to the Supervisor](#log-in-to-the-supervisor) uses it so `vcf` can
 confirm it is talking to your real Supervisor, and the chapters that call vCenter (the
 namespace, Harbor and ArgoCD chapters) use it for vCenter. The download itself cannot be
-verified yet (hence `curl -k`), so you compare its fingerprint with your administrator's.
+verified yet (hence `curl -k`), so you compare its fingerprint with that of the CA file you
+download from vCenter's own page in the browser:
+[NAMESPACE-manual.md](NAMESPACE-manual.md#1-find-the-supervisor-its-address-and-vcenters-ca)
+shows where the page has it and how to print its fingerprint.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -344,14 +348,13 @@ openssl x509 -in "$SUPERVISOR_CA" -noout -subject -fingerprint -sha256
 ```
 
 **Expect:** a `subject=` line naming `CA` and `vsphere`, then `sha256 Fingerprint=…`
-(`SHA256 Fingerprint=` on macOS). Compare its hex digits with your administrator's, ignoring
-colons and upper/lower case.
+(`SHA256 Fingerprint=` on macOS). Compare its hex digits with those of the file from vCenter's
+page, ignoring colons and upper/lower case.
 
 **If not:**
-- **A different fingerprint:** do not continue. Check `VCENTER_FQDN` in the env file. Then send
-  the fingerprint you got to your administrator and ask them to confirm it or to send you the CA
-  file (if vCenter has several CAs, the block shows only the first). A company proxy that
-  replaces HTTPS certificates also causes this.
+- **A different fingerprint:** do not continue. Check `VCENTER_FQDN` in the env file, and that
+  the file you compare with came from this vCenter's page. If vCenter has several CAs, the block
+  shows only the first. A company proxy that replaces HTTPS certificates also causes this.
 - **A `curl:` error** (for example `Could not resolve host`), then `unzip`, `openssl` or (zsh)
   `no matches found` errors: the
   download failed. Check `VCENTER_FQDN` and that you can reach vCenter.
@@ -432,8 +435,9 @@ fi
 This guide logs in with the SSO user and a password; `--auth-type basic` asks for exactly that.
 Broadcom documents the flag for a Supervisor that otherwise opens a web-page login (KB 417617);
 this guide does not cover such a Supervisor. If the password login fails because your account exists only
-in an external identity provider (such as Okta or Entra ID), that is out of scope: ask your
-administrator for another way to get the guest cluster's kubeconfig, save it
+in an external identity provider (such as Okta or Entra ID), that is out of scope: get the
+guest cluster's kubeconfig another way (the vSphere Client has a download for it, named in
+[step 7 of CLUSTER-manual.md](CLUSTER-manual.md#7-get-the-kubeconfig-and-check-the-cluster)), save it
 with `source ~/.vks-golang-web.env; mkdir -p ~/.kube; cp <file> "$GUEST_KUBECONFIG"`, run
 `kubectl_install "$(kubectl version -o json | jq -r .serverVersion.gitVersion)"`,
 then continue at [Check the guest cluster](#check-the-guest-cluster).
@@ -486,7 +490,10 @@ namespace can hold a cluster.
 **If not:**
 - `NotFound`: check `VKS_NAMESPACE`. If you have no vSphere Namespace yet, get one with
   [Use or create a vSphere Namespace](NAMESPACE.md), then run this block again.
-- `Forbidden`: ask your administrator for the **Edit** role on it.
+- `Forbidden`: your SSO user has no role on it. Give it the **Edit** role:
+  [Give your user a role](NAMESPACE-manual.md#4-give-your-user-a-role) shows where. If your user
+  may not change the namespace's permissions, a user that may (a vCenter administrator) must do
+  that step.
 - `Unauthorized` or a login prompt: the login ended or did not work. Run
   [Renew the Supervisor login](#renew-the-supervisor-login), then this check again.
 
@@ -553,7 +560,8 @@ kubectl version -o json | jq -r '"client \(.clientVersion.gitVersion)  server \(
 From here on, kubectl talks to the guest cluster; the Supervisor is reached only with
 `--kubeconfig "$SUPERVISOR_KUBECONFIG"` and through `vcf`.
 
-**If not:** a node `NotReady` is a cluster problem: tell your administrator.
+**If not:** a node `NotReady`: see **If not** under
+[Check the cluster](CLUSTER.md#check-the-cluster).
 
 ## Deploy the app
 

@@ -41,7 +41,7 @@ The main guide's [terms](README.md#learn-the-terms) apply. New here:
   You need no container engine and no Harbor for this guide.
 - An SSO user with the **Edit** role on your vSphere Namespace (the main guide's user).
 - For step 4 only: an SSO user with the vCenter privilege **Manage Supervisor Services**. If
-  yours lacks it, ask your vCenter administrator to do step 4; its second half shows the clicks.
+  yours lacks it, a user that has it must do step 4; its second half shows the clicks.
 - A Broadcom support account that can download **vSphere Supervisor Services** (step 2).
 - The Supervisor must reach `projects.packages.broadcom.com` (it downloads ArgoCD from there)
   and `github.com` (ArgoCD reads the cluster's description from there).
@@ -273,8 +273,8 @@ vc /supervisor-services/argocd-service.vsphere.vmware.com/versions | jq -r '.[] 
 
 **Expect:** `HTTP 201` (or `already registered`), then `version 1.2.0-25642124  ACTIVATED`.
 
-**If not:** `HTTP 403` — your user lacks **Manage Supervisor Services**: ask your vCenter
-administrator to do this step. `HTTP 400` with a message — send it to your administrator; do not
+**If not:** `HTTP 403` — your user lacks **Manage Supervisor Services**: a user that has it
+must do this step. `HTTP 400` with a message — the message says why; do not
 edit the manifest.
 
 ### Install it on your Supervisor
@@ -322,7 +322,7 @@ service was already installed — then within about a minute
 the block again (start with `vc_login`). `install: HTTP 403` — your user lacks the privilege.
 A status other than `CONFIGURED` after 10 minutes: the message on that line says why.
 `ReconcileFailed` with an image or download error means the Supervisor cannot reach
-`projects.packages.broadcom.com`: tell your administrator.
+`projects.packages.broadcom.com`: have your network administrator allow it.
 
 <details>
 <summary><b>Alternative: the same step in the vSphere Client</b> (Broadcom's documented way)</summary>
@@ -460,7 +460,7 @@ and applies the result to your vSphere Namespace, where VKS builds the cluster.
 
 `CLUSTER_REVISION` in `~/.vks-argocd.env` pins the chart to one commit of this repository, so a
 later change here cannot change your cluster. The commit this guide
-was tested with is `e236f5c43aa2a1c7a9cc84e7f3cbdbc7024942d6`. For anything beyond trying this out, copy the
+uses is `e236f5c43aa2a1c7a9cc84e7f3cbdbc7024942d6`. For anything beyond trying this out, copy the
 `vks/argocd/guest-cluster` folder into a Git repository of your own and set `CLUSTER_REPO` and
 `CLUSTER_REVISION` to it: then only you decide what ArgoCD applies.
 
@@ -485,8 +485,9 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n vmware-system-vks-public get cl
 ```
 
 **Expect:** up to five versions such as `v1.36.2+vmware.2`, at least one VM class with its CPU
-and memory, the Supervisor's storage classes (use one your vSphere Namespace is allowed; your
-administrator knows which), and cluster classes such as `builtin-generic-v3.7.0`.
+and memory, the Supervisor's storage classes (use one your vSphere Namespace is allowed:
+[List the storage classes](CLUSTER-auto.md#list-the-storage-classes) prints those), and cluster
+classes such as `builtin-generic-v3.7.0`.
 
 Open the env file and set `NEW_CLUSTER`, `K8S_VERSION`, `VM_CLASS` and `STORAGE_CLASS`. Write the version exactly as listed (the Supervisor stores it without the
 `-vkr.N` ending its release name has; with that ending ArgoCD would report a difference forever).

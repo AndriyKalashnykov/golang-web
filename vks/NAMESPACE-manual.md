@@ -125,8 +125,8 @@ cannot be built without it.
    ![The Create Namespace window, step 2 Configuration, filled in: Name, Default Network, Additional Networks and Description](img/namespace/06-new-namespace.jpg)
 
 4. **3 Add Zones:** under *Select zones to add to the namespace for workload compute* the table
-   **Workload Zone** lists the Supervisor's zones, with one already ticked. A namespace needs at
-   least one zone and can have up to three. Leave it as it is and click **NEXT**.
+   **Workload Zone** lists the Supervisor's zones, with one already ticked. Leave it as it is
+   and click **NEXT**.
 5. **4 Review:** check **Name**, **Supervisor**, **Default Network**, **Additional Networks**
    and **Zones**, then click **FINISH**.
 
@@ -237,8 +237,8 @@ Open the env file and set `VKS_NAMESPACE` to the namespace's name.
 If you were logged in to the Supervisor before the namespace existed, or before the user got
 its role, run the main guide's
 [Delete the Supervisor login](README.md#delete-the-supervisor-login) block and
-[log in again](README.md#log-in-to-the-supervisor): a login does not see a namespace that was
-granted after it.
+[log in again](README.md#log-in-to-the-supervisor), so that the login is made with the
+namespace and the role in place.
 
 Then run both blocks of
 [Check the namespace you have](NAMESPACE.md#check-the-namespace-you-have). They prove that the

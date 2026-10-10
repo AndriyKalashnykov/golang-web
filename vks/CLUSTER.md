@@ -118,8 +118,9 @@ talks to the guest cluster; the Supervisor is reached only with
 `--kubeconfig "$SUPERVISOR_KUBECONFIG"`.
 
 **If not:**
-- A node `NotReady` in the first minutes: wait and run the block again. If it stays, tell your
-  administrator.
+- A node `NotReady` in the first minutes: wait and run the block again. If it stays,
+  [Check the machines](CLUSTER-auto.md#check-the-machines) lists the cluster's machines as VKS
+  sees them.
 - `default storage class: NONE`: the cluster was created without a default storage class, so an
   app that asks for a disk without naming a storage class waits forever. A cluster from
   [CLUSTER-auto.md](CLUSTER-auto.md): fill the description from the unchanged
@@ -152,8 +153,9 @@ node, each `Running`, with `UP-TO-DATE` `True`. During a replacement the old mac
 `UP-TO-DATE` `False` and new ones appear; it is over when every machine shows `True` again.
 
 **If not:** machines that stay `UP-TO-DATE` `False` for more than an hour, with no new machine
-appearing: tell your administrator; do not delete machines or switch virtual machines off
-yourself.
+appearing: the `describe` command under **If not** of
+[Create the cluster and wait for it](CLUSTER-auto.md#create-the-cluster-and-wait-for-it) shows
+the condition that is waiting. Do not delete machines or switch virtual machines off yourself.
 
 ## Next
 

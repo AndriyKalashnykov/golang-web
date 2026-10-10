@@ -105,7 +105,8 @@ another one.
 **If not:**
 - No output: this Supervisor's catalogue has no cert-manager. Right after VKS was installed or
   updated the catalogue arrives over about ten minutes: run the block again then. If it stays
-  empty, tell your administrator.
+  empty, the catalogue has none and this chapter cannot be used on this Supervisor: which
+  add-ons there are depends on your VKS version.
 - `the server doesn't have a resource type "addonrelease"`: this Supervisor's VKS has no add-on
   catalogue; this chapter cannot be used on it.
 - `Unauthorized`: run the main guide's *Renew the Supervisor login* block.

@@ -116,8 +116,10 @@ you write it. (The full name that `kubectl get kr` prints is accepted too; the S
 stores the short form.)
 
 **If not:** no output — no release is both ready and compatible. On a Supervisor that was
-switched on minutes ago, wait ten minutes and run the block again; if the list stays empty, tell
-your administrator. `Unauthorized`: run the main guide's *Renew the Supervisor login* block.
+switched on minutes ago, wait ten minutes and run the block again. If the list stays empty,
+the Supervisor's Kubernetes content library has not synchronized, or holds no release this
+Supervisor can use: **If not** under *Create the cluster and wait for it* says where to
+synchronize it. `Unauthorized`: run the main guide's *Renew the Supervisor login* block.
 
 ### List the VM classes
 
@@ -168,8 +170,9 @@ version: a class is made for each minor release of VKS, so `builtin-generic-v3.7
 newest one under VKS 3.7.2.
 
 **If not:** a range shown as `? to ?`: this VKS version does not publish the range; take the
-newest class. No output: the VKS service is not running on this Supervisor; tell your
-administrator.
+newest class. No output: the VKS service is not running on this Supervisor. Its row,
+**Kubernetes Service**, is in the list of the Supervisor's services: the Supervisor's
+**Configure** tab → **Supervisor Services** → **Overview**.
 
 ## Choose the cluster's values
 
@@ -205,7 +208,7 @@ Istio's control program asks for 2 GB of memory per copy and runs two copies unl
 it; a 4 GB worker has less than 3 GB free for apps, so two small workers leave no room beside
 it. You can also start small: changing `WORKER_REPLICAS` and applying the file again adds
 workers. A `guaranteed-…` class reserves its whole CPU and memory on the
-hosts; choose `best-effort-…` unless your administrator says the hosts have the room.
+hosts; choose `best-effort-…` unless you know the hosts have the room.
 
 **Address ranges.** `PODS_CIDR` and `SERVICES_CIDR` exist only inside the cluster, but they
 **must not overlap any network the cluster has to reach**: your vSphere management and workload
@@ -298,8 +301,8 @@ fi
   version. A message about the VM class or the storage class — that class is not assigned to
   your namespace. Fix the value, fill the description again, then run this block again.
 - `no matches for kind "Cluster" in version "cluster.x-k8s.io/v1beta2"`: this Supervisor's VKS
-  is older than 3.5 and does not know this form of the object. Ask your administrator to update
-  VKS; this chapter does not cover the older form.
+  is older than 3.5 and does not know this form of the object. This chapter needs VKS 3.5 or
+  later; it covers neither the older form nor the update of VKS.
 - `Forbidden`: your SSO user lacks the **Edit** role on the namespace.
 
 ## Create the cluster and wait for it
@@ -313,7 +316,7 @@ minutes; set `CLUSTER_WAIT_MINUTES` in the env file for another limit, and run t
 to keep waiting.
 
 The block refuses a cluster of that name that it did not create itself: one ArgoCD manages, or
-one made another way (your administrator's, for example). Applying this description to such a
+one made another way (in the vSphere Client, for example). Applying this description to such a
 cluster would change its size and classes. Running the block again on your own cluster is fine.
 
 ```sh
@@ -374,12 +377,13 @@ worker counts. If the limit is reached first, the last two lines are
   below, set `VKS_CLUSTER` to a new name, and start again at *Fill the cluster's description*.
 - `NOT AVAILABLE after … waiting: … cached files not ready`: vCenter is still downloading the
   node image for this Kubernetes release (once per release). Run the block again to keep
-  waiting. If the line has not changed after 10 minutes, the download is failing: ask your
-  vSphere administrator to open the content library that holds the Kubernetes releases in the
-  vSphere Client and synchronize it. An error there about the publisher's certificate means the
-  library's stored certificate fingerprint is out of date and must be accepted again. After the
-  administrator's repair, a cluster that already tried keeps showing `cached files not ready`
-  for up to about 30 minutes and then goes on by itself: do not delete it, keep waiting.
+  waiting. If the line has not changed after 10 minutes, the download is failing: open the
+  content library that holds the Kubernetes releases in the vSphere Client and synchronize it
+  (if your user may not change that library, a user that may must do this). An error there
+  about the publisher's certificate means the library's stored certificate fingerprint is out
+  of date and must be accepted again. After the repair, a cluster that already tried keeps
+  showing `cached files not ready` for up to about 30 minutes and then goes on by itself: do
+  not delete it, keep waiting.
 - `NOT AVAILABLE after …` with another reason, or none:
   `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" describe clusters.cluster.x-k8s.io "$VKS_CLUSTER"`
   shows the condition that is waiting. A VM class that is too small, a namespace limit that is

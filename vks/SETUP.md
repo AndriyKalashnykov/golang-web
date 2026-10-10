@@ -109,11 +109,12 @@ prints `kubectl v1.… is within one minor version of v1.…: supported, not cha
   at the end of the line first in your `PATH`, or remove the other kubectl.
 - `kubectl_install: command not found`, or `No such file or directory` for the env file: do the
   main guide's [Set the variables](README.md#set-the-variables) first.
-- `kubectl_install: cannot reach dl.k8s.io`: ask your administrator to allow dl.k8s.io, or use
-  the alternative below.
+- `kubectl_install: cannot reach dl.k8s.io`: ask your network administrator to allow dl.k8s.io,
+  or use the alternative below.
 - `kubectl_install: the checksum of the download does not match`: the download arrived damaged.
-  Run the block again; if it repeats, tell your administrator. (The checksum comes from the same
-  site as the download, so it catches a damaged file, not one that was replaced on purpose.)
+  Run the block again; if it repeats, tell your network administrator. (The checksum comes from
+  the same site as the download, so it catches a damaged file, not one that was replaced on
+  purpose.)
 - `kubectl_install: could not write …`: the error above that line says why (a full disk, or a home
   directory you may not write to).
 
@@ -154,7 +155,7 @@ if [ -n "$P" ]; then
   fi
   [ -n "$T" ] && rm -rf "$T"
 else
-  echo "No Supervisor kubectl for $(uname -s)/$(uname -m): nothing installed. Ask your administrator to allow dl.k8s.io."
+  echo "No Supervisor kubectl for $(uname -s)/$(uname -m): nothing installed. Ask your network administrator to allow dl.k8s.io."
 fi
 ```
 
@@ -162,7 +163,7 @@ fi
 
 **If not:**
 - `No Supervisor kubectl for …: nothing installed` (Linux on arm64): the Supervisor has no kubectl
-  for this machine. Ask your administrator to allow dl.k8s.io, then run the block above.
+  for this machine. Ask your network administrator to allow dl.k8s.io, then run the block above.
 - `Nothing installed: …`: your existing kubectl, if any, is unchanged. Read the error above that
   line:
   - `Failed to connect` or `Could not resolve host`: `SUPERVISOR_ENDPOINT` in the env file is
@@ -170,7 +171,8 @@ fi
   - `bad CPU type in executable` (a Mac with Apple silicon): this kubectl is an Intel program and
     needs Rosetta. Run `softwareupdate --install-rosetta --agree-to-license`, then this block
     again.
-  - Anything else (for example `404`, or an `unzip` error): send the error to your administrator.
+  - Anything else (for example `404`, or an `unzip` error): the Supervisor did not serve a usable
+    kubectl. Use the block above once dl.k8s.io can be reached.
 - `WARNING: 'kubectl' on your PATH is …`: as in the block above.
 
 </details>
@@ -242,7 +244,7 @@ then `version: v9.1.1.0100.25746586` (or the release you downloaded), then the p
   the folder in `CLI_TGZ`/`PLUGINS_TGZ`. `unsupported` in the path means this machine's OS or CPU
   has no VCF CLI build.
 - A different checksum means a damaged or wrong download: delete the file and download it again.
-  If it still differs, do not install it; tell your administrator.
+  If it still differs, do not install it.
 - A `WARNING` line means another `vcf` is found first, or (`not found`) `/usr/local/bin` is not in
   your `PATH`: put `/usr/local/bin` first in your `PATH`, and remove the other `vcf` if there is
   one.
@@ -394,7 +396,7 @@ curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 |
 `helm installed into /usr/local/bin/helm`.
 
 **If not:** a `curl:` error — this machine cannot reach raw.githubusercontent.com or get.helm.sh:
-ask your administrator to allow them.
+ask your network administrator to allow them.
 
 Then, on both:
 

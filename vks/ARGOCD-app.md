@@ -340,9 +340,10 @@ it again), then `<the repository>  ->  https://<an address>:6443  namespace <you
   and nothing uses it yet; *Create the Application* refuses it as it is. This prints the version
   of your instance:
   `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get argocd -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.version}{"\n"}{end}'`.
-  Ask your administrator for an ArgoCD Service that brings Argo CD 3.4 or later (ArgoCD Service
-  1.2.0 brings 3.4.4). To take the project away again, run *Delete the project and the
-  repository login* below.
+  This chapter needs an ArgoCD Service that brings Argo CD 3.4 or later (ArgoCD Service
+  1.2.0 brings 3.4.4; it is the one [ARGOCD-manual.md](ARGOCD-manual.md) and
+  [ARGOCD-auto.md](ARGOCD-auto.md) install). To take the project away again, run *Delete the
+  project and the repository login* below.
 - `Not changed: a project named 'vks-apps' exists …`: someone else made it. Ask them, or have
   your ArgoCD administrator allow your repository, cluster and namespace in it. This chapter
   does not change a project it did not create.
@@ -889,7 +890,7 @@ A separate program, Argo CD Image Updater, can watch a registry and change the A
 you. This chapter does not cover it. Its current releases are installed with their own custom
 resource definitions, and a Supervisor does not let a namespace user create those
 (`kubectl auth can-i create customresourcedefinitions` answers `no` there). Running it in the
-guest cluster instead, talking to the Supervisor's ArgoCD from outside, has not been tried.
+guest cluster instead, talking to the Supervisor's ArgoCD from outside, is not covered either.
 
 ## Fix common problems
 

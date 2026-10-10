@@ -261,8 +261,8 @@ Open the env file and set `VKS_CLUSTER` to the cluster's name.
 Then run the two blocks under
 [Get the cluster's kubeconfig](CLUSTER.md#get-the-clusters-kubeconfig) and
 [Check the cluster](CLUSTER.md#check-the-cluster): they save the cluster's kubeconfig, match
-your `kubectl` to it, and check the nodes and the default storage class. On the lab the cluster
-made by hand had the default storage class chosen in step 4 (`wcp-vmfs`).
+your `kubectl` to it, and check the nodes and the default storage class: it must be the one
+you chose in step 4 (on the lab, `wcp-vmfs`).
 
 **By hand, in place of the first of those two blocks:** the cluster row's ⋮ menu (step 8 has
 its picture) has the entry **Download Kubeconfig File**. It saves the cluster's kubeconfig as a
@@ -291,7 +291,7 @@ here: delete that one with the ArgoCD guide's *Delete the guest cluster* step.
 
    ![The Delete Kubernetes Cluster window: the question with the cluster's name, and the buttons CANCEL and DELETE](img/cluster/14-delete-confirm.jpg)
 
-**Expect:** the row shows **Not Available** for a moment and then disappears from the list.
+**Expect:** the row disappears from the list (the refresh arrow reloads it).
 
 Do not switch the virtual machines off yourself. This checks whether the cluster and its
 address are gone:

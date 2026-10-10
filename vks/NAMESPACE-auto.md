@@ -2,9 +2,9 @@
 
 This guide creates a vSphere Namespace with command blocks only: vCenter's API with `curl`, or,
 where your Supervisor has Namespace Self-Service switched on, one `kubectl` command. Every value
-it needs is printed by a block. It was written for VMware Cloud Foundation 9.1.1 and run on a
-Supervisor with vSphere Distributed Switch networking and the Foundation Load Balancer. It was
-not run on a Supervisor with NSX.
+it needs is printed by a block. It was written for VMware Cloud Foundation 9.1.1, for a
+Supervisor with vSphere Distributed Switch networking and the Foundation Load Balancer. It does
+not cover a Supervisor with NSX.
 
 The same result by hand, in the vSphere Client, is in [NAMESPACE-manual.md](NAMESPACE-manual.md).
 If you already have a namespace, you need neither: see [NAMESPACE.md](NAMESPACE.md).
@@ -27,7 +27,7 @@ Do this only if your SSO user is a vCenter administrator. Broadcom's documentati
 `HTTP 403`: [NAMESPACE.md](NAMESPACE.md#if-you-are-not-a-vcenter-administrator) says what to
 ask for then.
 
-The calls below were proven on VMware Cloud Foundation 9.1.1, on a Supervisor whose workload
+The calls below are for VMware Cloud Foundation 9.1.1, on a Supervisor whose workload
 network is a vSphere Distributed Switch with the Foundation Load Balancer. A Supervisor on NSX
 with VPC needs a different call, with a network description
 ([Broadcom: create a vSphere Namespace with shared subnets](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-1/vsphere-supervisor-installation-and-configuration/configuring-and-managing-vsphere-namespaces/managing-vsphere-namespaces-on-a-supervisor-with-nsx-vpc/create-and-configure-a-vsphere-namespace-on-a-supervisor-with-vpc/create-vsphere-namepsaces-with-shared-subnets.html)),
@@ -114,8 +114,9 @@ fi
   above, then continue at [Check the namespace you have](NAMESPACE.md#check-the-namespace-you-have).
 - `network provider: UNKNOWN  Supervisor: NOT_FOUND`: that cluster has no Supervisor. Set
   `VSPHERE_CLUSTER_ID` to the cluster that has one.
-- `Supervisor:` followed by anything but `RUNNING`: the Supervisor is not ready. Wait, or tell
-  your administrator.
+- `Supervisor:` followed by anything but `RUNNING`: the Supervisor is not ready. Wait. The
+  vSphere Client shows the Supervisor's **Config Status** on the **Supervisors** tab
+  ([NAMESPACE-manual.md](NAMESPACE-manual.md#1-find-the-supervisor-its-address-and-vcenters-ca)).
 - `Set VSPHERE_CLUSTER_ID …`: vCenter has more than one cluster; see the block above.
 
 ### List the storage policies
@@ -129,7 +130,7 @@ vc_api /storage/policies | jq -r 'if type == "array" then .[] | .name else "ERRO
 
 **Expect:** one policy name per line. Choose one whose datastore has room for the cluster's
 disks (tens of GB per node, plus what your apps store). Policies with `Encryption` in their
-name need a key provider; do not choose one unless your administrator says so.
+name need a key provider; do not choose one unless you know the vCenter has it.
 
 **If not:** `ERROR: UNAUTHENTICATED` — run `vc_login`, then the block again.
 
@@ -288,7 +289,9 @@ Now run both blocks of [Check the namespace you have](NAMESPACE.md#check-the-nam
 - `status: ERROR`, or no `RUNNING` after 10 minutes: open the namespace in the vSphere Client;
   its **Summary** shows the reason.
 - `networks:` with nothing after it: the namespace has no workload network, and a cluster in it
-  would get no addresses. Tell your administrator before you create a cluster.
+  would get no addresses. Do not create a cluster in it. In the vSphere Client the network is
+  the **Default Network** field of the create window
+  ([Create the namespace](NAMESPACE-manual.md#3-create-the-namespace)).
 
 Do not send a changed description to a namespace that exists. The list of VM classes in an
 update *replaces* the namespace's list: a class an administrator added by hand, and that your
@@ -299,10 +302,10 @@ shows where its storage, VM classes and permissions are.
 ## Create it with kubectl (Namespace Self-Service)
 
 Do this INSTEAD of [Create it with the vCenter API](#create-it-with-the-vcenter-api), and only
-when your administrator switched on Namespace Self-Service on the Supervisor. With
+when Namespace Self-Service is switched on on the Supervisor. With
 Namespace Self-Service on, a plain `kubectl create namespace` on the Supervisor makes a real
 vSphere Namespace. You do not choose its storage policy, its VM classes or its limits: they come
-from a template your administrator wrote. Broadcom marks Namespace Self-Service without VCF
+from Self-Service's template. Broadcom marks Namespace Self-Service without VCF
 Automation as deprecated, so do not build on it for the long term.
 
 This asks the Supervisor whether you may create namespaces.
@@ -462,7 +465,7 @@ belong to the main guide.
 | `ERROR: UNAUTHENTICATED`, or `HTTP 401`, from a vCenter block | The vCenter session ended. Run `vc_login` (once), then the block again. |
 | `vc_login: command not found`, or `vc_api: command not found` | Your `~/.vks-golang-web.functions` was written by an older version of the main guide. Run the main guide's first block again: it rewrites that file and keeps your values. |
 | `error: You must be logged in to the server (Unauthorized)` | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's *Renew the Supervisor login* block. |
-| The namespace exists in vCenter but `kubectl get ns` answers `Forbidden` | Your SSO user is not in the namespace's permissions, or it was added after you logged in. Ask for the **Edit** role, then run the main guide's *Delete the Supervisor login* block and log in again. |
+| The namespace exists in vCenter but `kubectl get ns` answers `Forbidden` | Your SSO user is not in the namespace's permissions, or it was added after you logged in. Give it the **Edit** role ([Give your user a role](NAMESPACE-manual.md#4-give-your-user-a-role)), then run the main guide's *Delete the Supervisor login* block and log in again. |
 | A cluster is refused with a message about the VM class or the storage class | The namespace does not have that class. The second block of [Check the namespace you have](NAMESPACE.md#check-the-namespace-you-have) lists what it has. |
 
 ## Next

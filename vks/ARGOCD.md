@@ -5,8 +5,8 @@ Supervisor Service: once the service is installed, a vSphere Namespace can run i
 (an *instance*). This page tells you how to check an ArgoCD that exists, where to go when none
 does, and what these guides use ArgoCD for.
 
-**You need vCenter administrator rights to install the ArgoCD Service; to check and use an
-ArgoCD instance you need only the Edit role on your vSphere Namespace.**
+**You need vCenter administrator rights to install the ArgoCD Service. To check and use an
+ArgoCD instance, these guides use an SSO user with the Edit role on your vSphere Namespace.**
 
 | your situation | go to |
 |---|---|
@@ -87,8 +87,8 @@ In this order:
    deploy this repository's app into a guest cluster, whichever way that cluster was created.
 4. **The vSphere Namespace is not created with ArgoCD.** Where Namespace Self-Service is on, a
    `Namespace` created through the Supervisor's Kubernetes API becomes one
-   ([NAMESPACE-auto.md](NAMESPACE-auto.md#create-it-with-kubectl-namespace-self-service)), and
-   creating it from an ArgoCD Application has not been run. So the guides create the namespace
+   ([NAMESPACE-auto.md](NAMESPACE-auto.md#create-it-with-kubectl-namespace-self-service)), but
+   these guides do not create it from an ArgoCD Application. They create the namespace
    first ([NAMESPACE.md](NAMESPACE.md)) and ArgoCD works inside it.
 
 ## Where the chart lives and what changes when you host it yourself
@@ -133,5 +133,5 @@ A registry that asks for a login needs a repository secret with `enableOCI: "tru
 and a registry with a certificate from a private CA, as a Harbor on the Supervisor has, needs
 that CA given to ArgoCD
 ([the same page, Repositories using self-signed TLS certificates](https://github.com/argoproj/argo-cd/blob/v3.4.4/docs/operator-manual/declarative-setup.md#repositories-using-self-signed-tls-certificates-or-are-signed-by-custom-ca)).
-These guides do not do that, and it was not tried on a Supervisor. It is also the one case that
+These guides do not do that. It is also the one case that
 needs the `helm` program on your machine: to package the chart and push it to Harbor.
