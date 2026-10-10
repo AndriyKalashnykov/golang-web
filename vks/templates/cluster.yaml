@@ -1,0 +1,36 @@
+# One VKS guest cluster. vks/CLUSTER.md fills this file with envsubst from your env file.
+# It describes the same object as the chart in vks/argocd/guest-cluster.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: ${VKS_CLUSTER}
+  namespace: ${VKS_NAMESPACE}
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - ${PODS_CIDR}
+    services:
+      cidrBlocks:
+        - ${SERVICES_CIDR}
+  topology:
+    classRef:
+      name: ${CLUSTER_CLASS}
+      namespace: ${CLUSTER_CLASS_NAMESPACE}
+    version: ${K8S_VERSION}
+    controlPlane:
+      replicas: ${CONTROL_PLANE_REPLICAS}
+    workers:
+      machineDeployments:
+        - class: node-pool
+          name: np1
+          replicas: ${WORKER_REPLICAS}
+    variables:
+      - name: vmClass
+        value: ${VM_CLASS}
+      - name: storageClass
+        value: ${STORAGE_CLASS}
+      - name: vsphereOptions
+        value:
+          persistentVolumes:
+            defaultStorageClass: ${STORAGE_CLASS}
