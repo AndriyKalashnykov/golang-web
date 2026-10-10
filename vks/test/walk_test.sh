@@ -28,6 +28,13 @@ for pair in README.md:22 SETUP.md:20 REGISTRY.md:16 CLEANUP.md:8 TROUBLESHOOTING
   eq "extract $g: one file per block" "$(find "$T/real-$g" -name '[0-9][0-9][0-9].sh' | grep -c .)" "$want"
   eq "extract $g: as many fences as blocks" "$(grep -c '^```sh$' "$VKS/$g")" "$want"
 done
+# A guide added later gets its own line here, so that two changes never meet on the line above.
+for pair in ARGOCD-app.md:19; do
+  g=${pair%%:*}; want=${pair##*:}
+  bash "$WALK" extract "$VKS/$g" "$T/real-$g" || bad "extract $g" "exit $?"
+  eq "extract $g: $want blocks" "$(grep -c . "$T/real-$g/manifest.tsv")" "$want"
+  eq "extract $g: as many fences as blocks" "$(grep -c '^```sh$' "$VKS/$g")" "$want"
+done
 eq "README: alternatives marked" "$(awk -F'\t' '$2 == "alt"' "$T/real-README.md/manifest.tsv" | grep -c .)" 3
 eq "ARGOCD-manual: one 'this terminal' block, until the end of step 8" "$(awk -F'\t' '$3 ~ /^T/ { print $3 "/" $6 }' "$T/real-ARGOCD-manual.md/manifest.tsv")" 'T8/NEW_CLUSTER="my-new-cluster"'
 eq "README block 1 is written verbatim" "$(awk -v n="$(grep -c '' "$T/real-README.md/001.sh")" '!s && /^```sh$/ { s = NR; next } s && NR <= s + n' "$VKS/README.md" | cksum)" "$(cksum < "$T/real-README.md/001.sh")"

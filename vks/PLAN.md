@@ -187,6 +187,7 @@ were built together on 2026-10-10 and are recorded under the table: text only, *
 | 4 | The check blocks; the namespace by the vCenter API (settings, session, network type, the two lists, fill, create, the stops); the namespace by self-service (`kubectl create namespace`). After the vCenter helpers moved into the main guide's step 1: the step 1 block, the namespace settings block, the open-session block and `vc_logout` | macOS and bash 3.2; the vSphere Client click list (not clicked); a Supervisor on NSX; an SSO user with only the Edit role (the first two NAMESPACE blocks are that reader's whole path, and they have never run as such a user) |
 | 5 | Lookups, fill, server dry run, create, the wait, the machines, the cluster check, delete. After the helper move: the cluster settings block, the machines block under *Install Harbor before you create clusters*, and the kubeconfig block twice with a kubectl within one minor version (no change) | macOS and bash 3.2; `kubectl_install`'s install branches on a real machine (`KUBECTL_DIR`, `sudo -n`, the `~/.local/bin` fallback, the three failure messages: run only against stand-in `curl`, `sudo` and `kubectl` programs); the two re-used-name stops on a lab |
 | 7 | Harbor Supervisor Service 2.15.2+vmware.1-vks.1. `HARBOR-auto.md`, one block per fresh login shell: the download check, the secrets file (7 values), the storage class list, the configuration file, the vCenter session, the manifest check, register (201, `ACTIVATED`, signature `TRUSTED`), install (201 on attempt 1, `CONFIGURED`), the address and `http=200`, the DNS check with both verdicts, the CA fingerprint, the three main-guide parts, the admin login, the project (201), the pull check from a guest cluster (`OK`), uninstall (204), remove the service (three 204). `HARBOR-manual.md`: every click and window in the vSphere Client; its ten screenshots are from that run. Seen in the walk: installing AND uninstalling Harbor replaces every node of every guest cluster on the Supervisor; a second install has a new address and a new CA. Run on the lab after the first review, in bash and zsh: the settings block (`settings: 6 of 6`, `admin password line: 1 of 1`), the secrets file's count line (one `awk`), the pull check's guard for a missing kubeconfig | macOS; a user without the Manage Supervisor Services privilege; a Supervisor on NSX; Contour in place of the nginx load balancer; a second install with other data values. NOT run anywhere: the two clipboard install lines of the manual guide (`sudo apt-get install -y wl-clipboard`, `sudo dnf install -y wl-clipboard`), the `xclip` form, and the block that empties the clipboard (`pbcopy`, `wl-copy --clear`, `xclip`): the walk met the clipboard block's `No clipboard program here` line on a Wayland desktop with neither program, and the paste was done from an editor |
+| 8 | Nothing | Every block of `ARGOCD-app.md`: the destination list, the `ManagedEntity` for a cluster made with `kubectl`, the Harbor digest lookup, the project `vks-apps`, the Application (published image, and a Harbor image by digest), the pull secret, the wait with the digest check, the port-forward, a second digest, the fork with a repository login, the four delete blocks. Also not run: an Application from a COPY of the chart in another repository (phase 8's third "done when"), macOS and bash 3.2 |
 
 Changed after those walks, and run only against stand-in `curl`, `kubectl` and `sleep` programs,
 in bash and zsh (not on a lab):
@@ -303,6 +304,40 @@ exactly one line of `k8s/golang-web.yaml`, and the `jsonpath` prints `service ty
 to the other and back on a live Service, a pull of the ghcr image by a guest node, and the reach
 blocks after a `ClusterIP` deploy (the port-forward blocks themselves are old and unchanged).
 Not built: `k8s/overlays/`; door A does not use `k8s/kustomization.yaml`.
+
+Phase 8, run offline only (no lab), in bash and zsh:
+
+- `kustomize build k8s` and `kubectl kustomize k8s` give the same two objects as
+  `k8s/golang-web.yaml` (kustomize 5.8.2, and the 5.8.1 inside kubectl 1.37.1). The three image
+  overrides were measured again and D5 holds: name alone keeps the ghcr tag and digest under the
+  new name, name + tag drops the digest, name + digest gives `<name>@sha256:…`;
+- the `Application` and `AppProject` the blocks send were captured from a stand-in `kubectl` and
+  checked against the CRD schemas of upstream ArgoCD v3.4.4 with unknown fields refused (a
+  misspelt field fails). The VCF build's own CRDs were not read. The `ManagedEntity` has no
+  schema offline: it is the ArgoCD guides' object plus one label;
+- the same `Application` was rendered the way ArgoCD's repo-server does it (`kustomize edit set
+  image`, the patch appended to `kustomization.yaml`, `kustomize build`): the Harbor digest and
+  `type: ClusterIP` come out, and the result is valid for Kubernetes 1.36;
+- every refusal and the digest check, against stand-in `kubectl`, `curl` and `sleep` programs:
+  an empty name, an object without this chapter's label (Application, project, namespace, pull
+  secret, repository secret, `ManagedEntity`), a Supervisor or guest cluster that does not
+  answer, a refused call (nothing is waited for), `Synced/Healthy` with the old image in the
+  Deployment or in a pod (not accepted), and no token on any command line.
+
+What phase 8 takes from a source and has NOT measured (each is a line of the walk): that the
+ArgoCD Service's instance reads `Application`, `AppProject` and repository secrets that
+`kubectl` creates in its vSphere Namespace as upstream ArgoCD does; that a `ManagedEntity` for a
+cluster made with `kubectl` stores the address the cluster's kubeconfig holds; that the project
+must allow the `Namespace` for `CreateNamespace=true` (read in v3.4.4's `sync_context.go` and
+`controller/sync.go`); that ArgoCD leaves the namespace behind when the Application is deleted;
+that an Edit user may create a secret of ArgoCD's repository type.
+
+**Open (D11), for phase 9:** Argo CD Image Updater is not measured. What is known is unchanged:
+its CRD-based releases cannot be installed on the Supervisor
+(`kubectl auth can-i create customresourcedefinitions`: no, measured on the lab), and running it
+in the guest cluster against the Supervisor's ArgoCD API has not been tried. `ARGOCD-app.md`
+therefore says "not covered" and claims nothing about it; the update it describes is "set the
+new digest".
 
 ## Gate: known gaps
 

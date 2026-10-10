@@ -463,6 +463,10 @@ was tested with is `e236f5c43aa2a1c7a9cc84e7f3cbdbc7024942d6`. For anything beyo
 `vks/argocd/guest-cluster` folder into a Git repository of your own and set `CLUSTER_REPO` and
 `CLUSTER_REVISION` to it: then only you decide what ArgoCD applies.
 
+You need no `helm` program for this: ArgoCD renders the chart itself, from Git.
+[Where the chart lives and what changes when you host it yourself](ARGOCD.md#where-the-chart-lives-and-what-changes-when-you-host-it-yourself)
+lists everything to change for a repository of your own.
+
 ### Choose the cluster's values
 
 This lists the Kubernetes versions, VM classes, storage classes and cluster classes to choose from.
@@ -588,6 +592,9 @@ again).
 **If not:** `No kubeconfig for …` — wait for step 7's cluster, or renew the Supervisor login
 (main guide, [Renew the Supervisor login](README.md#renew-the-supervisor-login)),
 then run the block again.
+
+With the cluster a destination, ArgoCD can deploy this repository's app into it:
+[Deploy golang-web with ArgoCD](ARGOCD-app.md).
 
 ### How long this login lasts
 

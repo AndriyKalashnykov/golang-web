@@ -366,6 +366,10 @@ For anything beyond trying this out, copy the `vks/argocd/guest-cluster` folder 
 repository of your own and use its address and commit in the Application and in step 6's
 project: then only you decide what ArgoCD applies.
 
+You need no `helm` program for this: ArgoCD renders the chart itself, from Git.
+[Where the chart lives and what changes when you host it yourself](ARGOCD.md#where-the-chart-lives-and-what-changes-when-you-host-it-yourself)
+lists everything to change for a repository of your own.
+
 ### Choose the cluster's values
 
 List what you can choose from. Three commands, three lists:
@@ -576,6 +580,9 @@ again). In the ArgoCD page they are under **Settings** →
 this block again. `current-context is not set`, then `context  does not exist in kubeconfig` —
 the first block of this step did not run, or `NEW_CLUSTER` is not set
 (`NEW_CLUSTER="<the name from step 7>"`).
+
+With the cluster a destination, ArgoCD can deploy this repository's app into it:
+[Deploy golang-web with ArgoCD](ARGOCD-app.md).
 
 ### How long this login lasts
 
