@@ -62,11 +62,15 @@ What you get back is the list under *You already have a Harbor* above.
 
 ### What an install means
 
+- **Installing or uninstalling Harbor replaces every node of every guest cluster on that
+  Supervisor**, one node at a time. Do it before clusters exist, or in a maintenance window:
+  [Install Harbor before you create clusters](CLUSTER.md#install-harbor-before-you-create-clusters).
 - **Seven passwords and keys** are made once and kept in a file by whoever installs. They are
   needed again for every later change to this Harbor, and vCenter shows them to everyone who may
   manage Supervisor Services.
 - **Harbor's address is given at install time** and changes with every reinstall, so the DNS
-  record follows the install, not the other way round.
+  record follows the install, not the other way round. Its CA changes too: everyone who uses
+  the Harbor downloads and trusts the new one.
 - **The registry volume has a fixed size**, 10 GiB unless you choose another before installing.
 - **Uninstalling deletes every image and all settings.** There is no way back.
 - **Upgrading to a newer release is not covered** by these guides.

@@ -6,5 +6,8 @@ ARGOCD-auto.md 23
 ARGOCD-manual.md 28
 ARGOCD.md 0
 CLUSTER.md 17
+HARBOR-auto.md 23
+HARBOR-manual.md 22
+HARBOR.md 0
 NAMESPACE.md 15
 README.md 55

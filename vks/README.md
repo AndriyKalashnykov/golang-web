@@ -61,6 +61,18 @@ in the vSphere Client and the ArgoCD web page, and [with scripts](ARGOCD-auto.md
 Ask your platform administrator for the first five rows. No vSphere Namespace yet? See
 [NAMESPACE.md](NAMESPACE.md). No cluster yet? See [CLUSTER.md](CLUSTER.md), or the [ArgoCD guide](ARGOCD.md).
 
+What you were not given, you can make. The chapters, in the order to use them:
+
+1. [Use or create a vSphere Namespace](NAMESPACE.md)
+2. [Create a guest cluster with kubectl](CLUSTER.md)
+3. [Harbor: use the one you have, or install one](HARBOR.md) (if you install one, do it before
+   chapter 2 where you can: an install replaces the nodes of every cluster)
+4. this guide: build, push, deploy
+5. [Install ArgoCD onto Supervisor and create a VKS guest cluster with it](ARGOCD.md)
+
+Chapters 1 to 3 start after this guide's Supervisor login ([step 7](#log-in-to-the-supervisor));
+each says what it needs.
+
 | you need | used in |
 |---|---|
 | Supervisor endpoint, vCenter DNS name, vSphere Namespace, guest cluster name | [step 1](#1-set-the-variables) |

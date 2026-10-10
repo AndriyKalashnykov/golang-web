@@ -178,12 +178,14 @@ tunnels.
 ## Phase state
 
 Phases 0 to 3 are not tracked here. For phases 4 and 5 the chapters, the two templates and
-`check-vks-templates.sh` are on the branch `docs/vks-namespace-cluster`.
+`check-vks-templates.sh` are on the branch `docs/vks-namespace-cluster`. For phase 7 the three
+Harbor chapters are on the branch `docs/vks-harbor`; `REGISTRY.md` and door B are not written.
 
 | # | Walked on the lab (VCF 9.1.1, VKS 3.7.2; Linux, bash and zsh) | Not walked |
 |---|---|---|
 | 4 | The check blocks; the namespace by the vCenter API (settings, session, network type, the two lists, fill, create, the stops); the namespace by self-service (`kubectl create namespace`). After the vCenter helpers moved into the main guide's step 1: the step 1 block, the namespace settings block, the open-session block and `vc_logout` | macOS and bash 3.2; the vSphere Client click list (not clicked); a Supervisor on NSX; an SSO user with only the Edit role (the first two NAMESPACE blocks are that reader's whole path, and they have never run as such a user) |
 | 5 | Lookups, fill, server dry run, create, the wait, the machines, the cluster check, delete. After the helper move: the cluster settings block, the machines block under *Install Harbor before you create clusters*, and the kubeconfig block twice with a kubectl within one minor version (no change) | macOS and bash 3.2; `kubectl_install`'s install branches on a real machine (`KUBECTL_DIR`, `sudo -n`, the `~/.local/bin` fallback, the three failure messages: run only against stand-in `curl`, `sudo` and `kubectl` programs); the two re-used-name stops on a lab |
+| 7 | Harbor Supervisor Service 2.15.2+vmware.1-vks.1. `HARBOR-auto.md`, one block per fresh login shell: the download check, the secrets file (7 values), the storage class list, the configuration file, the vCenter session, the manifest check, register (201, `ACTIVATED`, signature `TRUSTED`), install (201 on attempt 1, `CONFIGURED`), the address and `http=200`, the DNS check with both verdicts, the CA fingerprint, the three main-guide parts, the admin login, the project (201), the pull check from a guest cluster (`OK`), uninstall (204), remove the service (three 204). `HARBOR-manual.md`: every click and window in the vSphere Client; its ten screenshots are from that run. Seen in the walk: installing AND uninstalling Harbor replaces every node of every guest cluster on the Supervisor; a second install has a new address and a new CA | macOS; a user without the Manage Supervisor Services privilege; a Supervisor on NSX; Contour in place of the nginx load balancer; a second install with other data values. Changed AFTER the walk and run only off the lab, in bash and zsh against a scratch home and a stand-in `kubectl`: the settings block (now prints `settings: 6 of 6` and `admin password line: 1 of 1`), the secrets file's count line (now one `awk`), the pull check's guard for a missing kubeconfig. NOT run anywhere: the two clipboard install lines of the manual guide (`sudo apt-get install -y wl-clipboard`, `sudo dnf install -y wl-clipboard`), the `xclip` form, and the block that empties the clipboard (`pbcopy`, `wl-copy --clear`, `xclip`): the walk met the clipboard block's `No clipboard program here` line on a Wayland desktop with neither program, and the paste was done from an editor |
 
 Changed after those walks, and run only against stand-in `curl`, `kubectl` and `sleep` programs,
 in bash and zsh (not on a lab):
@@ -204,13 +206,25 @@ in bash and zsh (not on a lab):
 - both kubeconfig blocks keeping an earlier kubeconfig when the read fails; `vc_login` replacing
   an older session file and checking the new one's content; the main guide's clean-up block.
 
+Run on the lab after that round, in bash and zsh: a namespace created with the marker (vCenter
+stores `description` and returns it on a read: measured); the API delete refusing a namespace
+without the marker and one that still holds a cluster, and deleting the marked one (HTTP 204,
+then 404); the `kubectl` delete of a self-service namespace; the cluster create block run again
+on its own cluster; the kubeconfig block. Still only against stand-ins: the refused-call paths
+(403), the cluster delete, the re-used-name stops, the main guide's clean-up block.
+
 Not done from phase 5's "done when": the check that the chart commit pinned in the ArgoCD guides
 is not older than the chart. `check-vks-templates.sh` (chart = template, and the namespace
 marker in step with NAMESPACE.md) runs in `make static-check`, and so in CI, where it fails if
 `helm` or `yq` is missing.
 
 No place for OPTIONAL tools exists yet (`SETUP.md` is phase 3), so the clipboard tool the manual
-Harbor chapter wants on Linux (`wl-clipboard` on Wayland, `xclip` on X11) has no home to link to.
+Harbor chapter wants on Linux (`wl-clipboard` on Wayland, `xclip` on X11) is installed by two
+lines inside that chapter's install step. **Open:** those lines, and the clipboard path on Linux
+as a whole (copy with `wl-copy`, paste into the vSphere Client, empty it), have not been run.
+
+Not done from phase 7's "done when": `REGISTRY.md` and door B (the Harbor chapters end where
+the main guide's registry steps begin).
 
 ## Gate: known gaps
 

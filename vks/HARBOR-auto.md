@@ -45,6 +45,8 @@ The main guide's [terms](README.md#learn-the-terms) apply. New here:
 - A storage class on the Supervisor with room for about 18 GiB (more if you choose a larger
   registry in step 4), and one free load-balancer address.
 - Someone who can create a DNS record (step 6).
+- No guest cluster on this Supervisor yet, or a time when their nodes may be replaced: step 5
+  says why.
 
 ## 1. Check the main guide's steps and add the settings
 
@@ -75,33 +77,37 @@ echo "Harbor on this Supervisor: $(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG"
 - `namespace/svc-harbor-…` after the colon: this Supervisor already runs a Harbor. Do not install
   a second one: use it, as [HARBOR.md](HARBOR.md) describes, or go on at step 6.
 
-Add this guide's settings to the env file. A line that is already there is kept, so you can run
-this block again at any time.
+Add this guide's seven settings to the env file, each only if it is not there yet. Values you
+already set are kept, so you can run this block again at any time.
 
 ```sh
-E="$HOME/.vks-golang-web.env"
-if [ -f "$E" ]; then
-  grep -qs '^export HARBOR_MANIFEST=' "$E" || printf '%s\n' 'export HARBOR_MANIFEST="$HOME/Downloads/supervisor-service-harbor-legacy-v2.15.2+vmware.1-vks.1-25639075.yml"' >> "$E"
-  grep -qs '^export HARBOR_VALUES_TEMPLATE=' "$E" || printf '%s\n' 'export HARBOR_VALUES_TEMPLATE="$HOME/Downloads/supervisor-service-harbor-data-values-v2.15.2.yml"' >> "$E"
-  grep -qs '^export HARBOR_STORAGE_CLASS=' "$E" || printf '%s\n' 'export HARBOR_STORAGE_CLASS=""' >> "$E"
-  grep -qs '^export HARBOR_REGISTRY_SIZE=' "$E" || printf '%s\n' 'export HARBOR_REGISTRY_SIZE="10Gi"' >> "$E"
-  grep -qs '^export HARBOR_VALUES=' "$E" || printf '%s\n' 'export HARBOR_VALUES="$HOME/.config/vks-golang-web/harbor-data-values.yml"' >> "$E"
-  grep -qs '^export HARBOR_SECRETS=' "$E" || printf '%s\n' 'export HARBOR_SECRETS="$HOME/.config/vks-golang-web/harbor-secrets.env"' >> "$E"
-  grep -qsF '. "$HARBOR_SECRETS"' "$E" || printf '%s\n' 'if [ -r "$HARBOR_SECRETS" ]; then export HARBOR_ADMIN_PASSWORD="$(. "$HARBOR_SECRETS"; printf %s "$HARBOR_ADMIN_PASSWORD")"; fi' >> "$E"
-  grep -qs '^export VC_SESSION=' "$E" || printf '%s\n' 'export VC_SESSION="$HOME/.config/vks-golang-web/vc-session"' >> "$E"
+if [ -f ~/.vks-golang-web.env ]; then
+  grep -qs '^export HARBOR_MANIFEST=' ~/.vks-golang-web.env || printf '%s\n' 'export HARBOR_MANIFEST="$HOME/Downloads/supervisor-service-harbor-legacy-v2.15.2+vmware.1-vks.1-25639075.yml"' >> ~/.vks-golang-web.env
+  grep -qs '^export HARBOR_VALUES_TEMPLATE=' ~/.vks-golang-web.env || printf '%s\n' 'export HARBOR_VALUES_TEMPLATE="$HOME/Downloads/supervisor-service-harbor-data-values-v2.15.2.yml"' >> ~/.vks-golang-web.env
+  grep -qs '^export HARBOR_STORAGE_CLASS=' ~/.vks-golang-web.env || printf '%s\n' 'export HARBOR_STORAGE_CLASS=""' >> ~/.vks-golang-web.env
+  grep -qs '^export HARBOR_REGISTRY_SIZE=' ~/.vks-golang-web.env || printf '%s\n' 'export HARBOR_REGISTRY_SIZE="10Gi"' >> ~/.vks-golang-web.env
+  grep -qs '^export HARBOR_VALUES=' ~/.vks-golang-web.env || printf '%s\n' 'export HARBOR_VALUES="$HOME/.config/vks-golang-web/harbor-data-values.yml"' >> ~/.vks-golang-web.env
+  grep -qs '^export HARBOR_SECRETS=' ~/.vks-golang-web.env || printf '%s\n' 'export HARBOR_SECRETS="$HOME/.config/vks-golang-web/harbor-secrets.env"' >> ~/.vks-golang-web.env
+  grep -qsF '. "$HARBOR_SECRETS"' ~/.vks-golang-web.env || printf '%s\n' 'if [ -r "$HARBOR_SECRETS" ]; then export HARBOR_ADMIN_PASSWORD="$(. "$HARBOR_SECRETS"; printf %s "$HARBOR_ADMIN_PASSWORD")"; fi' >> ~/.vks-golang-web.env
+  echo "settings: $(grep -c -E '^export (HARBOR_MANIFEST|HARBOR_VALUES_TEMPLATE|HARBOR_STORAGE_CLASS|HARBOR_REGISTRY_SIZE|HARBOR_VALUES|HARBOR_SECRETS)=' ~/.vks-golang-web.env) of 6"
+  echo "admin password line: $(grep -c -F '. "$HARBOR_SECRETS"' ~/.vks-golang-web.env) of 1"
 else
-  echo "MISSING: $E (main guide, Set the variables)"
+  echo "No env file: do the main guide's first step, then run this block again"
 fi
 ```
 
-**Expect:** no output.
+**Expect:** `settings: 6 of 6`, then `admin password line: 1 of 1`.
 
-The block adds eight lines. `HARBOR_MANIFEST` and `HARBOR_VALUES_TEMPLATE` are where you save the
-two downloads of step 2. `HARBOR_STORAGE_CLASS` and `HARBOR_REGISTRY_SIZE` are set in step 4.
-`HARBOR_SECRETS` is the secrets file step 3 creates and `HARBOR_VALUES` the configuration file
-step 4 writes. The line that starts with `if` makes `HARBOR_ADMIN_PASSWORD` the admin password
-from the secrets file, once that file exists, so you never copy it by hand. `VC_SESSION` is used
-only by the vCenter API blocks of [HARBOR-auto.md](HARBOR-auto.md).
+**If not:**
+- `No env file: …`: the main guide's first step has not been done on this machine.
+- A number above 6, or above 1: a setting is in the env file twice. Open the file and delete the
+  line you do not want (the last one wins).
+
+`HARBOR_MANIFEST` and `HARBOR_VALUES_TEMPLATE` are where you save the two downloads of step 2.
+`HARBOR_STORAGE_CLASS` and `HARBOR_REGISTRY_SIZE` are set in step 4. `HARBOR_SECRETS` is the
+secrets file step 3 creates and `HARBOR_VALUES` the configuration file step 4 writes. The
+seventh line, which starts with `if`, makes `HARBOR_ADMIN_PASSWORD` the admin password from the
+secrets file, once that file exists, so you never copy it by hand.
 
 Now open the env file and set, in the lines the main guide created:
 
@@ -112,6 +118,9 @@ Now open the env file and set, in the lines the main guide created:
 ```sh
 "${EDITOR:-nano}" ~/.vks-golang-web.env
 ```
+
+**Expect:** the editor opens the env file, and nothing is printed. Save and close it; the next
+block reads the new values.
 
 ## 2. Download the Harbor files
 
@@ -168,7 +177,8 @@ themselves. The data values from Broadcom hold published example values for them
 not use.
 
 This block makes seven random values and saves them in the secrets file, readable only by you.
-If the file already exists it is kept as it is. No value is shown.
+If the file already exists it is kept as it is. No value is shown: the last line counts the
+values and measures two of them inside `awk`, and prints only the numbers.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -183,8 +193,7 @@ mkdir -p "$(dirname "$HARBOR_SECRETS")"
     printf "HARBOR_REGISTRY_SECRET='%s'\n"    "$(openssl rand -hex 16)"
   } > "$HARBOR_SECRETS" )
 chmod 600 "$HARBOR_SECRETS"
-( . "$HARBOR_SECRETS"
-  echo "secrets file: $(grep -c '^HARBOR_' "$HARBOR_SECRETS") values, secretKey ${#HARBOR_SECRET_KEY} characters, xsrfKey ${#HARBOR_XSRF_KEY} characters" )
+awk -F "'" '/^HARBOR_/ { n++ } /^HARBOR_SECRET_KEY=/ { k = length($2) } /^HARBOR_XSRF_KEY=/ { x = length($2) } END { printf "secrets file: %d values, secretKey %d characters, xsrfKey %d characters\n", n, k, x }' "$HARBOR_SECRETS"
 ```
 
 **Expect:** `secrets file: 7 values, secretKey 16 characters, xsrfKey 32 characters`. When the
@@ -237,6 +246,9 @@ Open the env file and set:
 "${EDITOR:-nano}" ~/.vks-golang-web.env
 ```
 
+**Expect:** the editor opens the env file, and nothing is printed. Save and close it; the next
+block reads the new values.
+
 ### Write the configuration file
 
 This block copies the template to `$HARBOR_VALUES`, readable only by you, and changes these
@@ -287,9 +299,10 @@ else
 fi
 ```
 
-**Expect:**
+**Expect:** these six lines, with your own host name, storage class and size, and no
+`NOT USABLE` line:
 
-```
+```text
 hostname: harbor.example.test
 enableNginxLoadBalancer: true
 enableContourHttpProxy: false
@@ -297,8 +310,6 @@ storage class fields set to <your storage class>: 5 of 5
 registry volume: 10Gi
 placeholders left: 0
 ```
-
-with your own host name, storage class and size, and no `NOT USABLE` line.
 
 **If not:**
 - `Not written: …` — do the step it names, or set the value in the env file.
@@ -392,6 +403,17 @@ upgrade, which this guide does not cover. Any other `HTTP 400` — send the mess
 administrator; do not edit the manifest.
 
 ### Install it on your Supervisor
+
+**Installing Harbor replaces every node of every guest cluster on this Supervisor**, one node
+at a time: VKS adds Harbor's CA to the configuration every node starts with. Do it before you
+create clusters, or in a maintenance window; see
+[Install Harbor before you create clusters](CLUSTER.md#install-harbor-before-you-create-clusters).
+
+**A second install, after an uninstall, makes a new Harbor**: it has a new address and a new CA.
+Afterwards have the DNS record changed (step 6), do the main guide's
+[Download and check the Harbor CA](README.md#download-and-check-the-harbor-ca) and
+[Install the CA for your engine](README.md#install-the-ca-for-your-engine) again
+(step 7), and create the project and the robot again (step 8).
 
 This waits until vCenter has verified the manifest's signature, sends the install request with
 your configuration file, and waits until vCenter reports the service as configured (a few
@@ -531,8 +553,8 @@ Harbor's address, in a zone that your machine and the guest clusters' nodes both
 
 - A line in your machine's `/etc/hosts` makes your machine find Harbor, but not the nodes: they
   ask the DNS server, and a pull then fails with `no such host`. Use it for a first look at most.
-- The address changes when Harbor is uninstalled and installed again. The record must then be
-  changed too.
+- The address changes when Harbor is uninstalled and installed again, and so does Harbor's CA.
+  The record must then be changed, and the CA downloaded and trusted again (step 7).
 
 ### Check the DNS record
 
@@ -622,8 +644,11 @@ rm -f "$CFG"
 - A `curl:` certificate error — the CA file is not this Harbor's: do *Download the CA and trust
   it* again.
 
-Harbor's web page is `https://<your Harbor name>`; log in there as `admin`. This prints the
-password (anyone who can read your screen can then log in, so clear the terminal afterwards):
+Harbor's web page is `https://<your Harbor name>`; log in there as `admin`. Run the next block
+only when you need the password for that page. **It shows the password on your screen**: anyone
+who can read the screen, a shared screen or a recording of it can then log in as Harbor's
+administrator. Clear the terminal afterwards (`clear`, and close the window if it keeps a
+scroll-back).
 
 ```sh
 source ~/.vks-golang-web.env
@@ -631,6 +656,9 @@ source ~/.vks-golang-web.env
 ```
 
 **Expect:** the password, on a line of its own.
+
+**If not:** `No such file or directory` — the secrets file is not on this machine (step 3 made
+it on the machine Harbor was installed from).
 
 The browser warns about the certificate until the CA is in its trust store. Safari and Chrome on
 macOS refuse the page even then: Harbor's certificate is valid for ten years, and macOS accepts
@@ -671,9 +699,14 @@ The main guide goes on from there: it builds the image, pushes it to this Harbor
 
 ## 9. Check that a guest cluster can pull from Harbor
 
-Do this when you have a guest cluster and its kubeconfig ([the main guide](README.md),
-*Get the guest cluster's kubeconfig*); skip it until then. A node must do two
-things your machine has already done: find Harbor by name, and trust its certificate.
+This needs a guest cluster and its kubeconfig, the file `GUEST_KUBECONFIG` names in the env
+file. [Create a guest cluster with kubectl](CLUSTER.md) makes the cluster, and its
+[Get the cluster's kubeconfig](CLUSTER.md#get-the-clusters-kubeconfig) writes the file (for a
+cluster you were given: [the main guide](README.md#get-the-guest-clusters-kubeconfig)). Skip
+this step until you have both; without the file the block says so and does nothing.
+
+A node must do two things your machine has already done: find Harbor by name, and trust its
+certificate.
 
 - **The name:** the nodes ask the DNS server their network gives them. This block is the check.
 - **The certificate:** a guest cluster under the **same Supervisor** as this Harbor trusts
@@ -690,8 +723,11 @@ The real proof is the main guide's deploy step, which pulls your image.
 
 ```sh
 source ~/.vks-golang-web.env
-kubectl -n default delete pod harbor-pull-check --ignore-not-found >/dev/null
-kubectl -n default apply -f - <<EOF
+if [ ! -s "$GUEST_KUBECONFIG" ]; then
+  echo "No guest cluster kubeconfig (${GUEST_KUBECONFIG:-GUEST_KUBECONFIG is empty}): create a cluster and get its kubeconfig first"
+else
+  kubectl -n default delete pod harbor-pull-check --ignore-not-found >/dev/null
+  kubectl -n default apply -f - <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
@@ -712,26 +748,29 @@ spec:
       capabilities:
         drop: ["ALL"]
 EOF
-M=""; n=0
-until [ -n "$M" ] || [ "$n" -ge 18 ]; do
-  n=$((n + 1)); sleep 5
-  M="$(kubectl -n default get events --field-selector involvedObject.name=harbor-pull-check,reason=Failed -o jsonpath='{.items[*].message}')"
-done
-kubectl -n default delete pod harbor-pull-check --ignore-not-found >/dev/null
-case "$M" in
-  "")                echo "NO ANSWER: the cluster reported no pull attempt in 90 seconds" ;;
-  *"no such host"*)  echo "DNS: the nodes cannot resolve ${HARBOR_FQDN}" ;;
-  *x509*)            echo "CA: the nodes do not trust the certificate of ${HARBOR_FQDN}" ;;
-  *"not found"*|*"access denied"*|*nauthorized*|*insufficient_scope*)
-                     echo "OK: the nodes resolve ${HARBOR_FQDN} and trust its certificate" ;;
-  *)                 echo "OTHER: ${M}" ;;
-esac
+  M=""; n=0
+  until [ -n "$M" ] || [ "$n" -ge 18 ]; do
+    n=$((n + 1)); sleep 5
+    M="$(kubectl -n default get events --field-selector involvedObject.name=harbor-pull-check,reason=Failed -o jsonpath='{.items[*].message}')"
+  done
+  kubectl -n default delete pod harbor-pull-check --ignore-not-found >/dev/null
+  case "$M" in
+    "")                echo "NO ANSWER: the cluster reported no pull attempt in 90 seconds" ;;
+    *"no such host"*)  echo "DNS: the nodes cannot resolve ${HARBOR_FQDN}" ;;
+    *x509*)            echo "CA: the nodes do not trust the certificate of ${HARBOR_FQDN}" ;;
+    *"not found"*|*"access denied"*|*nauthorized*|*insufficient_scope*)
+                       echo "OK: the nodes resolve ${HARBOR_FQDN} and trust its certificate" ;;
+    *)                 echo "OTHER: ${M}" ;;
+  esac
+fi
 ```
 
 **Expect:** `pod/harbor-pull-check created`, then within a minute
 `OK: the nodes resolve <your Harbor name> and trust its certificate`.
 
 **If not:**
+- `No guest cluster kubeconfig (…)` — the file is not there: do
+  [Get the cluster's kubeconfig](CLUSTER.md#get-the-clusters-kubeconfig), then this block again.
 - `DNS: …` — the nodes' DNS server does not have the record. An `/etc/hosts` line on your machine
   does not help them: get the A record created (see *Get a DNS record* in step 6).
 - `CA: …` — the cluster is not under this Harbor's Supervisor, or Harbor has another CA than the
@@ -748,10 +787,16 @@ account and the database, on all five volumes. Nothing of it can be brought back
 install starts empty, with a new address and a new CA. Copy the images you still need to another
 registry first.
 
+**Uninstalling also replaces every node of every guest cluster on this Supervisor**, as
+installing did: VKS takes Harbor's CA out of the configuration every node starts with. Do it in
+a maintenance window; see
+[Install Harbor before you create clusters](CLUSTER.md#install-harbor-before-you-create-clusters).
+
 ### Uninstall Harbor from the Supervisor
 
 This removes Harbor from your Supervisor and waits until its namespace is gone: a few minutes.
-The service stays registered in vCenter, so it can be installed again with step 5's last block.
+The service stays registered in vCenter, so it can be installed again with step 5's last block;
+that section says what a second install changes.
 
 ```sh
 source ~/.vks-golang-web.env
