@@ -3,10 +3,12 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
 [![Renovate enabled](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://app.renovatebot.com/dashboard#github/AndriyKalashnykov/golang-web)
 
-# HTTP web server with Prometheus metrics in Go
+# golang-web: a Go web app, and guides for deploying it onto VMware VKS
 
 A Go HTTP server with Prometheus metrics, a health endpoint and Kubernetes pod identity,
-packaged as a multi-arch image with a KinD end-to-end harness.
+packaged as a multi-arch image with a KinD end-to-end harness. It is also the example app for the
+step-by-step guides that [deploy it onto VMware VKS](#deploy-onto-vmware-vks): build the
+image, push it to Harbor, run it on a VKS cluster.
 
 | Component | Technology |
 |-----------|-----------|
@@ -636,9 +638,13 @@ When you are done, remove the token from this terminal with `unset REGISTRY_TOKE
 | `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms built and pushed as one tag; comma-separated, no spaces |
 | `K8S_CONTEXT` | none | The kubectl context `make k8s-apply` and `make k8s-delete` may act on; they stop when the current context is another one |
 
-## Deploy to VMware VKS
+## Deploy onto VMware VKS
 
-To build the image, push it to Harbor and deploy it to a VKS guest cluster, follow [`vks/README.md`](vks/README.md).
+[`vks/README.md`](vks/README.md) takes this app from source code to a running service on
+VMware vSphere Kubernetes Service (VKS), step by step: build the image, push it to
+Harbor, and run it on a VKS cluster. A second guide, [`vks/ARGOCD.md`](vks/ARGOCD.md),
+installs ArgoCD on the Supervisor and creates a VKS cluster with it, by hand in the web
+pages or with scripts.
 
 ## Architecture
 

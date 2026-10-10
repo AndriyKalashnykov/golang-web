@@ -1,19 +1,29 @@
-# Build `golang-web`, push it to Harbor, deploy it to a VKS guest cluster
+# Deploy a containerized web app onto VMware VKS: build, push to Harbor, run
 
-This guide builds the `golang-web` container image on your machine, pushes it to your company's
-Harbor registry, and runs it on a Kubernetes cluster managed by VMware vSphere (a *VKS guest
-cluster*). It has 10 steps. Steps 1–4 are one-time setup; step 10 is optional clean-up.
+Use this guide to run a modern containerized web app on VMware vSphere Kubernetes Service (VKS).
+It walks one small working example, `golang-web`, from source code to a running service, using
+what the platform gives you: the Supervisor, a vSphere Namespace, a VKS cluster and a Harbor
+registry. A second guide adds ArgoCD as a Supervisor Service.
 
-Run the blocks in order, by copy and paste, in `bash` or `zsh`, on Linux or macOS. Where a step
-offers choices, run only the one for your setup. Each block is followed by **Expect:** — what you
-should see — and, where it can go wrong, **If not:** — what to do. A block you run twice either
-changes nothing or tells you what to do.
+**What you do.** In 10 steps you build the image on your machine, push it to Harbor, and run it
+on a VKS cluster (called a *guest cluster* in these guides). Steps 1–4 are one-time setup; step
+10 is optional clean-up. Your platform administrator gives you the addresses and logins;
+[Gather what you need](#gather-what-you-need) lists them.
 
-A second guide, [Install ArgoCD onto Supervisor and create a VKS guest cluster with it](ARGOCD.md),
-continues from steps 1, 2 and 7 of this one. It comes in two versions: [by hand](ARGOCD-manual.md),
+**How to use it.** Every step is a block of commands. Copy it, paste it into `bash` or `zsh` on
+Linux or macOS, and run the blocks in order. Where a step offers choices, run only the one for
+your setup. Each block is followed by **Expect:** — what you should see — and, where it can go
+wrong, **If not:** — what to do. A block you run twice either changes nothing or tells you what
+to do.
+
+**Where to go next.** [Install ArgoCD onto Supervisor and create a VKS guest cluster with it](ARGOCD.md)
+continues from steps 1, 2 and 7 of this guide. It comes in two versions: [by hand](ARGOCD-manual.md),
 in the vSphere Client and the ArgoCD web page, and [with scripts](ARGOCD-auto.md).
 
 ## Learn the terms
+
+<details>
+<summary><b>The terms these guides use, each in one line</b></summary>
 
 | term | meaning |
 |---|---|
@@ -44,22 +54,26 @@ in the vSphere Client and the ArgoCD web page, and [with scripts](ARGOCD-auto.md
 | digest | an image's unique `sha256:…` ID; unlike a tag, it always names the same image |
 | pull secret | your Harbor login, stored in the cluster, so it can download images from a private project |
 
+</details>
+
 ## Gather what you need
 
-Get from your platform administrator:
+Ask your platform administrator for the first five rows. No cluster yet? The
+[ArgoCD guide](ARGOCD.md) creates one.
 
-- the Harbor DNS name, a project you may push to, and a robot account or the Harbor admin password
-- the Supervisor endpoint, the vCenter DNS name, the vSphere Namespace and the guest cluster name
-- an SSO user (your vCenter login) with the **Edit** role on that vSphere Namespace, and its password
-- the SHA-256 fingerprints of the vCenter CA and of Harbor's CA certificate (you compare them in
-  steps 2 and 3)
-- confirmation that the guest cluster trusts Harbor's CA certificate (without it the cluster
-  cannot download your image)
-- a Broadcom support account that can download VMware vSphere Foundation 9 (step 2)
-- sudo (administrator) rights on this machine
-- network access from this machine to all of the above, and internet access to your package
-  repositories, github.com, raw.githubusercontent.com, ghcr.io, quay.io, docker.io, gcr.io,
-  proxy.golang.org, dl.k8s.io, download.docker.com and support.broadcom.com
+| you need | used in |
+|---|---|
+| Supervisor endpoint, vCenter DNS name, vSphere Namespace, guest cluster name | [step 1](#1-set-the-variables) |
+| an SSO user with the **Edit** role on that vSphere Namespace, and its password | [step 7](#7-get-the-kubeconfigs) |
+| Harbor DNS name, a project you may push to, and a robot account or the Harbor admin password | [step 5](#5-log-in-to-harbor) |
+| SHA-256 fingerprints of the vCenter CA and of Harbor's CA certificate | [step 2](#download-and-check-the-vcenter-ca), [step 3](#3-trust-the-harbor-ca) |
+| confirmation that the guest cluster trusts Harbor's CA certificate; without it the cluster cannot download your image | [step 8](#8-deploy) |
+| a Broadcom support account that can download VMware vSphere Foundation 9 | [step 2](#install-the-vcf-cli-and-its-plugins) |
+| sudo rights on this machine | [step 2](#2-install-the-tools) |
+
+This machine must reach all of the above, and the internet: your package repositories,
+github.com, raw.githubusercontent.com, ghcr.io, quay.io, docker.io, gcr.io, proxy.golang.org,
+dl.k8s.io, download.docker.com and support.broadcom.com.
 
 ## 1. Set the variables
 
