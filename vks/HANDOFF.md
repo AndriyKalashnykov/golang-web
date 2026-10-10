@@ -17,12 +17,17 @@ by hand; Harbor by scripts and by hand; the ArgoCD Service install; the app from
 and by a Harbor digest, and every delete in `ARGOCD-app.md`; Istio end to end; cert-manager and
 Headlamp as add-ons with removal and a second install; Headlamp from its chart. On the Mac (zsh
 and bash 3.2): the main line, and the check and look-up blocks of the namespace and cluster
-files (not their create and delete blocks).
+files (not their create and delete blocks). As an SSO user with only the Edit role on the
+namespace (Linux, bash): the login, the namespace and cluster checks, the kubeconfig, the
+look-up blocks of `CLUSTER-auto.md`, the check blocks of `ARGOCD.md` and `HARBOR.md`, the deploy
+of the published image and its delete. That user may create and delete clusters in its
+namespace and may not list the Supervisor's namespaces.
 
-**Not walked:** anything as a user with only the Edit role; `ARGOCD-app.md` with the reader's
-own fork; Headlamp's optional settings, its page login in a browser and the desktop way;
+**Not walked:** as the Edit-only user, anything that calls the vCenter API, and a cluster
+create; `ARGOCD-app.md` with the reader's own fork; Headlamp's optional settings, its page login in a browser and the desktop way;
 Harbor's uninstall when the guide's own marker is present; `kubectl_install`'s install
-branches; `REGISTRY.md`'s deploy block in its new place.
+branches. `REGISTRY.md`'s deploy blocks ran in their new place, on nodes that may already have
+held the image.
 
 | file | what it holds |
 |---|---|
