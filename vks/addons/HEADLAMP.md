@@ -391,8 +391,8 @@ overview lists the namespaces and workloads. Pages for things the read-only role
 (Secrets, nodes) say that access is denied; that is the read-only role at work.
 
 **If not:**
-- `No address …`: the cluster's load balancer gave the service no address. Tell your
-  administrator.
+- `No address …`: the cluster's load balancer gave the service no address. That is a matter
+  for whoever set up the Supervisor's load balancer.
 - `answers: HTTP 000`: the address is not reachable from your machine. It is on the same network
   as an app's `LoadBalancer` address: what reaches one reaches the other.
 - Two different fingerprints, or only one line: do not log in. Something between you and the

@@ -101,7 +101,8 @@ VKS version say which Istio releases go with which Kubernetes versions.
 **If not:**
 - No output: this Supervisor's catalogue has no Istio. Right after VKS was installed or
   updated the catalogue arrives over about ten minutes: run the block again then. If it stays
-  empty, tell your administrator.
+  empty, the catalogue has none and this chapter cannot be used on this Supervisor: which
+  add-ons there are depends on your VKS version.
 - `the server doesn't have a resource type "addonrelease"`: this Supervisor's VKS has no add-on
   catalogue; this chapter cannot be used on it.
 - `Unauthorized`: run the main guide's *Renew the Supervisor login* block.
@@ -286,7 +287,7 @@ it again with the same values: `unchanged: <your cluster>-istio already holds �
   env file and run the block again.
 - `NOT WORKED IN after 120 s`: run the block again; it then waits again or prints `unchanged`.
   If `istiod` on the guest cluster (*Check Istio on the guest cluster*) still shows the old
-  values after that, tell your administrator.
+  values after that, VKS did not work the settings in; this chapter does not cover why.
 
 VKS does not check setting names: a misspelled name in that object is accepted and dropped
 without a word. This block writes only the two names above.
@@ -379,8 +380,8 @@ kubectl --kubeconfig "$GUEST_KUBECONFIG" get gatewayclasses.gateway.networking.k
   no Gateway API. On VKS it is an add-on of its own, `gateway-api`, which VKS installs on new
   clusters by itself. This shows whether your cluster has it:
   `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusteraddon "${VKS_CLUSTER}-gateway-api"`.
-  If it is missing, ask your administrator; do not install the Gateway API from the internet
-  beside VKS's own.
+  If it is missing, this chapter cannot make a gateway on this cluster; do not install the
+  Gateway API from the internet beside VKS's own.
 - `gatewayclasses… "istio" not found` while the first two lines are there: `istiod` started
   before the Gateway API was on the cluster. Restart it:
   `kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$ISTIO_SYSTEM_NAMESPACE" rollout restart deployment istiod`,
@@ -516,7 +517,7 @@ lines every 10 seconds, the last one `… s: Programmed=True  address=<an addres
   made by *Create the gateway's namespace*. `Insufficient memory` or `Insufficient cpu` — the
   workers are full.
 - `Programmed=True  address=none yet` to the end: the cluster's load balancer has no free
-  address. Tell your administrator.
+  address. Whoever set up the Supervisor's load balancer must give it more addresses.
 - `route accepted by the gateway:` with nothing or `False` after it: the route's namespace is
   not the one the gateway allows. `ISTIO_APP_NAMESPACE` must be the namespace the app runs in.
 - `no matches for kind "Gateway"`: run *Check that the cluster can make gateways* first.

@@ -32,8 +32,8 @@ Application can be deleted only while ArgoCD runs and still reaches the cluster)
 Only if you pushed an image with [REGISTRY.md](REGISTRY.md). This deletes the **whole
 `golang-web` repository** in your
 project — every tag, including any pushed by others. It needs `HARBOR_ADMIN_PASSWORD`; without it,
-ask your administrator to delete the `golang-web` repository in your project and the robot
-`robot$<your project>+golang-web-push`.
+whoever has Harbor's admin login must delete the `golang-web` repository in your project and the
+robot `robot$<your project>+golang-web-push`.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -55,7 +55,7 @@ rm -f "$CFG"
 ```
 
 **Expect:** `delete repository: http=200` and `delete robot: http=200` (no robot line if you used
-the admin account or a robot your administrator made). `http=404` means it was already gone;
+the admin account or a robot this guide did not make). `http=404` means it was already gone;
 `http=401` means the admin password is wrong.
 
 ## Delete the local image and the Harbor login

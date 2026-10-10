@@ -3,8 +3,8 @@
 This guide installs the Harbor Supervisor Service on a vSphere Supervisor with vCenter's API,
 gets Harbor a DNS name, and prepares it for [REGISTRY.md](REGISTRY.md): a trusted CA, a project
 and a robot account. It has 10 steps; step 10 is optional clean-up. It was written for VMware
-Cloud Foundation 9.1.1 and Harbor Service 2.15.2, and run on a Supervisor with vSphere
-Distributed Switch networking and the Foundation Load Balancer. It was not run on a Supervisor
+Cloud Foundation 9.1.1 and Harbor Service 2.15.2, for a Supervisor with vSphere
+Distributed Switch networking and the Foundation Load Balancer. It does not cover a Supervisor
 with NSX.
 
 The same result by hand, in the vSphere Client, is in [HARBOR-manual.md](HARBOR-manual.md). If
@@ -253,8 +253,8 @@ source ~/.vks-golang-web.env
 kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get storageclass --no-headers | awk '{print $1}'
 ```
 
-**Expect:** one name per line. Your vSphere administrator knows which one Supervisor Services may
-use; it is a storage policy assigned to the Supervisor.
+**Expect:** one name per line. The one Supervisor Services may use is a storage policy that is
+assigned to the Supervisor.
 
 Open the env file and set:
 
@@ -440,8 +440,8 @@ vc "$A/versions" | jq -r '.[] | "version \(.version)  \(.state)"'
 [HARBOR.md](HARBOR.md#if-you-are-not-a-vcenter-administrator) lists what to ask a vCenter
 administrator for. `HTTP 400` with a message saying the service
 already exists — vCenter knows Harbor in another version only; adding a version to it is an
-upgrade, which this guide does not cover. Any other `HTTP 400` — send the message to your
-administrator; do not edit the manifest.
+upgrade, which this guide does not cover. Any other `HTTP 400` — the message says why; do not
+edit the manifest.
 
 ### Install it on your Supervisor
 
@@ -544,13 +544,14 @@ that.
   again (start with `vc_login`). `is in terminating status`: a Harbor uninstalled a moment ago is
   still being removed; wait until step 10's check shows nothing left, then run the block again.
 - `install: HTTP 403` — your user lacks **Manage Supervisor Services on Supervisors**.
-- `install: HTTP 400` and a message — vCenter refused the configuration: send the message to
-  your administrator.
+- `install: HTTP 400` and a message — vCenter refused the configuration, and the message says
+  what it refused. If it names a value, correct it and write the configuration file again
+  (step 4), then run the block again.
 - `signature:` with anything but `TRUSTED` and then a refused install — the manifest is not
   Broadcom's signed file: download it again (step 2).
 - A status other than `CONFIGURED` after 30 minutes: the message on that line says why.
   `ReconcileFailed` with an image or download error means the Supervisor cannot reach
-  `projects.packages.broadcom.com`: tell your administrator.
+  `projects.packages.broadcom.com`: have your network administrator allow it.
 
 <details>
 <summary><b>Alternative: the same step in the vSphere Client</b> (Broadcom's documented way)</summary>
@@ -596,8 +597,8 @@ ask for.
 **If not:**
 - `Harbor namespace: not found` — the service is not installed (step 5), or the Supervisor
   login ended: run the main guide's [Renew the Supervisor login](README.md#renew-the-supervisor-login)
-  block, then this one again. Two names on that line mean two Harbor namespaces: send the line to
-  your administrator.
+  block, then this one again. Two names on that line mean two Harbor namespaces: this guide's
+  blocks cannot tell them apart, and it does not cover that.
 - `Harbor address:   none yet` after 20 minutes — the Supervisor has no free load-balancer
   address, or Harbor's pods never started.
 - An address but `http=000` or `http=503` after 20 minutes — Harbor's pods are not all running.
@@ -657,7 +658,8 @@ its own certificate, not the CA's, so the CA cannot be taken from the connection
 
 ### Print the fingerprint of Harbor's CA
 
-You installed this Harbor, so you are the administrator the main guide tells its reader to ask.
+You installed this Harbor, so the trusted fingerprint that [REGISTRY.md](REGISTRY.md) asks for
+is yours to read.
 This block reads the CA certificate from the Supervisor, over your Supervisor login, and prints
 its fingerprint. The Secret it reads also holds the CA's private key; the block asks for the
 certificate only (`ca.crt`). Never print that Secret whole.
@@ -673,8 +675,8 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$NS" get secret harbor-ca-key-
 (`SHA256 Fingerprint=` on macOS). This is the fingerprint to give to everyone who will use this
 Harbor.
 
-**If not:** `Forbidden` — your user may not read Secrets in Harbor's namespace: use the
-fingerprint a vCenter administrator reads for you. An `openssl` error such as
+**If not:** `Forbidden` — your user may not read Secrets in Harbor's namespace: a user that may
+(a vCenter administrator) must run this block. An `openssl` error such as
 `unable to load certificate` — the Secret was not found: check the namespace with the block in
 step 6.
 
@@ -851,7 +853,7 @@ fi
   Harbor's Supervisor, or Harbor was installed with your own certificate and no `ca.crt` in its
   configuration: see the certificate note above.
 - `OTHER: …` with `i/o timeout` or `connection refused` — the nodes resolve the name but cannot
-  reach the address: a network or firewall matter for your administrator.
+  reach the address: a network or firewall matter for your network administrator.
 - `NO ANSWER: …` — `kubectl` does not reach the guest cluster, or the pod was refused: run
   `kubectl --kubeconfig "$GUEST_KUBECONFIG" -n default get events` and read the last lines.
 
@@ -937,7 +939,7 @@ fi
 - `uninstall: HTTP 401`, then `Not uninstalled: …` — vCenter did not accept the session: run the
   block again; it logs in anew.
 - `uninstall: HTTP 403`, then `Not uninstalled: …` — your user lacks **Manage Supervisor Services
-  on Supervisors**: ask your vCenter administrator.
+  on Supervisors**: a user that has it must do this step.
 - `uninstall: HTTP 404` — Harbor is not installed on this Supervisor (any more). The `left` line
   still tells you whether its namespace is gone.
 - A name, or `unknown`, after the colon — the namespace is still being deleted, or the
@@ -1057,7 +1059,7 @@ belong to it, keep them. With `unknown` — the Supervisor login ended: run the 
 | `error: You must be logged in to the server (Unauthorized)`, or `Harbor namespace: not found` although Harbor is installed | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's [Renew the Supervisor login](README.md#renew-the-supervisor-login) block, then the block again. If you logged in with the certificate-checking alternative, use the renew block inside that alternative instead. |
 | `harbor_cfg: command not found` | Run the first block of the main guide's *Set the variables* again; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | Harbor's volumes stay `Pending` and Harbor never answers | A storage class was left empty or misspelled when the configuration file was written (step 4). Uninstall (step 10), correct `HARBOR_STORAGE_CLASS`, write the file again, install again. |
-| The service's status is an error that names an image or a download | The Supervisor cannot reach `projects.packages.broadcom.com`: tell your administrator. If the message names `depot.kube-system.svc`, the manifest without **legacy** was used (step 2). |
+| The service's status is an error that names an image or a download | The Supervisor cannot reach `projects.packages.broadcom.com`: have your network administrator allow it. If the message names `depot.kube-system.svc`, the manifest without **legacy** was used (step 2). |
 | The name does not resolve on the nodes (`no such host` in a pod's events) | The A record is missing in the DNS the nodes use, or is only in your `/etc/hosts`. See *Get a DNS record* in step 6. |
 | Everything worked, then every push and pull fails after Harbor was installed again | A new install has a new address, a new CA and an empty registry: change the DNS record, download and install the CA again (step 7), and create the project and the robot again (step 8). |
 | `blob upload invalid` on push | The registry volume is full. In Harbor's web page delete what you do not need, then run **Administration** → **Clean Up** → **Garbage Collection**; deleting alone frees no space. |

@@ -201,7 +201,8 @@ manifest.
 **If not:** a failed check in **Validate** — the message beside it says why; an error must be
 fixed, a warning can be accepted. An error right after **FINISH** — wait a minute and do this
 step again. A status that stays **Configuring** for more than 10 minutes, or shows an error —
-most often the Supervisor cannot reach `projects.packages.broadcom.com`: tell your administrator.
+most often the Supervisor cannot reach `projects.packages.broadcom.com`: have your network
+administrator allow it.
 
 ## 4. Create the ArgoCD instance
 
@@ -403,7 +404,8 @@ Put your choices into this terminal. Keep using **this terminal** until the end 
   **without its `-vkr.N` ending**: for `v1.36.2+vmware.2-vkr.3` write `v1.36.2+vmware.2`. The
   Supervisor stores it that way; with the ending ArgoCD would report a difference forever.
 - `VM_CLASS`: 2 CPUs and 4 GB is enough.
-- `STORAGE_CLASS`: one your vSphere Namespace is allowed to use; your administrator knows which.
+- `STORAGE_CLASS`: one your vSphere Namespace is allowed to use;
+  [List the storage classes](CLUSTER-auto.md#list-the-storage-classes) prints them.
 
 ```sh
 NEW_CLUSTER="my-new-cluster"
@@ -774,7 +776,8 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get argocd -A
 **Expect:** `No resources found`.
 
 **If not:** a list of instances — do not go on until their owners have deleted them. `Forbidden`
-— you cannot see other namespaces: ask your vCenter administrator to check.
+— your user cannot see other namespaces: a user that can (a vCenter administrator) must run this
+check.
 
 1. In the vSphere Client: **Supervisor Management** → **Supervisors** → **View** in your
    Supervisor's **Services** column. Select **ArgoCD Service** and click **UNINSTALL**, then

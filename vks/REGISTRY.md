@@ -34,7 +34,10 @@ First open `~/.vks-golang-web.env` and set `HARBOR_FQDN` to Harbor's DNS name an
 Harbor's certificate comes from a CA your machine does not trust yet, so your container engine
 refuses to push to Harbor. This part downloads Harbor's CA certificate to `$HARBOR_CA` and
 installs it where your engine looks for it. As with the vCenter CA, the download cannot be
-verified yet, so you compare its fingerprint with your administrator's.
+verified yet, so you compare its fingerprint with a trusted one. For a Harbor on your
+Supervisor that is the one
+[Print the fingerprint of Harbor's CA](HARBOR-manual.md#print-the-fingerprint-of-harbors-ca)
+reads from the Supervisor; for a Harbor elsewhere, the one its administrator gives you.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -45,17 +48,18 @@ openssl x509 -in "$HARBOR_CA" -noout -fingerprint -sha256
 ```
 
 **Expect:** `sha256 Fingerprint=…` (`SHA256 Fingerprint=` on macOS). Compare its hex digits with
-your administrator's, ignoring colons and upper/lower case.
+the trusted fingerprint, ignoring colons and upper/lower case.
 
 **If not:**
-- **A different fingerprint:** do not continue. Check `HARBOR_FQDN` in the env file. Then send
-  the fingerprint you got to your administrator and ask them to confirm it or to send you the CA
-  file (save it with `cp <file> "$HARBOR_CA"`). A company proxy that replaces HTTPS certificates also causes
-  this.
+- **A different fingerprint:** do not continue. Check `HARBOR_FQDN` in the env file: the name
+  may lead to another server. A company proxy that replaces HTTPS certificates also causes
+  this. For a Harbor that is not on your Supervisor, its administrator can confirm the
+  fingerprint or give you the CA file (save it with `cp <file> "$HARBOR_CA"`).
 - **`curl: (22) … error: 404`, then an `openssl` error (`Could not open file` or
   `unable to load certificate`):** Harbor is reachable but does not
-  publish a CA (its certificate was not made by Harbor). Ask your administrator for the CA file,
-  save it with `cp <file> "$HARBOR_CA"`, and run only the `openssl` line above to check it.
+  publish a CA (its certificate was not made by Harbor). Get the CA file from whoever issued
+  Harbor's certificate, save it with `cp <file> "$HARBOR_CA"`, and run only the `openssl` line
+  above to check it.
 - **Any other `curl:` error, then an `openssl` error:** the download failed. Check `HARBOR_FQDN` and that you can reach Harbor.
 
 ### Install the CA for your engine
@@ -118,9 +122,8 @@ below take the Harbor project as `OWNER`.
 ### Option A — create a robot account
 
 This creates a robot account that can push to and read from your project only, and expires after
-90 days. It needs `HARBOR_ADMIN_PASSWORD` in the env file. Skip it if your administrator already
-gave you a robot name and secret: skip the block and put them in the two `REGISTRY_*` lines as
-shown below.
+90 days. It needs `HARBOR_ADMIN_PASSWORD` in the env file. If you already have a robot name and
+secret, skip the block and put them in the two `REGISTRY_*` lines as shown below.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -145,8 +148,8 @@ Copy the secret now: Harbor shows it only once.
 **If not:**
 - `harbor_cfg: empty user or password`: set `HARBOR_ADMIN_PASSWORD` in the env file.
 - `ERROR UNAUTHORIZED`: `HARBOR_ADMIN_PASSWORD` is wrong.
-- `ERROR CONFLICT`: a robot with this name already exists. Use its secret if you have it;
-  otherwise ask your administrator to delete the robot `robot$<your project>+golang-web-push`, or
+- `ERROR CONFLICT`: a robot with this name (`robot$<your project>+golang-web-push`) already
+  exists. Use its secret if you have it; otherwise
   run the [Delete the image and the robot in Harbor](CLEANUP.md#delete-the-image-and-the-robot-in-harbor)
   block — **it also deletes the `golang-web` repository** — then run this again.
 - No output at all: Harbor could not be reached; re-check
