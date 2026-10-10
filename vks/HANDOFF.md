@@ -10,8 +10,9 @@ history up to 2026-10-05).
 `vks/README.md` builds `golang-web`, pushes it to Harbor and deploys it to a VKS guest cluster.
 **All work is merged; nothing is in flight.** It is pinned to **VCF CLI 9.1.1.0100**
 (`vcf version` prints `v9.1.1.0100.25746586`; the plugin bundle is build 25793136; both
-published 2026-10-08, re-pinned from 9.1.1.0 the same day). The README has
-54 `sh` blocks; all parse with `bash -n` and `zsh -n`.
+published 2026-10-08, re-pinned from 9.1.1.0 the same day). No block count is kept in this
+file: `make check-vks-docs` prints the count per guide and fails if a block does not parse with
+`bash -n` or `zsh -n` (see *The doc gate* below).
 
 Walks of the text as of `97adb90`, all on 2026-10-05 against the lab, each block run as written
 and judged by its Expect line (step 7's login, alternative and renew blocks changed on
@@ -42,8 +43,8 @@ file instead), `brew install jq` on a macOS that lacks jq, and the Broadcom port
 `vks/ARGOCD-auto.md` (named `ARGOCD.md` until the manual guide was added; `ARGOCD.md` is now a
 two-row chooser) installs ArgoCD Service 1.2.0 on the Supervisor, starts an instance in the
 vSphere Namespace and creates a guest cluster through it from the chart `vks/argocd/guest-cluster`
-(pinned by commit; a change to the chart needs a new pin in the guide). 23 `sh` blocks; all parse
-in bash 5, zsh 5.9 and bash 3.2.
+(pinned by commit; a change to the chart needs a new pin in the guide). Its blocks parsed in
+bash 3.2 too when it was written; the gate checks bash and zsh only.
 
 | path | where | result |
 |---|---|---|
@@ -52,7 +53,7 @@ in bash 5, zsh 5.9 and bash 3.2.
 | the same, bash 3.2 | the same | the four clean-up blocks, back to a bare lab; steps 1 to 3 separately |
 | the same, `zsh -il` and `bash -il` reading the block from stdin | the same | four blocks fed line by line on a second run: `unchanged`, and the same output |
 
-`ARGOCD-manual.md` (28 `sh` blocks, 17 screenshots in `vks/img/argocd/`) was walked on 2026-10-07
+`ARGOCD-manual.md` (17 screenshots in `vks/img/argocd/`) was walked on 2026-10-07
 against the same lab:
 
 | path | where | result |
@@ -96,24 +97,45 @@ Measured while writing it:
 - `kubectl_install`'s new `sudo failed` message was not walked on the lab, only reproduced with
   a failing `sudo` on Linux and the Mac.
 
+## The doc gate
+
+`make check-vks-docs` (`.github/scripts/check-vks-docs.sh`, part of `make static-check`, so CI
+runs it) reads every guide under `vks/` except this file, `PLAN.md` and `test/README.md`. It
+prints `checked N block(s) in M file(s)` with the count per guide, and fails below the floors set
+in the script. Per block: it parses in bash and zsh, has no comment, nothing follows a command
+that can prompt, shellcheck is clean, it starts with `source` of the env file whose names it
+uses, an **Expect** follows it, and no secret is on a command line. Per file: relative links,
+anchors and images resolve and `<details>` balance. Accepted findings are in
+`.github/scripts/check-vks-docs.allow`, each with its reason; an entry that allows nothing fails
+the gate. Two entries there are real defects in the text (blocks with no Expect), marked
+`DEFECT`. CI has no zsh: the summary then says `zsh -n SKIPPED`, so run the gate locally too.
+
+Not checked yet (later phases of `PLAN.md`): step-number references across files, templates,
+chart = template.
+
 ## How to walk it again
 
-Extract every `sh` block from `vks/README.md` and run each in its **own fresh login shell** with
-stdin from `/dev/null`, so a block that lacks a needed `source` fails. Judge each block by its
-**Expect** line, not its exit code (a block's exit code is only its last command's). Recount
-block numbers each time; they move whenever a block is added.
+`vks/test/walk.sh` does it; `vks/test/README.md` has the commands for Linux, a clean container
+and the Mac. It extracts every `sh` block of a guide and runs each in its **own fresh login
+shell** with stdin from `/dev/null`, so a block that lacks a needed `source` fails. It prints
+each block's output beside its **Expect** text and does not judge: judge by Expect, not by exit
+code (a block's exit code is only its last command's). Extract again before every walk; block
+numbers move whenever a block is added.
 
-- **Linux:** a clean `ubuntu:24.04` container with `--privileged --network host`, a non-root
-  user with sudo. For docker add `-v /var/lib/docker` and start `dockerd` by hand after the
-  install block (the container has no systemd). The harness fills the env file with awk.
+- **Linux:** `walk.sh container`: a clean `ubuntu:24.04` container with `--privileged --network
+  host`, a non-root user with sudo. For docker add `-v /var/lib/docker`
+  (`WALK_CONTAINER_RUN_OPTS`) and start `dockerd` by hand after the install block (the container
+  has no systemd). The reader's values go in with `--env-file`.
+- **Not yet run:** a real guide through `walk.sh` on the lab; `walk.sh remote`; `walk.sh
+  container` with docker (podman ran a two-block fixture, 2026-10-10); `walk.sh` under bash 3.2.
 - **Check the lab first.** Harbor's `apps` project should have no `golang-web` repository and no
   robot, and the guest cluster no `golang-web` namespace. One walk found leftovers nobody
   could account for, and its blocks printed `unchanged` and `configured` instead of `created`.
 - **Step 4 clones GitHub `main`**, so a Makefile change can only be walked after it is pushed;
   cloning a branch instead is a deviation to disclose.
 - **A walk as a script cannot see paste defects.** The two rules for fenced blocks (no comment
-  on a command line; nothing after a line that can prompt) are in CLAUDE.md's backlog. Check
-  them by pasting into `zsh -i` and bash 3.2 on a pty.
+  on a command line; nothing after a line that can prompt) are in CLAUDE.md's backlog. The gate
+  checks both from the text; the proof is still a paste into `zsh -i` and bash 3.2 on a pty.
 - A transient Ubuntu mirror 404 during step 2's `apt-get install` has happened twice; retry.
 
 ### The Mac's route to the lab

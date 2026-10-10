@@ -1,0 +1,26 @@
+# Accepted findings of check-vks-docs.sh. One per line:
+#   check | file (relative to vks/) | reason | one exact line of the block (or the link target)
+# An entry that allows nothing fails the gate, so remove the entry with the defect it covers.
+
+# Blocks that are not run for their output.
+expect | README.md | opens an editor: nothing is printed | "${EDITOR:-nano}" ~/.vks-golang-web.env
+expect | ARGOCD-auto.md | opens an editor: nothing is printed | "${EDITOR:-nano}" ~/.vks-argocd.env
+expect | README.md | lines the reader types into the env file, not a block to run | export REGISTRY_USERNAME='robot$apps+golang-web-push'
+expect | README.md | lines the reader types into the env file, not a block to run | export REGISTRY_USERNAME='admin'
+expect | ARGOCD-manual.md | only assigns the reader's four choices; the next block's If-not covers a miss | NEW_CLUSTER="my-new-cluster"
+
+# Alternatives that share ONE Expect, written after the last of them.
+expect | README.md | macOS and Linux alternatives share the Expect after the Linux block | brew install jq
+expect | README.md | the three engine alternatives share the Expect after the Colima block | cp "$HARBOR_CA" "$HOME/.config/containers/certs.d/${HARBOR_FQDN}/ca.crt"
+expect | README.md | the three engine alternatives share the Expect after the Colima block | sudo install -D -m0644 "$HARBOR_CA" "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt"
+expect | ARGOCD-manual.md | three list commands share the Expect after the third | kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get kr
+expect | ARGOCD-manual.md | three list commands share the Expect after the third | kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get virtualmachineclass
+
+# The expectation is stated BEFORE the blocks ("each prints nothing"), not as an Expect after them.
+expect | README.md | prose above the three blocks says each prints nothing | rm -rf "$HOME/.config/containers/certs.d/${HARBOR_FQDN:?}"
+expect | README.md | prose above the three blocks says each prints nothing | sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
+expect | README.md | prose above the three blocks says each prints nothing | colima ssh -- sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
+
+# REAL defects in the guides, found by this gate on 2026-10-10 and not yet fixed in the text.
+expect | README.md | DEFECT: the certificate-checking renew block has no Expect (the default renew block has one) | KUBECONFIG="$SUPERVISOR_KUBECONFIG" vcf context refresh supervisor --ca-certificate "$SUPERVISOR_CA"
+expect | ARGOCD-auto.md | DEFECT: the block that prints the admin password has no Expect | kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
