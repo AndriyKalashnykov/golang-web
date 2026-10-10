@@ -212,7 +212,7 @@ vc_api /storage/policies | jq -r 'if type == "array" then .[] | .name else "ERRO
 ```
 
 **Expect:** one policy name per line. Choose one whose datastore has room for the cluster's
-disks (about 25 GB per node, plus what your apps store). Policies with `Encryption` in their
+disks (tens of GB per node, plus what your apps store). Policies with `Encryption` in their
 name need a key provider; do not choose one unless your administrator says so.
 
 **If not:** `ERROR: UNAUTHENTICATED` — run `vc_login`, then the block again.
@@ -257,7 +257,9 @@ block reads the new values.
 The description is the file [`templates/namespace-spec.json`](templates/namespace-spec.json).
 This looks up the IDs of your cluster and your storage policy, fills the file's `${…}` places
 from your env file, and saves the result as `~/.config/vks-golang-web/namespace-spec.json`. It
-refuses to fill the file while any value is empty, and creates nothing. Your own SSO user
+refuses to fill the file while any value is empty, and creates nothing. The file's `description`
+is a fixed text that marks the namespace as made by this guide; *Remove the namespace* deletes
+only a namespace that carries it. Your own SSO user
 (`SSO_USERNAME`, split at the `@`) goes into the access list with the role you chose: without
 it, only vCenter administrators could use the namespace.
 
@@ -288,7 +290,7 @@ else
 fi
 ```
 
-**Expect:** the filled description: your namespace's name, the cluster's ID, a storage policy ID
+**Expect:** the filled description: your namespace's name, the marker text, the cluster's ID, a storage policy ID
 (a long string of hex digits and `-`), your VM classes as a list, and one access entry with your
 user name, its domain and the role.
 
@@ -307,8 +309,8 @@ user name, its domain and the role.
 ### Create the namespace
 
 This checks the network type once more, checks that no namespace has the name yet, sends the
-description to vCenter, and waits until the namespace runs (seconds, normally). Then it closes
-the vCenter session.
+description to vCenter, and, only if vCenter accepted it, waits until the namespace runs
+(seconds, normally). Then it closes the vCenter session, whatever happened.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -327,26 +329,37 @@ elif [ "$H" = 200 ]; then
 elif [ "$H" != 404 ]; then
   echo "STOP: vCenter did not say whether '${VKS_NAMESPACE}' exists (HTTP ${H}). Nothing was created."
 else
-  vc_api /namespaces/instances -X POST -H 'Content-Type: application/json' --data-binary "@${SPEC}" -w 'create: HTTP %{http_code}\n'
-  n=0; S=""
-  until [ "$S" = RUNNING ] || [ "$S" = ERROR ] || [ "$n" -ge 40 ]; do
-    [ "$n" -eq 0 ] || sleep 15
-    n=$((n + 1))
-    S="$(vc_api "/namespaces/instances/${VKS_NAMESPACE}" | jq -r '.config_status // empty')"
-    echo "status: ${S:-no answer yet} (read ${n})"
-  done
-  vc_api "/namespaces/instances/${VKS_NAMESPACE}" | jq -r '"\(.config_status)  networks: \([.networks[]?] | join(","))  VM classes: \([.vm_service_spec.vm_classes[]?] | join(","))"'
+  B="$(mktemp)"
+  CODE="$(vc_api /namespaces/instances -X POST -H 'Content-Type: application/json' --data-binary "@${SPEC}" -o "$B" -w '%{http_code}')"
+  if [ -s "$B" ]; then cat "$B"; echo; fi
+  rm -f "$B"
+  echo "create: HTTP ${CODE:-no answer}"
+  if [ "$CODE" = 204 ]; then
+    n=0; S=""
+    until [ "$S" = RUNNING ] || [ "$S" = ERROR ] || [ "$n" -ge 40 ]; do
+      [ "$n" -eq 0 ] || sleep 15
+      n=$((n + 1))
+      S="$(vc_api "/namespaces/instances/${VKS_NAMESPACE}" | jq -r '.config_status // empty')"
+      echo "status: ${S:-no answer yet} (read ${n})"
+    done
+    vc_api "/namespaces/instances/${VKS_NAMESPACE}" | jq -r '"\(.config_status)  networks: \([.networks[]?] | join(","))  VM classes: \([.vm_service_spec.vm_classes[]?] | join(","))"'
+  else
+    echo "Not created: vCenter did not accept the description, so nothing is waited for."
+  fi
 fi
 vc_logout
 ```
 
-**Expect:** `create: HTTP 204`, one or more `status:` lines ending with `status: RUNNING`, then
+**Expect:** `create: HTTP 204`, one or more `status:` lines, the last one
+`status: RUNNING (read <a number>)`, then
 `RUNNING  networks: <a network name>  VM classes: <your classes>`, then `vCenter session closed`.
 Now run both blocks of [Check the namespace you have](#check-the-namespace-you-have).
 
 **If not:**
-- `create: HTTP 403`: your SSO user may not create namespaces. Nothing was created: take
-  [Ask your administrator](#ask-your-administrator).
+- `create: HTTP 403`, then `Not created: …`: your SSO user may not create namespaces. Nothing
+  was created: take [Ask your administrator](#ask-your-administrator).
+- `create: HTTP no answer`: vCenter did not answer in time, and the namespace may or may not
+  exist. Run `vc_login`, then this block again: it says `already exists` if it does.
 - `create: HTTP 400`, with a message above it: vCenter refused the description, and the message
   names the field. A VM class or a user that does not exist is the usual cause. Fix the value in
   the env file, then run *Fill the namespace's description* and this block again.
@@ -445,25 +458,45 @@ older client says **Workload Management** where this list says **Supervisor Mana
 ## Remove the namespace
 
 **Deleting a vSphere Namespace destroys everything in it**: every guest cluster with its
-virtual machines and disks, every ArgoCD instance, every secret, with no way back. Delete only a
-namespace you created for this guide. The two blocks below refuse while the namespace still
-holds a guest cluster: delete the cluster first ([CLUSTER.md](CLUSTER.md), *Delete the cluster*).
+virtual machines and disks, every ArgoCD instance, every secret, with no way back. So the two
+blocks below delete only a namespace this guide made, and refuse every other one. They also
+refuse while the namespace still holds a guest cluster: delete the cluster first
+([CLUSTER.md](CLUSTER.md), *Delete the cluster*).
 
-If you created the namespace with the vCenter API, delete it there. This opens a session,
-deletes the namespace, waits until vCenter no longer has it, and closes the session.
+If you created the namespace with the vCenter API, delete it there. This opens a session, reads
+the namespace, and deletes it only if its description is the marker text *Fill the namespace's
+description* wrote into it. Only if vCenter accepted the delete does it wait until the namespace
+is gone. It closes the session, whatever happened.
 
 ```sh
 source ~/.vks-golang-web.env
-LEFT="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io -o name || echo unknown)"
-if [ -n "$LEFT" ]; then
+M="Created by the golang-web VKS guide (vks/NAMESPACE.md)"
+if [ -z "$VKS_NAMESPACE" ]; then
+  echo "Not deleting: VKS_NAMESPACE is empty"
+elif LEFT="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io -o name || echo unknown)"; [ -n "$LEFT" ]; then
   echo "Not deleting '${VKS_NAMESPACE}': guest clusters remain, or could not be listed: ${LEFT}"
 elif vc_login; then
-  vc_api "/namespaces/instances/${VKS_NAMESPACE}" -X DELETE -w 'delete: HTTP %{http_code}\n'
-  n=0
-  until [ "$(vc_api "/namespaces/instances/${VKS_NAMESPACE}" -o /dev/null -w '%{http_code}')" = 404 ] || [ "$n" -ge 40 ]; do
-    n=$((n + 1)); sleep 15
-  done
-  vc_api "/namespaces/instances/${VKS_NAMESPACE}" -o /dev/null -w 'the namespace now: HTTP %{http_code} (404 means gone)\n'
+  H="$(vc_api "/namespaces/instances/${VKS_NAMESPACE}" -o /dev/null -w '%{http_code}')"
+  D="$(vc_api "/namespaces/instances/${VKS_NAMESPACE}" | jq -r 'if type == "object" then (.description // "") else "" end')"
+  if [ "$H" = 404 ]; then
+    echo "Nothing to delete: vCenter has no namespace '${VKS_NAMESPACE}'"
+  elif [ "$H" != 200 ]; then
+    echo "Not deleting '${VKS_NAMESPACE}': vCenter did not show it (HTTP ${H:-no answer})"
+  elif [ "$D" != "$M" ]; then
+    echo "Not deleting '${VKS_NAMESPACE}': this namespace was not created by this guide. If it is yours, delete it in the vSphere Client."
+  else
+    CODE="$(vc_api "/namespaces/instances/${VKS_NAMESPACE}" -X DELETE -o /dev/null -w '%{http_code}')"
+    echo "delete: HTTP ${CODE:-no answer}"
+    if [ "$CODE" = 204 ]; then
+      n=0
+      until [ "$(vc_api "/namespaces/instances/${VKS_NAMESPACE}" -o /dev/null -w '%{http_code}')" = 404 ] || [ "$n" -ge 40 ]; do
+        n=$((n + 1)); sleep 15
+      done
+      vc_api "/namespaces/instances/${VKS_NAMESPACE}" -o /dev/null -w 'the namespace now: HTTP %{http_code} (404 means gone)\n'
+    else
+      echo "Not deleted: vCenter did not accept the delete, so nothing is waited for."
+    fi
+  fi
   vc_logout
 fi
 ```
@@ -472,30 +505,44 @@ fi
 `the namespace now: HTTP 404 (404 means gone)`, then `vCenter session closed`.
 
 **If not:**
-- `Not deleting …`: the line names what remains. `unknown` means the clusters could not be
-  listed: the Supervisor login ended, or your user may not read the namespace.
-- `delete: HTTP 403`: your SSO user may not delete namespaces: ask your administrator.
-- `delete: HTTP 404`: the namespace was already gone.
+- `Not deleting: VKS_NAMESPACE is empty`: set it in the env file.
+- `Not deleting … guest clusters remain …`: the line names what remains. `unknown` means the
+  clusters could not be listed: the Supervisor login ended, or your user may not read the
+  namespace.
+- `Not deleting … was not created by this guide`: the namespace's description is not this
+  guide's marker. That is so for every namespace made in the vSphere Client, by `kubectl`, or by
+  an administrator, and also for one you made with an older copy of this guide, whose
+  description file had no marker yet. If it is yours, delete it in the vSphere Client:
+  **Supervisor Management** → **Namespaces**, select it, **Remove**.
+- `delete: HTTP 403`, then `Not deleted: …`: your SSO user may not delete namespaces: ask your
+  administrator.
 - A code other than 404 on the last line after 10 minutes: run the block again.
 
 If you created the namespace with `kubectl` (Namespace Self-Service), delete it the same way.
-Only the user who created it, or a user with the **Owner** role on it, may do that.
+The block refuses a namespace that Self-Service did not make. Only the user who created it, or
+a user with the **Owner** role on it, may delete it.
 
 ```sh
 source ~/.vks-golang-web.env
-LEFT="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io -o name || echo unknown)"
-if [ -n "$LEFT" ]; then
+if [ -z "$VKS_NAMESPACE" ]; then
+  echo "Not deleting: VKS_NAMESPACE is empty"
+elif [ "$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get ns "$VKS_NAMESPACE" -o jsonpath='{.metadata.annotations.vmware-system-self-service-namespace}')" != true ]; then
+  echo "Not deleting '${VKS_NAMESPACE}': it was not created with kubectl (Namespace Self-Service), or it could not be read. If it is yours, delete it the way it was made."
+elif LEFT="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io -o name || echo unknown)"; [ -n "$LEFT" ]; then
   echo "Not deleting '${VKS_NAMESPACE}': guest clusters remain, or could not be listed: ${LEFT}"
 else
   kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" delete namespace "$VKS_NAMESPACE" --ignore-not-found
 fi
 ```
 
-**Expect:** `namespace "<your namespace>" deleted` (it can take a minute), or nothing if it was
-already gone.
+**Expect:** `namespace "<your namespace>" deleted` (it can take a minute).
 
-**If not:** `admission webhook … denied the request … is not associated with namespace` — you
-did not create this namespace and are not its Owner. Ask your administrator to delete it.
+**If not:**
+- `Not deleting … was not created with kubectl …`: a `NotFound` line above it means the
+  namespace is already gone. Otherwise the namespace was made another way: use the block above
+  for one made with the vCenter API, and the vSphere Client for any other.
+- `admission webhook … denied the request … is not associated with namespace`: you did not
+  create this namespace and are not its Owner. Ask your administrator to delete it.
 
 To remove what this chapter wrote on your machine (the env file itself belongs to the main
 guide):

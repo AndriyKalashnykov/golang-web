@@ -9,8 +9,9 @@ that matches it.
 The cluster is one object, described in one file,
 [`templates/cluster.yaml`](templates/cluster.yaml). You look up what your Supervisor offers,
 write your choices into the env file, fill the file from it, and apply it to your vSphere
-Namespace; VKS then builds the virtual machines. It was written for VMware Cloud Foundation
-9.1.1 and VKS 3.7.
+Namespace; VKS then builds the virtual machines. It needs VKS 3.5 or later (the form of the
+`Cluster` object used here, `cluster.x-k8s.io/v1beta2`, arrived with 3.5), and was written for
+VMware Cloud Foundation 9.1.1 and VKS 3.7.
 
 Run the blocks in order, by copy and paste, in `bash` or `zsh`, on Linux or macOS, from inside
 your `golang-web` clone. Each block is followed by **Expect:** — what you should see — and, where
@@ -99,12 +100,13 @@ are both ready and compatible, newest last.
 
 ```sh
 source ~/.vks-golang-web.env
-kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get kr -o json | jq -r '.items[] | select([.status.conditions[]? | select(.type == "Ready" or .type == "Compatible") | .status] | length == 2 and all(. == "True")) | .spec.version | sub("-vkr\\.[0-9]+$"; "")' | sort -t. -k2,2n -k3,3n -k4,4n | tail -5
+kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get kr -o json | jq -r '.items[] | select([.status.conditions[]? | select(.type == "Ready" or .type == "Compatible") | .status] | length == 2 and all(. == "True")) | .spec.version | sub("-vkr\\.[0-9]+$"; "")' | sort -u | sort -t. -k2,2n -k3,3n -k4,4n | tail -5
 ```
 
 **Expect:** up to five versions, such as `v1.36.2+vmware.2`. The list shows each version
 without the `-vkr.N` ending its release name has: that is how the Supervisor stores it, and how
-you write it.
+you write it. (The full name that `kubectl get kr` prints is accepted too; the Supervisor then
+stores the short form.)
 
 **If not:** no output — no release is both ready and compatible. On a Supervisor that was
 switched on minutes ago, wait ten minutes and run the block again; if the list stays empty, tell
@@ -195,7 +197,7 @@ block reads the new values.
 Istio's control program asks for 2 GB of memory per copy and runs two copies unless you change
 it; a 4 GB worker has less than 3 GB free for apps, so two small workers leave no room beside
 it. You can also start small: changing `WORKER_REPLICAS` and applying the file again adds
-workers in under a minute each. A `guaranteed-…` class reserves its whole CPU and memory on the
+workers. A `guaranteed-…` class reserves its whole CPU and memory on the
 hosts; choose `best-effort-…` unless your administrator says the hosts have the room.
 
 **Address ranges.** `PODS_CIDR` and `SERVICES_CIDR` exist only inside the cluster, but they
@@ -252,15 +254,14 @@ wait after it stops as soon as it sees the wrong address.
 ## Install Harbor before you create clusters
 
 **Installing or uninstalling Harbor on the Supervisor replaces every node of every guest
-cluster on it.** The same holds for any other change to the registries the Supervisor trusts.
-VKS adds the registry's CA to (or removes it from) the configuration every node starts with,
+cluster on it.** VKS adds the registry's CA to (or removes it from) the configuration every node starts with,
 and a node gets a new configuration only by being replaced: VKS builds a new machine, moves the
 work over and deletes the old one, one node at a time, in every cluster of that Supervisor.
 Apps with one copy stop for a moment when their node goes.
 
 So install Harbor **before** you create clusters, or in a maintenance window. A cluster that is
-being created at that moment takes about 15 minutes longer and shows `Available False`, with
-new machines appearing beside the first ones.
+being created at that moment takes longer (about 15 minutes more on a small lab) and shows
+`Available False`, with new machines appearing beside the first ones.
 
 This lists your namespace's machines; it shows whether a replacement is running.
 
@@ -309,24 +310,48 @@ fi
   A message about the `ClusterClass` — `CLUSTER_CLASS` is not in the list, or is too old for the
   version. A message about the VM class or the storage class — that class is not assigned to
   your namespace. Fix the value, fill the description again, then run this block again.
+- `no matches for kind "Cluster" in version "cluster.x-k8s.io/v1beta2"`: this Supervisor's VKS
+  is older than 3.5 and does not know this form of the object. Ask your administrator to update
+  VKS; this chapter does not cover the older form.
 - `Forbidden`: your SSO user lacks the **Edit** role on the namespace.
 
 ## Create the cluster and wait for it
 
 This applies the description, then waits until VKS reports the cluster available. It prints one
-line every 30 seconds, with what the first machine is waiting for. Expect 4 to 9 minutes. The
-first cluster of a Kubernetes release takes longer: vCenter downloads that release's node image
-(about 6 GB) once, and until it has it the line ends with `cached files not ready`. The wait
-gives up after 15 minutes; set `CLUSTER_WAIT_MINUTES` in the env file for another limit, and run
-the block again to keep waiting.
+line every 30 seconds, with what the first machine is waiting for. On a small lab a cluster of
+three nodes took 4 to 9 minutes; yours depends on your hosts and storage. The first cluster of a
+Kubernetes release takes longer: vCenter downloads that release's node image (several GB) once,
+and until it has it the line ends with `cached files not ready`. The wait gives up after 15
+minutes; set `CLUSTER_WAIT_MINUTES` in the env file for another limit, and run the block again
+to keep waiting.
+
+The block refuses a cluster of that name that it did not create itself: one ArgoCD manages, or
+one made another way (your administrator's, for example). Applying this description to such a
+cluster would change its size and classes. Running the block again on your own cluster is fine.
 
 ```sh
 source ~/.vks-golang-web.env
 OUT="$HOME/.config/vks-golang-web/cluster.yaml"
-if [ "$(awk '$1 == "name:" {print $2; exit}' "$OUT" 2>/dev/null)" != "$VKS_CLUSTER" ]; then
+EX=""
+[ -z "$VKS_CLUSTER" ] || EX="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io "$VKS_CLUSTER" --ignore-not-found -o name)" || EX=unknown
+LA="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io "$VKS_CLUSTER" --ignore-not-found -o jsonpath='{.metadata.annotations.kubectl\.kubernetes\.io/last-applied-configuration}' 2>/dev/null)"
+AR="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io "$VKS_CLUSTER" --ignore-not-found -o jsonpath='{.metadata.annotations.argocd\.argoproj\.io/tracking-id}{.metadata.labels.app\.kubernetes\.io/instance}' 2>/dev/null)"
+MIN="${CLUSTER_WAIT_MINUTES:-15}"
+case "$MIN" in
+  ''|*[!0-9]*) echo "CLUSTER_WAIT_MINUTES is '${MIN}', not a whole number: waiting 15 minutes"; MIN=15 ;;
+esac
+if [ -z "$VKS_CLUSTER" ]; then
+  echo "Not applied: VKS_CLUSTER is empty"
+elif [ "$(awk '$1 == "name:" {print $2; exit}' "$OUT" 2>/dev/null)" != "$VKS_CLUSTER" ]; then
   echo "Not applied: the filled description is missing, or is for another cluster. Run 'Fill the cluster's description' again."
+elif [ "$EX" = unknown ]; then
+  echo "Not applied: the Supervisor did not say whether '${VKS_CLUSTER}' exists (see the error above)"
+elif [ -n "$EX" ] && [ -n "$AR" ]; then
+  echo "Not applied: ArgoCD manages the cluster '${VKS_CLUSTER}'. Nothing was changed: change it in ArgoCD, or choose another VKS_CLUSTER."
+elif [ -n "$EX" ] && [ -z "$LA" ]; then
+  echo "Not applied: a cluster named '${VKS_CLUSTER}' already exists in '${VKS_NAMESPACE}' and this block did not create it. Nothing was changed: use it as it is, or choose another VKS_CLUSTER."
 elif kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" apply -f "$OUT"; then
-  n=0; A=""; W=""; R=""; MAX=$(( ${CLUSTER_WAIT_MINUTES:-15} * 2 ))
+  n=0; A=""; W=""; R=""; MAX=$((MIN * 2))
   until [ "$A" = True ] || [ -n "$W" ] || [ "$n" -ge "$MAX" ]; do
     sleep 30; n=$((n + 1))
     A="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io "$VKS_CLUSTER" -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null)"
@@ -350,9 +375,12 @@ fi
 ```
 
 **Expect:** `cluster.cluster.x-k8s.io/<your cluster> created` (`unchanged` when you run it
-again), then a line every 30 seconds — first `Available=not yet  address=none yet`, after a
-minute or so with an address, and finally `Available=True` — then the cluster with
-`AVAILABLE True` and its control-plane and worker counts.
+again), then a line every 30 seconds: first `0 min 30 s: Available=False  address=none yet`,
+then lines with the cluster's address and what the first machine waits for
+(`Available=False  address=<an address>  waiting: <a machine>: <a message>`), and finally a line
+with `Available=True`, followed by the cluster with `AVAILABLE` `True` and its control-plane and
+worker counts. If the limit is reached first, the last two lines are
+`NOT AVAILABLE after 15 minutes. …` and `The cluster is still being built; …`.
 
 **If not:**
 - `STOP: the cluster uses the address …`: the name was used before. Run *Delete the cluster*
@@ -364,7 +392,7 @@ minute or so with an address, and finally `Available=True` — then the cluster 
   vSphere Client and synchronize it. An error there about the publisher's certificate means the
   library's stored certificate fingerprint is out of date and must be accepted again. After the
   administrator's repair, a cluster that already tried keeps showing `cached files not ready`
-  for up to 30 minutes and then goes on by itself: do not delete it, keep waiting.
+  for up to about 30 minutes and then goes on by itself: do not delete it, keep waiting.
 - `NOT AVAILABLE after …` with another reason, or none:
   `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" describe clusters.cluster.x-k8s.io "$VKS_CLUSTER"`
   shows the condition that is waiting. A VM class that is too small, a namespace limit that is
@@ -372,6 +400,13 @@ minute or so with an address, and finally `Available=True` — then the cluster 
   back while the cluster is built; only `Available` says it is usable.
 - `Not applied: the filled description is missing …`: you changed `VKS_CLUSTER` after filling
   the file. Fill it again.
+- `Not applied: ArgoCD manages the cluster …`: the cluster carries ArgoCD's mark. Change its
+  values in ArgoCD (the ArgoCD guide's *Create a guest cluster with ArgoCD*), not here.
+- `Not applied: a cluster named … already exists … and this block did not create it`: the
+  cluster was made another way. This chapter does not change it. To use it, go on with *Get the
+  cluster's kubeconfig*; to make your own, choose another `VKS_CLUSTER`.
+- `CLUSTER_WAIT_MINUTES is '…', not a whole number`: the block still runs, with 15 minutes. Fix
+  the line in the env file.
 
 Never switch a guest cluster's virtual machines on or off in the vSphere Client: VKS owns them
 and puts them back the way it wants them.
@@ -406,7 +441,12 @@ source ~/.vks-golang-web.env
 ( umask 077
   kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" \
     get secret "${VKS_CLUSTER}-kubeconfig" -o jsonpath='{.data.value}' \
-    | base64 -d > "$GUEST_KUBECONFIG" )
+    | base64 -d > "${GUEST_KUBECONFIG}.new" )
+if [ -s "${GUEST_KUBECONFIG}.new" ]; then
+  mv "${GUEST_KUBECONFIG}.new" "$GUEST_KUBECONFIG"
+else
+  rm -f "${GUEST_KUBECONFIG}.new"; echo "No kubeconfig read (see the error above): ${GUEST_KUBECONFIG} is as it was"
+fi
 V="$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')"
 echo "Guest cluster: ${V:-unknown}"
 kubectl_install "$V"
@@ -417,10 +457,11 @@ kubectl_install "$V"
 further away, `Client Version:` with the cluster's `v1.<minor>`.
 
 **If not:**
-- `secrets "<name>-kubeconfig" not found`: check `VKS_CLUSTER`, and that the block above ended
-  with `Available=True`. `Forbidden`: the **Edit** role is missing. Either way
-  `kubectl_install: no version` follows (the kubeconfig file is left empty): fix the cause and
-  run the block again.
+- `No kubeconfig read …`, under a `kubectl` error: `secrets "<name>-kubeconfig" not found` —
+  check `VKS_CLUSTER`, and that the block above ended with `Available=True`; `Forbidden` — the
+  **Edit** role is missing; `Unauthorized` — the Supervisor login ended (main guide, *Renew the
+  Supervisor login*). A kubeconfig you saved earlier is kept. With none, `Guest cluster: unknown`
+  and `kubectl_install: no version` follow: fix the cause and run the block again.
 - `… installing into <your home>/.local/bin instead`: not an error. If `… was not on your PATH`
   follows, add the line it prints to `~/.zshrc` (zsh) or `~/.bashrc` (bash).
 - `kubectl_install: cannot reach dl.k8s.io`, `… the checksum of the download does not match` or
@@ -464,29 +505,47 @@ the same object as `templates/cluster.yaml`, and takes the same values (`K8S_VER
 ## Delete the cluster
 
 **This destroys the cluster, its virtual machines and every disk its apps created.** The block
-deletes the cluster on the Supervisor and waits until it and its address are gone (a few
-minutes; it gives up after 30). Do not switch the virtual machines off yourself.
+deletes the cluster on the Supervisor and, only if the Supervisor accepted that, waits until the
+cluster and its address are gone (a few minutes; it gives up after 30). It refuses a cluster
+ArgoCD manages. Do not switch the virtual machines off yourself.
 
 ```sh
 source ~/.vks-golang-web.env
-kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" delete clusters.cluster.x-k8s.io "$VKS_CLUSTER" --ignore-not-found --wait=false
-n=0
-until [ -z "$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io,virtualmachineservice "$VKS_CLUSTER" --ignore-not-found -o name || echo unknown)" ] || [ "$n" -ge 120 ]; do
-  n=$((n + 1)); sleep 15
-done
-echo "left (nothing after the colon means gone): $(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io,virtualmachineservice "$VKS_CLUSTER" --ignore-not-found -o name || echo unknown)"
-rm -f "$GUEST_KUBECONFIG" "$HOME/.config/vks-golang-web/cluster.yaml"
+AR="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io "$VKS_CLUSTER" --ignore-not-found -o jsonpath='{.metadata.annotations.argocd\.argoproj\.io/tracking-id}{.metadata.labels.app\.kubernetes\.io/instance}' 2>/dev/null)"
+if [ -z "$VKS_CLUSTER" ]; then
+  echo "Not deleting: VKS_CLUSTER is empty"
+elif [ -n "$AR" ]; then
+  echo "Not deleting '${VKS_CLUSTER}': ArgoCD manages it and would create it again. Delete it with the ArgoCD guide's clean-up step."
+elif kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" delete clusters.cluster.x-k8s.io "$VKS_CLUSTER" --ignore-not-found --wait=false; then
+  n=0; LEFT=unknown
+  until [ -z "$LEFT" ] || [ "$n" -ge 120 ]; do
+    [ "$n" -eq 0 ] || sleep 15
+    n=$((n + 1))
+    LEFT="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io,virtualmachineservice "$VKS_CLUSTER" --ignore-not-found -o name || echo unknown)"
+  done
+  echo "left (nothing after the colon means gone): ${LEFT}"
+  if [ -z "$LEFT" ]; then rm -f "$GUEST_KUBECONFIG" "$HOME/.config/vks-golang-web/cluster.yaml"; fi
+else
+  echo "Not deleted: the Supervisor refused (see the error above), so nothing is waited for and no file is removed."
+fi
 ```
 
 **Expect:** `cluster.cluster.x-k8s.io "<your cluster>" deleted`, and within a few minutes
-`left (nothing after the colon means gone):` with nothing after it.
+`left (nothing after the colon means gone):` with nothing after it. The cluster's kubeconfig and
+its filled description are then removed from this machine.
 
-**If not:** a name, or `unknown`, after the colon: the cluster is still being deleted, or the
-Supervisor login ended (main guide, *Renew the Supervisor login*). Run the block again before
-you create another cluster. Do not create the next cluster under the same name.
+**If not:**
+- `Not deleting: VKS_CLUSTER is empty`: set it in the env file.
+- `Not deleting … ArgoCD manages it …`: the cluster carries ArgoCD's mark (the annotation
+  `argocd.argoproj.io/tracking-id`, or the label `app.kubernetes.io/instance`). Use the ArgoCD
+  guide's *Delete the guest cluster* block.
+- `Not deleted: the Supervisor refused …`: `Forbidden` above it means your user lacks the
+  **Edit** role; `Unauthorized`, that the Supervisor login ended (main guide, *Renew the
+  Supervisor login*).
+- A name, or `unknown`, after the colon: the cluster is still being deleted, or the Supervisor
+  login ended. The kubeconfig is kept. Run the block again before you create another cluster.
 
-If ArgoCD created the cluster, delete it with the ArgoCD guide's clean-up step instead, or
-ArgoCD creates it again.
+Do not create the next cluster under the same name.
 
 ## Fix common problems
 
@@ -496,6 +555,7 @@ ArgoCD creates it again.
 | `Not filled: no value for: …` | A setting is empty, or its line in the env file lacks `export`. *Choose the cluster's values* lists them. |
 | The cluster stays `Available=not yet` and the block prints `STOP: the cluster uses the address …` | The name was used before in this namespace. Delete the cluster and use a new name. |
 | The cluster is available but an app's disk request (`PersistentVolumeClaim`) stays `Pending` | *Check the cluster* prints the default storage class. `NONE` means the description lacked `defaultStorageClass`. |
+| `no matches for kind "Cluster" in version "cluster.x-k8s.io/v1beta2"` | The Supervisor's VKS is older than 3.5. This chapter needs 3.5 or later. |
 | `admission webhook … denied the request: Could not resolve KR/OSImage` | `K8S_VERSION` is not a release that is ready and compatible. Take one from *List the Kubernetes releases*, exactly as printed. |
 | A node's pods stay `Pending` with `Insufficient memory` or `Insufficient cpu` | The workers are too small for what you run. Raise `WORKER_REPLICAS`, fill the description and apply it again; or create a new cluster with a larger `VM_CLASS`. |
 | `error: You must be logged in to the server (Unauthorized)` from a Supervisor command | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's *Renew the Supervisor login* block. |

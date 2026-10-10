@@ -4,7 +4,9 @@
 #   1. vks/templates/cluster.yaml and vks/templates/namespace-spec.json are rendered with example
 #      values, and with the SAME explicit variable list the guides pass to envsubst. Fails when a
 #      template names a variable that is not in its list (it would stay a literal "${...}"), when a
-#      listed variable is not used, when any value renders empty, or when the JSON does not parse.
+#      listed variable is not used, when any value renders empty, or when the JSON does not parse;
+#      and when the namespace template's "description" (the marker the guide's delete block
+#      compares) is not the one vks/NAMESPACE.md carries.
 #   2. When helm and yq are installed, the chart vks/argocd/guest-cluster is rendered with the same
 #      values and compared with the rendered cluster template, both as key-sorted JSON. They must
 #      be the same object: vks/CLUSTER.md and the ArgoCD guides promise the same cluster.
@@ -95,12 +97,22 @@ if command -v jq >/dev/null 2>&1; then
   elif ! jq -e '[.. | select(type == "string" or type == "array") | length] | all(. > 0)' "$T/namespace-spec.json" >/dev/null; then
     err "$NS_TPL rendered an empty string or an empty list"
   elif ! jq -e '(.namespace == env.VKS_NAMESPACE) and (.cluster == env.VSPHERE_CLUSTER_ID)
+        and ((.description | type) == "string") and ((.description | length) > 10)
         and (.storage_specs == [{policy: env.STORAGE_POLICY_ID}])
         and (.storage_specs[0] | has("limit") | not)
         and (.vm_service_spec.vm_classes == (env.NAMESPACE_VM_CLASSES_JSON | fromjson))
         and (.access_list == [{subject_type: "USER", subject: env.NAMESPACE_USER, domain: env.NAMESPACE_DOMAIN, role: env.NAMESPACE_ROLE}])' \
         "$T/namespace-spec.json" >/dev/null; then
     err "$NS_TPL did not render the expected object (a value landed in the wrong field, or a storage limit was added)"
+  fi
+  # The marker: vks/NAMESPACE.md deletes a namespace only when its description equals the
+  # template's. The guide's delete block must carry the same text, or it would refuse every
+  # namespace this guide created.
+  marker=$(jq -r '.description // empty' "$T/namespace-spec.json")
+  if [ -z "$marker" ]; then
+    err "$NS_TPL has no description: the guide's delete block could not tell its own namespaces"
+  elif [ "$(grep -cF "M=\"$marker\"" vks/NAMESPACE.md)" -ne 1 ]; then
+    err "vks/NAMESPACE.md does not hold the line M=\"$marker\" exactly once: its delete block and $NS_TPL disagree on the marker"
   fi
   json_arm="checked"
 else

@@ -529,12 +529,16 @@ check-kind-kubeconfig:
 check-vks-docs:
 	@bash .github/scripts/check-vks-docs.sh
 
+#check-vks-templates: @ Verify the vks/ templates render with no empty value and that the guest-cluster chart renders the same object
+check-vks-templates:
+	@REQUIRE_HELM="$${REQUIRE_HELM:-$${CI:+1}}" bash .github/scripts/check-vks-templates.sh
+
 #check-env: @ Verify .env.example documents every setting the Makefile and the Go code read
 check-env:
 	@bash .github/scripts/check-env.sh
 
 #static-check: @ Run all quality and security checks
-static-check: check-env check-kind-kubeconfig check-vks-docs check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config diagrams-check scripts-test
+static-check: check-env check-kind-kubeconfig check-vks-docs check-vks-templates check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config diagrams-check scripts-test
 	@echo "Static check passed."
 
 #format: @ Auto-format Go source files
@@ -1190,7 +1194,7 @@ deps-prune-check: deps
 	fi
 
 .PHONY: help engines deps deps-engine deps-buildx registry-login deps-verify deps-kind check-toolchain-alignment \
-	check-env check-kind-kubeconfig check-vks-docs scripts-test \
+	check-env check-kind-kubeconfig check-vks-docs check-vks-templates scripts-test \
 	diagrams diagrams-check \
 	test build lint lint-ci sec vulncheck secrets \
 	trivy-fs trivy-config static-check format run coverage-check \

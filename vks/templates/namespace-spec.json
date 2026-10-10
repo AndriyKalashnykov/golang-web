@@ -1,5 +1,6 @@
 {
   "namespace": "${VKS_NAMESPACE}",
+  "description": "Created by the golang-web VKS guide (vks/NAMESPACE.md)",
   "cluster": "${VSPHERE_CLUSTER_ID}",
   "storage_specs": [
     { "policy": "${STORAGE_POLICY_ID}" }
