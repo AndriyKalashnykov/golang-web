@@ -275,7 +275,8 @@ fi
 ## Create the cluster and wait for it
 
 This applies the description, then waits until VKS reports the cluster available. It prints one
-line every 30 seconds. Expect 4 to 9 minutes; the wait gives up after 30.
+line every 30 seconds, with what the first machine is waiting for. Expect 4 to 9 minutes. The
+wait gives up after 15; set `CLUSTER_WAIT_MINUTES` in the env file for another limit.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -283,19 +284,23 @@ OUT="$HOME/.config/vks-golang-web/cluster.yaml"
 if [ "$(awk '$1 == "name:" {print $2; exit}' "$OUT" 2>/dev/null)" != "$VKS_CLUSTER" ]; then
   echo "Not applied: the filled description is missing, or is for another cluster. Run 'Fill the cluster's description' again."
 elif kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" apply -f "$OUT"; then
-  n=0; A=""; W=""
-  until [ "$A" = True ] || [ -n "$W" ] || [ "$n" -ge 60 ]; do
+  n=0; A=""; W=""; R=""; MAX=$(( ${CLUSTER_WAIT_MINUTES:-15} * 2 ))
+  until [ "$A" = True ] || [ -n "$W" ] || [ "$n" -ge "$MAX" ]; do
     sleep 30; n=$((n + 1))
     A="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io "$VKS_CLUSTER" -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null)"
     H="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io "$VKS_CLUSTER" -o jsonpath='{.spec.controlPlaneEndpoint.host}' 2>/dev/null)"
     L="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get virtualmachineservice "$VKS_CLUSTER" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)"
-    echo "$((n / 2)) min $((n % 2 * 30)) s: Available=${A:-not yet}  address=${H:-none yet}"
+    R="$(kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get virtualmachine -o jsonpath='{range .items[*]}{.metadata.name}{": "}{range .status.conditions[?(@.status=="False")]}{.message}{"; "}{end}{"\n"}{end}' 2>/dev/null | grep "^${VKS_CLUSTER}-" | grep -v ': $' | head -n 1)"
+    echo "$((n / 2)) min $((n % 2 * 30)) s: Available=${A:-not yet}  address=${H:-none yet}  ${R:+waiting: $R}"
     if [ -n "$H" ] && [ -n "$L" ] && [ "$H" != "$L" ]; then W="$H"; fi
   done
   if [ -n "$W" ]; then
     echo "STOP: the cluster uses the address ${W}, but its load balancer has ${L}. This cluster will never become available: delete it and create it under a name that was never used here."
-  else
+  elif [ "$A" = True ]; then
     kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get clusters.cluster.x-k8s.io "$VKS_CLUSTER"
+  else
+    echo "NOT AVAILABLE after $((n / 2)) minutes. ${R:+The first machine is waiting: $R}"
+    echo "The cluster is still being built; run this block again to keep waiting, or read 'If not' below."
   fi
 else
   echo "Not applied: see the error above"
@@ -310,7 +315,13 @@ minute or so with an address, and finally `Available=True` — then the cluster 
 **If not:**
 - `STOP: the cluster uses the address …`: the name was used before. Run *Delete the cluster*
   below, set `VKS_CLUSTER` to a new name, and start again at *Fill the cluster's description*.
-- Still `Available=not yet` after 30 minutes:
+- `NOT AVAILABLE after … waiting: … cached files not ready`: vCenter is downloading the node
+  image for this Kubernetes release, which happens once per release and takes a few minutes.
+  If the line does not change for 10 minutes, the download is failing: ask your vSphere
+  administrator to open the content library that holds the Kubernetes releases in the vSphere
+  Client and synchronize it. An error there about the publisher's certificate means the
+  library's stored certificate fingerprint is out of date and must be accepted again.
+- `NOT AVAILABLE after …` with another reason, or none:
   `kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" describe clusters.cluster.x-k8s.io "$VKS_CLUSTER"`
   shows the condition that is waiting. A VM class that is too small, a namespace limit that is
   reached, or a storage policy without room shows there. Other conditions go to `False` and
