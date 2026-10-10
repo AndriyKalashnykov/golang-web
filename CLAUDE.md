@@ -82,7 +82,8 @@ make version        # Print current version tag
 ## Upgrade Backlog
 
 - [ ] **`vks/` becomes one end-to-end story (owner, 2026-10-10): the plan and its ten phases
-      are in [`vks/PLAN.md`](vks/PLAN.md).** Use or create a vSphere Namespace and a guest
+      are in [`vks/PLAN.md`](vks/PLAN.md). Built and merged; what is left is the "Not walked"
+      list in `vks/HANDOFF.md`.** Use or create a vSphere Namespace and a guest
       cluster, install Harbor (manual and auto), add-ons (Headlamp, Istio), three ways to
       deploy the app, a doc gate and a committed walk harness. Work the phases in order;
       phase 1 is the gate and the harness.
@@ -337,9 +338,13 @@ with both clusters up on Linux: this project keeps its LoadBalancer address thro
 
 ## `vks/` — deploying this app to a VKS guest cluster
 
-`vks/README.md` is an end-user runbook: build locally, push to Harbor, deploy to a named VKS
-guest cluster. Proven end to end by running every block verbatim: Linux with podman and docker,
-Linux arm64 with docker, and macOS (arm64) with podman and docker/Colima.
+`vks/README.md` is the main line of an end-user guide: log in, check the vSphere Namespace and
+the guest cluster, deploy the published image, reach it. Around it, each area has a chooser
+("Use or create/install …"), a by-hand guide for the vSphere Client and a scripted one:
+`NAMESPACE*.md`, `CLUSTER*.md`, `HARBOR*.md`, `ARGOCD*.md`. `REGISTRY.md` builds and pushes to
+Harbor, `ARGOCD-app.md` deploys the app with ArgoCD, and `vks/addons/` holds the guest-cluster
+add-ons (cert-manager, Headlamp, Istio). What was run where, and what was not, is in
+`vks/HANDOFF.md`, "The files".
 
 **Read `vks/HANDOFF.md` before changing anything under `vks/`** — it holds the resume point,
 what is already measured, and the traps that have already been paid for.
