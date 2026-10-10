@@ -59,6 +59,9 @@ Harbor elsewhere), then `Harbor at <your Harbor's name>: http=200`.
   [by hand](HARBOR-manual.md) or [with scripts](HARBOR-auto.md).
 - `Unauthorized` on the first line: run the main guide's
   [Renew the Supervisor login](README.md#renew-the-supervisor-login) block.
+- `Forbidden` on the first line (`cannot list resource "namespaces"`): your user has a role on
+  your vSphere Namespace only and may not list the Supervisor's namespaces. The second line
+  still says whether Harbor answers.
 
 You need five values from that Harbor. For a Harbor that runs on this Supervisor, the scripted
 guide prints or creates each one (run its step 1 first); for a Harbor elsewhere, its
