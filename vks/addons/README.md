@@ -20,10 +20,14 @@ it and where you manage it.
 | removing it | delete the `AddonInstall` | `helm uninstall` or `kubectl delete` |
 | after the cluster is rebuilt | VKS installs it again | you install it again |
 
+**These chapters use the VKS add-on first.** It is the platform's own way: VKS installs the
+software, keeps it there, and installs it again when the cluster is rebuilt. Where an add-on
+does not fit (your Supervisor does not offer it, or its own choices are not what you want), the
+chapter gives the other ways after it.
+
 A VKS add-on needs a Supervisor whose VKS has the add-on catalogue; VKS 3.6 and 3.7 have it.
-Your SSO user needs the **Edit** role on
-the vSphere Namespace, as for creating a cluster. The chapters were written for VMware Cloud
-Foundation 9.1.1 and VKS 3.7.
+Your SSO user needs the **Edit** role on the vSphere Namespace, as for creating a cluster. The
+chapters were written for VMware Cloud Foundation 9.1.1 and VKS 3.7.
 
 This lists the add-ons your Supervisor offers. It is read-only.
 
@@ -32,7 +36,8 @@ source ~/.vks-golang-web.env
 kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n vmware-system-vks-public get addons.addons.kubernetes.vmware.com
 ```
 
-**Expect:** one line per add-on, among them `istio`, and on VKS 3.7 `headlamp`.
+**Expect:** one line per add-on, among them `cert-manager` and `istio`, and on VKS 3.7
+`headlamp`.
 
 **If not:**
 - `the server doesn't have a resource type "addons"`: this Supervisor's VKS has no add-on
@@ -43,10 +48,18 @@ kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n vmware-system-vks-public get ad
 
 ## The add-ons covered
 
-| add-on | what it is | ways to get it | chapter |
-|---|---|---|---|
-| Headlamp | a web page that shows what runs on the cluster | the desktop program on your machine (nothing installed on the cluster); the project's helm chart | [HEADLAMP.md](HEADLAMP.md) |
-| Istio | a service mesh, and a gateway that brings traffic from outside to your app | the VKS add-on | [ISTIO.md](ISTIO.md) |
+Three add-ons, in the order to install them when you want all three:
+
+| add-on | what it is | needs first | ways to get it | chapter |
+|---|---|---|---|---|
+| cert-manager | makes and renews TLS certificates on the cluster; other add-ons need it | nothing | the VKS add-on | [CERT-MANAGER.md](CERT-MANAGER.md) |
+| Istio | a service mesh, and a gateway that brings traffic from outside to your app | nothing | the VKS add-on | [ISTIO.md](ISTIO.md) |
+| Headlamp | a web page that shows what runs on the cluster | as a VKS add-on: **cert-manager**. The other two ways: nothing | the VKS add-on; then the project's helm chart; then the desktop program on your machine (nothing installed on the cluster) | [HEADLAMP.md](HEADLAMP.md) |
+
+Each add-on is one `AddonInstall` object, filled from one file,
+[`templates/addoninstall.yaml`](templates/addoninstall.yaml); the three chapters differ only in
+the add-on's name and release, and in what they check afterwards. To remove them, go the other
+way round: Headlamp before cert-manager. The remove blocks refuse the wrong order.
 
 ## What an add-on changes in the other chapters
 
@@ -55,9 +68,11 @@ written, and a cluster without add-ons needs none of it.
 
 | add-on | chapter it touches | what changes |
 |---|---|---|
-| Headlamp, desktop | none | nothing |
+| cert-manager | the main guide's clean-up | one more namespace on the guest cluster (`cert-manager`) and one object on the Supervisor, removed by the chapter's own remove block |
+| Headlamp, VKS add-on | the main guide's clean-up | one more namespace on the guest cluster (`headlamp`), one more `LoadBalancer` address, and one object on the Supervisor, removed by the chapter's own remove block |
 | Headlamp, helm chart | the main guide's tools | you also need `helm`, only for this |
-| Headlamp, either way on the cluster | the main guide's clean-up | one more namespace on the guest cluster (`headlamp`), removed by the chapter's own uninstall block |
+| Headlamp, helm chart | the main guide's clean-up | one more namespace on the guest cluster (`headlamp`), removed by the chapter's own uninstall block |
+| Headlamp, desktop | none | nothing |
 | Istio | [Create a guest cluster with kubectl](../CLUSTER.md), *Choose the cluster's values* | larger workers, or one more: the sizes table there has the row |
 | Istio | the main guide's deploy and reach steps | the app's Service becomes `ClusterIP`, and you reach the app through the gateway's address on port 80, not the Service's own address on port 8080 |
 | Istio | the main guide's clean-up | one more namespace on the guest cluster (`istio-ingress`) and one object on the Supervisor, removed by the chapter's own uninstall blocks |

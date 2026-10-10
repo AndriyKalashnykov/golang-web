@@ -17,7 +17,7 @@ Install only what your path needs, and skip any tool you already have:
 | `vcf` | everyone | [Install the VCF CLI and its plugins](#install-the-vcf-cli-and-its-plugins) |
 | podman or docker | only [REGISTRY.md](REGISTRY.md): building the image yourself | [Install a container engine — pick one](#install-a-container-engine--pick-one) |
 | `envsubst` | only [CLUSTER.md](CLUSTER.md): creating a guest cluster | [Install envsubst](#install-envsubst) |
-| `helm` | only the [Headlamp add-on](addons/HEADLAMP.md), when you install it from its chart | [Install helm](#install-helm) |
+| `helm` | only [Headlamp](addons/HEADLAMP.md), when you install it with its helm chart | [Install helm](#install-helm) |
 | a clipboard program | only [HARBOR-manual.md](HARBOR-manual.md), on Linux | [Install a clipboard program (Linux only)](#install-a-clipboard-program-linux-only) |
 
 Run the blocks by copy and paste, in `bash` or `zsh`. Each block is followed by **Expect:** —

@@ -1,5 +1,5 @@
-# One VKS add-on for one guest cluster. vks/addons/ISTIO.md and vks/addons/HEADLAMP.md fill this
-# file with envsubst. It is applied on the SUPERVISOR, in the vSphere Namespace that holds the
+# One VKS add-on for one guest cluster. vks/addons/CERT-MANAGER.md, ISTIO.md and HEADLAMP.md fill
+# this file with envsubst. It is applied on the SUPERVISOR, in the vSphere Namespace that holds the
 # cluster; VKS then installs the add-on into the guest cluster.
 # The label marks it as made by these guides: their uninstall blocks delete nothing without it.
 # stopMatchingBehavior Delete: deleting this object removes the add-on from the cluster.

@@ -738,7 +738,7 @@ The chapters, in the order to use them. Each says what it needs and where it lea
    it, [by hand](ARGOCD-manual.md) in the vSphere Client and the ArgoCD web page, or
    [with scripts](ARGOCD-auto.md).
 8. [ARGOCD-app.md](ARGOCD-app.md): deploy the app as an ArgoCD Application.
-9. [addons/README.md](addons/README.md): add-ons for the guest cluster, [Headlamp](addons/HEADLAMP.md)
-   and [Istio](addons/ISTIO.md).
+9. [addons/README.md](addons/README.md): add-ons for the guest cluster,
+   [cert-manager](addons/CERT-MANAGER.md), [Istio](addons/ISTIO.md) and [Headlamp](addons/HEADLAMP.md).
 10. [CLEANUP.md](CLEANUP.md): remove what these guides created.
 11. [TROUBLESHOOTING.md](TROUBLESHOOTING.md): errors by their text, with the fix for each.

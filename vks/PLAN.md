@@ -339,50 +339,67 @@ in the guest cluster against the Supervisor's ArgoCD API has not been tried. `AR
 therefore says "not covered" and claims nothing about it; the update it describes is "set the
 new digest".
 
-### Phase 9 (add-ons): built, nothing walked on a lab
+### Phase 9 (add-ons): three chapters; Istio and the helm Headlamp walked, the rest built only
 
-`vks/addons/README.md`, `HEADLAMP.md` and `ISTIO.md`, with three files under
-`vks/addons/templates/` (`headlamp-values.yaml`, `addoninstall.yaml`, `istio-gateway.yaml`; the
-document map above names `vks/templates/` for them, which is not where they are). **No block of
-these chapters has run against a Supervisor or a guest cluster.**
+`vks/addons/README.md`, `CERT-MANAGER.md`, `ISTIO.md` and `HEADLAMP.md`, with three files under
+`vks/addons/templates/` (`addoninstall.yaml`, shared by the three add-ons; `istio-gateway.yaml`;
+`headlamp-values.yaml`, for the helm chart). The document map above names `vks/templates/` for
+them, which is not where they are. Owner, 2026-10-10: add-ons are first class; every chapter
+leads with the VKS add-on and gives other ways after it.
 
-Done without a lab (2026-10-10, Linux):
+Walked on the lab (2026-10-10; VCF 9.1.1, VKS 3.7.2, guest v1.36.2; Linux, bash and zsh):
 
-- the gate: 39 blocks in the three files, 0 errors, no allowlist entry;
-- every block that guards, waits or deletes ran against stand-in `kubectl`, `helm`, `curl` and
-  `sleep` programs, 80 cases, each in bash and zsh with equal output (refusals call nothing that
-  changes anything; waits end on the answer and on the limit). Three guards were removed in turn
-  and the cases went red;
-- Headlamp chart 0.45.0 rendered with `helm template` and the values file: the pod spec meets
-  each rule of Pod Security `restricted` (checked rule by rule with `yq` and `jq`; the chart's
-  defaults fail three of them), and the binding's role is `view`;
-- `istio-gateway.yaml` validates against the Gateway API v1 schemas (`kubeconform -strict`).
-  `addoninstall.yaml` has no public schema: its fields are the ones `nested-vsphere-lab`
-  (`stages/nested-vsphere/workload.sh`, `_wl_render_addoninstall`) applies on its lab.
+- `ISTIO.md`, every block as written: the release list; the `AddonInstall` (taken up in 10 s,
+  VKS made `<cluster>-istio`); the size patch (worked in after 5 s); Ready after 45 s; `istiod`
+  1 of 1 at 1Gi, `istio-cni-node` 3 of 3, 3 webhooks; the Gateway API there and `GatewayClass
+  istio` accepted; the gateway programmed in 10 s; the label dry run printing the `restricted`
+  violation (`seccompProfile`), so `baseline` is needed; the app through the gateway; the mesh
+  option and its undo; remove; uninstall (no `istio-system`, 0 Istio object types).
+- `HEADLAMP.md`, the helm way: settings, helm check, namespace, the server dry run (four objects,
+  no Pod Security warning), install, the four `can-i` answers, the token block, the page through
+  the port-forward (HTTP 200), uninstall.
+- By hand, not through the chapters' blocks: the Headlamp add-on WITHOUT cert-manager stays
+  `Ready=False` (`Expected to find kind 'cert-manager.io/v1/Issuer', but did not`); with the
+  cert-manager add-on first (`cert-manager.kubernetes.vmware.com.1.21.1-vmware.2-vks.1`, Ready
+  after 30 s, three pods) the Headlamp add-on
+  (`headlamp.kubernetes.vmware.com.0.45.0-vmware.1-vks.1`) is Ready after 20 s. What it makes by
+  default: namespace `headlamp` at `privileged`, Deployment and `LoadBalancer` Service `headlamp`
+  on 443 (HTTPS 200), accounts `default` and `headlamp`, the binding `headlamp-admin` to
+  `cluster-admin`, an `Issuer` `headlamp-issuer`; VKS made `<cluster>-cert-manager` and
+  `<cluster>-headlamp` settings objects. Both `AddonInstall` objects on the walk cluster carry
+  the guides' label and names, so the chapters' blocks will find them installed.
 
-Walk first, in this order, because a later block depends on what an earlier one shows:
+New in the second round and NOT run on a lab (gate: 0 errors; stand-in `kubectl`, `helm`,
+`curl`, `sleep`: 138 cases, each in bash and zsh, four new guards removed in turn and red):
 
-1. ISTIO: *Choose the Istio release* (the release names' form), *Fill and check*, *Install Istio*
-   (does VKS set `.spec.clusterName` on the `AddonConfig` it makes: the next block's guard reads
-   it), *Set Istio's size* (the JSON patch on `/spec/values`; `status.outputHash` changing),
-   *Wait*, *Check Istio on the guest cluster* (the names `istiod` and `istio-cni-node`).
-2. ISTIO: *Check that the cluster can make gateways* (is the Gateway API on a 3.7.2 cluster by
-   default; is `GatewayClass istio` there), the gateway's namespace, the gateway and route, the
-   `--dry-run=server` label check (which of its two answers this Istio gives), *Reach the app*.
-3. ISTIO: the Service patch to `ClusterIP` and back; the mesh option under `restricted`;
-   *Uninstall Istio* and what it leaves (the chapter expects no Istio CRDs and no namespace).
-4. HEADLAMP, helm: the server dry run, the install under `restricted` (the pod runs with a
-   read-only root filesystem: not proven to start), the four `can-i` answers, token login in the
-   page (the field and button names are from memory).
-5. HEADLAMP, desktop: macOS (`open -n -a Headlamp --args`, and whether the app gets `KUBECONFIG`)
-   and the `.deb` on Ubuntu.
-6. HEADLAMP *As a VKS add-on*: every block; keep or cut the section on the result. Unknown: the
-   release's name, the namespace, account and Service names, and whether cert-manager is needed.
+- `CERT-MANAGER.md`, all 9 blocks. Not measured: the three deployments' names (the chapter lists
+  the namespace's deployments and names none); that removing the add-on leaves no cert-manager
+  object types; that `get certificates.cert-manager.io --all-namespaces` is empty on a cluster
+  whose only user was Headlamp once Headlamp is removed (the remove block refuses otherwise).
+- `HEADLAMP.md`, *Headlamp as a VKS add-on*: the prerequisite check, the release list, fill,
+  install (its three new refusals), *What the add-on put on the cluster*, the read-only account
+  `headlamp-viewer` and its token, *Open the page*, *Remove the add-on*. Not measured: that
+  Headlamp accepts a token of an account other than its own (expected: it passes the token to
+  the API server); that the serving certificate is in the Secret `headlamp-tls-cert` under
+  `tls.crt` (the schema's default name); the browser's wording; that VKS deletes the namespace,
+  with the read-only account in it, when the add-on is removed.
+- `HEADLAMP.md`, *Change the add-on's settings (optional)*, both blocks: **never run on a lab.**
+  The settings `hostname` and `gatewayApi.enabled` are read from the add-on's schema, not from a
+  run. Unknown: whether a new `hostname` re-issues the certificate and how long that takes;
+  whether the Secret has `ca.crt`; what `gatewayApi.enabled` creates beyond the schema's
+  defaults (`headlamp-gateway`, class `istio`) and whether the `LoadBalancer` Service stays.
+- `HEADLAMP.md`, helm way: the fourth `can-i` call now passes `--all-namespaces` (it printed a
+  kubectl warning about a namespace). Run that one block again.
+- `HEADLAMP.md`, desktop: still not run (macOS `open -n -a Headlamp --args`; the `.deb`).
+
+Walk order for the new blocks: `CERT-MANAGER.md` top to *Check cert-manager on the guest
+cluster*; `HEADLAMP.md` add-on way top to *Open the page*; the optional settings (hostname
+first, then the gateway with Istio installed); *Remove the add-on*; `CERT-MANAGER.md` *Remove
+cert-manager* (first with Headlamp still installed, to see the refusal).
 
 Not built from phase 9: the Image Updater measurement (D11). `check-vks-templates.sh` does not
 read `vks/addons/templates/`; that each template's variables equal the guides' `envsubst` lists
-was checked by hand. `SETUP.md` does not exist yet, so HEADLAMP's *Check helm* points at helm's
-own install page.
+was checked by hand.
 
 ## Gate: known gaps
 
