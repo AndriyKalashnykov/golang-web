@@ -332,6 +332,10 @@ lists its bindings. Do not make a token until only this guide's binding is left.
 
 ### Make a login token for it
 
+**Where the token comes from.** Headlamp has no user list of its own: you log in with a token
+of a Kubernetes service account, and see what that account may see. The cluster makes such a
+token on request (`kubectl create token <account>`), for a limited time.
+
 **This block shows a secret.** It prints a token that logs in as the read-only account for
 `HEADLAMP_TOKEN_HOURS` hours (8 unless you changed it). It is not stored anywhere: copy it from
 the terminal into Headlamp's login page, then clear the terminal. Whoever has the token can read
@@ -349,9 +353,28 @@ read* first. `invalid duration` — `HEADLAMP_TOKEN_HOURS` is not a whole number
 
 ### Open the page
 
-This prints Headlamp's address, checks that it answers, and prints the fingerprint of its
-certificate twice: read from the cluster through your kubeconfig, and as the address presents
-it.
+**Where the address comes from.** The add-on puts Headlamp behind a Service named `headlamp`, of
+type `LoadBalancer`, in the add-on's namespace on the guest cluster. The address is that
+Service's external IP, which your Supervisor's load balancer hands out, and the port is the
+Service's port (443). This prints the two as one address:
+
+```sh
+source ~/.vks-golang-web.env
+kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$HEADLAMP_ADDON_NAMESPACE" get service headlamp -o jsonpath='https://{.status.loadBalancer.ingress[0].ip}:{.spec.ports[0].port}/{"\n"}'
+```
+
+**Expect:** one line, such as `https://10.0.0.20:443/`. Without `-o jsonpath=…` the same command
+shows a table with the address under `EXTERNAL-IP` and the port under `PORT(S)` (the number
+before the colon).
+
+**If not:** `https://:443/` — the Service has no address yet: the load balancer has none free,
+or the add-on is still starting; **If not** under *What the add-on put on the cluster* says
+what to look at. `NotFound` — the add-on is not installed, or `HEADLAMP_ADDON_NAMESPACE` is not
+its namespace.
+
+The next block does the same and more: it prints the address, checks that it answers, and
+prints the fingerprint of its certificate twice: read from the cluster through your kubeconfig,
+and as the address presents it.
 
 ```sh
 source ~/.vks-golang-web.env
@@ -387,8 +410,10 @@ certificate authority that exists only inside your cluster. You have two honest 
    part.
 
 On Headlamp's login page, paste the token into **ID token** and click **Authenticate**. The
-overview lists the namespaces and workloads. Pages for things the read-only role does not cover
-(Secrets, nodes) say that access is denied; that is the read-only role at work.
+overview opens on your cluster: its pods, and its events with **Only warnings** switched on.
+The **Nodes** card reads `0 / 0 Ready` and the CPU and memory cards stay empty, and the pages
+for Secrets and nodes say that access is denied: the read-only account may not read nodes or
+Secrets. Namespaces, workloads and events are all there.
 
 **If not:**
 - `No address …`: the cluster's load balancer gave the service no address. That is a matter
