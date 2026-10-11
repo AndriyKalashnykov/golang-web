@@ -74,9 +74,20 @@ there, no "needs administrator rights" line); helm with the download failing and
 already in `~/.local/bin` (`Nothing installed`, no "installed into" line); a directory named
 `vcf` where the program must go (`Nothing installed: … is a directory`).
 
-Not run: macOS; bash 3.2; zsh on a real machine; the Supervisor-kubectl alternative against a
-real Supervisor; a real password prompt after the `sudo -v` block. Ran only against the stand-in
-`sudo`: its directory creation succeeding and the copy then failing; an absent `/usr/local/bin`.
+Run after the merge, on a Mac (macOS 26, zsh and Apple's bash 3.2, a scratch home): with a
+`sudo` that refuses, `kubectl_install`, the argocd block and the VCF CLI block (the macOS
+9.1.1.0100 files, 14 plugins) each installed into `~/.local/bin` and printed both lines; with
+the Mac's real `sudo`, which does not ask, argocd went to `/usr/local/bin` root-owned, and the
+clean-up block removed it each time. `vks/test/blocks_test.sh` passes there under bash 3.2
+with nothing skipped. Against a real Supervisor, in a clean Linux container: the
+Supervisor-kubectl alternative as a user with no `sudo` (`~/.local/bin`), with `KUBECTL_DIR`
+set to an absent directory of the user's own (created user-owned and used) and as root
+(`/usr/local/bin`). On a real terminal with a test password: the `sudo -v` block asked, and the
+argocd install after it went to `/usr/local/bin`.
+
+Not run: the VCF CLI block with a real `sudo` on a Mac (it would replace that Mac's own `vcf`);
+helm on a Mac (that is Homebrew, unchanged). Ran only against the stand-in `sudo`: its
+directory creation succeeding and the copy then failing; an absent `/usr/local/bin`.
 
 | file | what it holds |
 |---|---|
