@@ -3,8 +3,11 @@
 This chapter installs the command-line tools these guides use, on macOS and on Debian or Ubuntu
 Linux. It comes after [Set the variables](README.md#set-the-variables) of
 [the main guide](README.md): several blocks read the env file and use its helper commands. You
-need sudo rights on this machine for most installs, and a Broadcom support account for the VCF
-CLI. At the end, the main guide's check block under
+need a Broadcom support account for the VCF CLI. You need administrator (`sudo`) rights on this
+machine for the package installs only (`apt-get`, Docker's packages). The single programs
+(`kubectl`, `vcf`, `helm`) go into `/usr/local/bin` when `sudo` will not ask for a password
+(it never does on your machine, or you ran the `sudo -v` block first), and into `~/.local/bin`
+otherwise: no install block asks for a password. At the end, the main guide's check block under
 [Install the tools](README.md#install-the-tools) prints no `MISSING` line.
 
 Install only what your path needs, and skip any tool you already have:
@@ -74,9 +77,11 @@ version is not known yet. The main guide's
 version from the cluster and replaces this kubectl only if it is more than one minor version
 away (Kubernetes supports a client within one minor version of the cluster).
 
-kubectl goes into `/usr/local/bin` (`KUBECTL_DIR` in the env file). That directory needs
-administrator rights on most machines, and the install never asks for a password: if `sudo`
-would ask, kubectl goes into `~/.local/bin` instead, and the block says so. To have it in
+kubectl goes into `/usr/local/bin` (`KUBECTL_DIR` in the env file), where the Kubernetes
+project's own command puts it with `sudo`. That directory needs administrator rights on most
+machines, and the install never asks for a password: if `sudo` would ask, kubectl goes into
+`~/.local/bin` instead, and the block says so. That is the directory the Kubernetes project
+documents for a Linux user without administrator rights. To have kubectl in
 `/usr/local/bin`, give `sudo` your password first, as a block of its own (skip it if you have no
 `sudo` rights on this machine):
 
@@ -86,7 +91,9 @@ sudo -v
 
 **Expect:** a password prompt, then no output; no prompt and no output at all when `sudo` still
 remembers your password or never asks for one. **If not:** `… is not in the sudoers file`, or
-`a terminal is required` — you have no `sudo` here: go on, kubectl goes into `~/.local/bin`.
+`a terminal is required` — you have no `sudo` rights here: go on, kubectl goes into
+`~/.local/bin`. `sudo: command not found` — this machine has no `sudo`: skip this block; the
+next one installs into `~/.local/bin`.
 
 Now install kubectl:
 
@@ -102,10 +109,13 @@ prints `kubectl v1.… is within one minor version of v1.…: supported, not cha
 `kubectl v1.… is already installed: not changed` when it is that release itself.
 
 **If not:**
-- `… installing into <your home>/.local/bin instead`: not an error. `sudo` would have asked for a
-  password, so kubectl is in `~/.local/bin`. If a line `… was not on your PATH` follows, add the
-  line it prints to `~/.zshrc` (zsh) or `~/.bashrc` (bash), so that new terminals find kubectl;
-  this terminal already does.
+- `… installed into <your home>/.local/bin instead`: not an error. The directory needs administrator rights and the block
+  never asks for a password, so kubectl is in `~/.local/bin`. If a line `… was not on your PATH` follows, add the
+  line it prints to `~/.zshrc` (zsh), `~/.bashrc` (bash on Linux) or `~/.bash_profile` (bash on macOS),
+  so that new terminals find kubectl; this terminal already does.
+- `kubectl: command not found` in a later block, in a new terminal: the install went into
+  `~/.local/bin` and the `export PATH=…` line it printed is not in your shell's start file yet.
+  Add it, then open a new terminal.
 - `WARNING: 'kubectl' on your PATH is …`: another kubectl is found first. Put the directory named
   at the end of the line first in your `PATH`, or remove the other kubectl.
 - `kubectl_install: command not found`, or `No such file or directory` for the env file: do the
@@ -124,8 +134,10 @@ prints `kubectl v1.… is within one minor version of v1.…: supported, not cha
 
 Run this only if the block above printed `cannot reach dl.k8s.io`. Your Supervisor offers a
 kubectl download of its own, for Intel/AMD (amd64) Linux and macOS only. This block picks the one for this machine,
-downloads it from the Supervisor and installs it into `/usr/local/bin`; its `sudo` asks for your
-password. The download does not check the Supervisor's certificate (`curl -k`), so it needs no CA
+downloads it from the Supervisor and installs it by the same rule as the block above: into
+`KUBECTL_DIR` (`/usr/local/bin`), or into `~/.local/bin` when `sudo` would ask for a password.
+It never asks for one; the `sudo -v` block above serves it too. Broadcom's page for this zip file
+says only to add the program's location to your `PATH`. The download does not check the Supervisor's certificate (`curl -k`), so it needs no CA
 file. On any other machine the block installs nothing and says so. This kubectl is the Supervisor's version, which can be several versions older than
 your guest cluster. The main guide's
 [Get the guest cluster's kubeconfig](README.md#get-the-guest-clusters-kubeconfig) still tries
@@ -141,16 +153,37 @@ case "$(uname -s)/$(uname -m)" in
   Darwin/x86_64|Darwin/arm64) P=darwin-amd64 ;;
   *)                          P= ;;
 esac
+D="${KUBECTL_DIR:-/usr/local/bin}"
+T=""
 if [ -n "$P" ]; then
   if T="$(mktemp -d)" \
      && curl -fsSk --connect-timeout 20 -o "$T/vsphere-plugin.zip" \
           "https://${SUPERVISOR_ENDPOINT}/wcp/plugin/${P}/vsphere-plugin.zip" \
      && unzip -oq "$T/vsphere-plugin.zip" bin/kubectl -d "$T" \
-     && chmod +x "$T/bin/kubectl" && "$T/bin/kubectl" version --client >/dev/null \
-     && sudo install -d /usr/local/bin && sudo install -m 0755 "$T/bin/kubectl" /usr/local/bin/kubectl; then
-    /usr/local/bin/kubectl version --client
-    [ "$(command -v kubectl)" = /usr/local/bin/kubectl ] \
-      || echo "WARNING: 'kubectl' on your PATH is '$(command -v kubectl || echo not found)', not /usr/local/bin/kubectl"
+     && chmod +x "$T/bin/kubectl" && "$T/bin/kubectl" version --client >/dev/null; then
+    N="$T/bin/kubectl"
+    [ -e "$D" ] || mkdir -p "$D" 2>/dev/null
+    X=""
+    for d in "$D" "$HOME/.local/bin"; do if [ -d "$d/kubectl" ]; then X="$d/kubectl"; fi; done
+    if [ -n "$X" ]; then
+      echo "Nothing installed: $X is a directory, where the kubectl program must go. Remove or rename it, then run this block again."
+    elif { [ -d "$D" ] && [ -w "$D" ] && install -m 0755 "$N" "$D/kubectl"; } \
+       || { sudo -n install -d "$D" 2>/dev/null && sudo -n install -m 0755 "$N" "$D/kubectl"; } \
+       || { W="$D"; D="$HOME/.local/bin"; mkdir -p "$D" && install -m 0755 "$N" "$D/kubectl" \
+            && echo "kubectl: $W needs administrator rights and this block never asks for a password: installed into $D instead. That is fine. To have it in $W instead: rm $D/kubectl, run 'sudo -v', then this block again."; }; then
+      case ":$PATH:" in
+        *":$D:"*) ;;
+        *) PATH="$D:$PATH"
+           echo "kubectl: $D was not on your PATH: added for this terminal only. Every later block needs it: add the next line to ~/.zshrc (zsh), ~/.bashrc (bash on Linux) or ~/.bash_profile (bash on macOS), then open a new terminal:"
+           echo "  export PATH=\"$D:\$PATH\"" ;;
+      esac
+      hash -r 2>/dev/null
+      [ "$(command -v kubectl)" = "$D/kubectl" ] \
+        || echo "WARNING: 'kubectl' on your PATH is '$(command -v kubectl || echo not found)', not $D/kubectl"
+      "$D/kubectl" version --client
+    else
+      echo "Nothing installed: see the error above"
+    fi
   else
     echo "Nothing installed: the download from https://${SUPERVISOR_ENDPOINT}, or the check of the downloaded kubectl, failed (see the error above)"
   fi
@@ -174,7 +207,13 @@ fi
     again.
   - Anything else (for example `404`, or an `unzip` error): the Supervisor did not serve a usable
     kubectl. Use the block above once dl.k8s.io can be reached.
-- `WARNING: 'kubectl' on your PATH is …`: as in the block above.
+- `Nothing installed: see the error above`: the line above it says why (a full disk, or a home
+  directory you may not write to).
+- `Nothing installed: … is a directory, where the kubectl program must go`: remove or rename that
+  directory, then run the block again.
+- `kubectl: … installed into <your home>/.local/bin instead`, `kubectl: … was not on your PATH`,
+  `kubectl: command not found` in a new terminal, and `WARNING: 'kubectl' on your PATH is …`: as
+  in the block above.
 
 </details>
 
@@ -200,6 +239,22 @@ greyed out until you open both Terms links — or the download icon does nothing
 - Your Supervisor's home page may also offer the CLI, or answer "VCF CLI is currently unavailable
   for download". This guide uses the Broadcom download.
 
+`vcf` goes into `/usr/local/bin`: Broadcom's own command is `sudo install vcf /usr/local/bin/vcf`.
+The install block never asks for a password: if `sudo` would ask, `vcf` goes into `~/.local/bin`
+instead, and the block says so. That directory is this guide's choice; Broadcom documents no
+install without administrator rights. `vcf` keeps its plugins in your home directory either way. To have `vcf` in `/usr/local/bin`, give `sudo` your
+password first, as a block of its own (skip it if you have no `sudo` rights on this machine):
+
+```sh
+sudo -v
+```
+
+**Expect:** a password prompt, then no output; no prompt and no output at all when `sudo` still
+remembers your password or never asks for one. **If not:** `… is not in the sudoers file`, or
+`a terminal is required` — you have no `sudo` rights here: go on, `vcf` goes into
+`~/.local/bin`. `sudo: command not found` — this machine has no `sudo`: skip this block; the
+next one installs into `~/.local/bin`.
+
 This block finds this machine's two files in `~/Downloads`, prints their checksums and installs
 them. If you saved them elsewhere, change that folder. Other platforms are not supported.
 
@@ -213,21 +268,44 @@ case "$(uname -s)/$(uname -m)" in
 esac
 CLI_TGZ="$HOME/Downloads/VCF-Consumption-CLI-${P}-9.1.1.0100.25746586.tar.gz"
 PLUGINS_TGZ="$HOME/Downloads/VCF-Consumption-CLI-PluginBundle-${P}-9.1.1.0100.25793136.tar.gz"
+D=/usr/local/bin
 
 if [ -f "$CLI_TGZ" ] && [ -f "$PLUGINS_TGZ" ]; then
   (sha256sum "$CLI_TGZ" "$PLUGINS_TGZ" 2>/dev/null || shasum -a 256 "$CLI_TGZ" "$PLUGINS_TGZ") \
     | awk '{h = $1; sub(/.*\//, ""); print "SHA-256: " h "  " $0}'
   T="$(mktemp -d)"
-  tar -xzf "$CLI_TGZ" -C "$T"
-  sudo install -d /usr/local/bin
-  sudo install "$T"/vcf-cli-* /usr/local/bin/vcf
-  mkdir "$T/plugins" && tar -xzf "$PLUGINS_TGZ" -C "$T/plugins"
-  /usr/local/bin/vcf plugin install all --local-source "$T/plugins"
+  if tar -xzf "$CLI_TGZ" -C "$T" && mv "$T"/vcf-cli-* "$T/vcf" \
+     && mkdir "$T/plugins" && tar -xzf "$PLUGINS_TGZ" -C "$T/plugins"; then
+    N="$T/vcf"
+    [ -e "$D" ] || mkdir -p "$D" 2>/dev/null
+    X=""
+    for d in "$D" "$HOME/.local/bin"; do if [ -d "$d/vcf" ]; then X="$d/vcf"; fi; done
+    if [ -n "$X" ]; then
+      echo "Nothing installed: $X is a directory, where the vcf program must go. Remove or rename it, then run this block again."
+    elif { [ -d "$D" ] && [ -w "$D" ] && install -m 0755 "$N" "$D/vcf"; } \
+       || { sudo -n install -d "$D" 2>/dev/null && sudo -n install -m 0755 "$N" "$D/vcf"; } \
+       || { W="$D"; D="$HOME/.local/bin"; mkdir -p "$D" && install -m 0755 "$N" "$D/vcf" \
+            && echo "vcf: $W needs administrator rights and this block never asks for a password: installed into $D instead. That is fine. To have it in $W instead: rm $D/vcf, run 'sudo -v', then this block again."; }; then
+      case ":$PATH:" in
+        *":$D:"*) ;;
+        *) PATH="$D:$PATH"
+           echo "vcf: $D was not on your PATH: added for this terminal only. Every later block needs it: add the next line to ~/.zshrc (zsh), ~/.bashrc (bash on Linux) or ~/.bash_profile (bash on macOS), then open a new terminal:"
+           echo "  export PATH=\"$D:\$PATH\"" ;;
+      esac
+      hash -r 2>/dev/null
+      [ "$(command -v vcf)" = "$D/vcf" ] \
+        || echo "WARNING: 'vcf' on your PATH is '$(command -v vcf || echo not found)', not $D/vcf"
+      "$D/vcf" plugin install all --local-source "$T/plugins" \
+        || echo "vcf is installed; its plugins are not: see the error above"
+      "$D/vcf" version | head -1
+      "$D/vcf" plugin list
+    else
+      echo "Nothing installed: see the error above"
+    fi
+  else
+    echo "Nothing installed: see the error above"
+  fi
   rm -rf "$T"
-  /usr/local/bin/vcf version | head -1
-  /usr/local/bin/vcf plugin list
-  [ "$(command -v vcf)" = /usr/local/bin/vcf ] \
-    || echo "WARNING: 'vcf' on your PATH is '$(command -v vcf || echo not found)', not /usr/local/bin/vcf"
 else
   for f in "$CLI_TGZ" "$PLUGINS_TGZ"; do
     [ -f "$f" ] || echo "Not found: $f — download it (table above) for $(uname -s)/$(uname -m)"
@@ -246,9 +324,21 @@ then `version: v9.1.1.0100.25746586` (or the release you downloaded), then the p
   has no VCF CLI build.
 - A different checksum means a damaged or wrong download: delete the file and download it again.
   If it still differs, do not install it.
-- A `WARNING` line means another `vcf` is found first, or (`not found`) `/usr/local/bin` is not in
-  your `PATH`: put `/usr/local/bin` first in your `PATH`, and remove the other `vcf` if there is
-  one.
+- `vcf: … installed into <your home>/.local/bin instead`: not an error. The directory needs administrator rights and the block
+  never asks for a password, so `vcf` is in `~/.local/bin`. If a line `… was not on your PATH`
+  follows, add the line it prints to `~/.zshrc` (zsh), `~/.bashrc` (bash on Linux) or `~/.bash_profile` (bash on macOS),
+  so that new terminals find `vcf`; this terminal already does.
+- `vcf: command not found` in a later block, in a new terminal: the install went into
+  `~/.local/bin` and the `export PATH=…` line it printed is not in your shell's start file yet.
+  Add it, then open a new terminal.
+- A `WARNING` line means another `vcf` is found first: put the directory named at the end of the
+  line first in your `PATH`, or remove the other `vcf`.
+- `Nothing installed: see the error above`: the line above it says why (a damaged download, a
+  full disk, or a home directory you may not write to). A `vcf` you already had is unchanged.
+- `Nothing installed: … is a directory, where the vcf program must go`: remove or rename that
+  directory, then run the block again.
+- `vcf is installed; its plugins are not: see the error above`: `vcf` itself works, and the main
+  guide needs only that. For the plugins, read the error above that line and run the block again.
 
 That is all the main guide needs. Go back to its check block under
 [Install the tools](README.md#install-the-tools), unless your path needs one of the tools below.
@@ -387,17 +477,59 @@ brew install helm
 **Expect:** Homebrew's install lines, ending without an `Error:` line.
 
 **Linux.** This runs the Helm project's own install script, which downloads the newest release,
-checks its checksum and copies `helm` into `/usr/local/bin`; its `sudo` asks for your password:
+checks its checksum and copies `helm` into `/usr/local/bin` with `sudo`. The block never lets it
+ask for a password: when `/usr/local/bin` needs administrator rights and `sudo` would ask, it
+tells the script (through the script's own settings `HELM_INSTALL_DIR` and `USE_SUDO`) to put
+`helm` into `~/.local/bin`, and says so. To have `helm` in `/usr/local/bin`, run the `sudo -v`
+block under [Install kubectl](#install-kubectl) first.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash
+D=/usr/local/bin
+U=https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
+if [ -d "$D" ] && [ -w "$D" ]; then
+  if ! { S="$(curl -fsSL "$U")" && printf '%s\n' "$S" | USE_SUDO=false bash; }; then
+    echo "Nothing installed: see the error above"
+  fi
+elif sudo -n true 2>/dev/null; then
+  if ! { S="$(curl -fsSL "$U")" && printf '%s\n' "$S" | bash; }; then
+    echo "Nothing installed: see the error above"
+  fi
+else
+  W="$D"; D="$HOME/.local/bin"
+  if mkdir -p "$D" && S="$(curl -fsSL "$U")"; then
+    case ":$PATH:" in
+      *":$D:"*) A="" ;;
+      *) A=1; PATH="$D:$PATH" ;;
+    esac
+    hash -r 2>/dev/null
+    if printf '%s\n' "$S" | HELM_INSTALL_DIR="$D" USE_SUDO=false bash; then
+      echo "helm: $W needs administrator rights and this block never asks for a password: installed into $D instead. That is fine. To have it in $W instead: rm $D/helm, run 'sudo -v', then this block again."
+      if [ -n "$A" ]; then
+        echo "helm: $D was not on your PATH: added for this terminal only. Every later block needs it: add the next line to ~/.zshrc (zsh), ~/.bashrc (bash on Linux) or ~/.bash_profile (bash on macOS), then open a new terminal:"
+        echo "  export PATH=\"$D:\$PATH\""
+      fi
+    else
+      echo "Nothing installed: see the error above"
+    fi
+  else
+    echo "Nothing installed: see the error above"
+  fi
+fi
 ```
 
 **Expect:** `Downloading https://get.helm.sh/helm-v4.…`, `Verifying checksum... Done.`, then
-`helm installed into /usr/local/bin/helm`.
+`helm installed into /usr/local/bin/helm`. Without administrator rights the last lines are
+`helm installed into <your home>/.local/bin/helm` and `helm: … installed into … instead`.
 
-**If not:** a `curl:` error — this machine cannot reach raw.githubusercontent.com or get.helm.sh:
-ask your network administrator to allow them.
+**If not:**
+- `Nothing installed: see the error above`: the download or the script failed, and a `helm` you
+  already had is unchanged. A `curl:` error above that line — this machine cannot reach
+  raw.githubusercontent.com or get.helm.sh: ask your network administrator to allow them.
+  `mkdir:` or `cp:` with `Permission denied` or `Read-only file system` — you may not write to
+  your home directory.
+- `helm: … was not on your PATH`: add the line it prints to
+  `~/.zshrc` (zsh), `~/.bashrc` (bash on Linux) or `~/.bash_profile` (bash on macOS),
+  so that new terminals find `helm`; this terminal already does.
 
 Then, on both:
 

@@ -13,8 +13,10 @@ Two things run without a lab and are part of `make static-check`:
   `blocks_test.sh`: blocks taken from the guides by their section title, run as written in bash
   and zsh with a scratch HOME and stand-in `curl`, `kubectl` and `sleep`. It covers the blocks
   that show a vCenter answer (a list, an empty list, `NOT_FOUND`, `UNAUTHORIZED`, a refused
-  registration), `kubectl_install`, and the Headlamp settings block's restart. Its header says
-  what it does not prove. A section that is renamed must be renamed in it too: it stops with
+  registration), `kubectl_install`, the Headlamp settings block's restart, and the blocks that
+  install one program (`argocd`, the Supervisor's kubectl, `vcf`, `helm`) with the ArgoCD
+  clean-up: a stand-in `sudo` records every call, and the test puts a scratch directory into
+  the block's one `D=` line. Its header says what it does not prove. A section that is renamed must be renamed in it too: it stops with
   `the test's own setup failed` and names the title.
 
 ## Walk a guide
