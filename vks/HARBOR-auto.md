@@ -372,16 +372,23 @@ user for 5 minutes** (vCenter's default policy).
 ```sh
 source ~/.vks-golang-web.env
 vc_login
-vc /supervisor-services | jq -r '.[] | "\(.supervisor_service)  \(.state)"'
+vc /supervisor-services | jq -r 'if type == "array" then .[] | "\(.supervisor_service)  \(.state)" else "ERROR: \((.error_type)? // .)  \((.messages[0].default_message)? // "")" end'
 ```
 
 **Expect:** `vCenter session opened`, then the Supervisor Services vCenter knows, one per line
 (for example `tkg.vsphere.vmware.com  ACTIVATED`).
 
-**If not:** a `curl:` certificate error — check `VCENTER_FQDN` and the vCenter CA file (main
-guide, [Download and check the vCenter CA](README.md#download-and-check-the-vcenter-ca)). `401`
-— the user name or password is wrong: fix the env file before you try again. A list that already
-shows `harbor.tanzu.vmware.com`: the next blocks skip what is done.
+**If not:**
+- A `curl:` certificate error — check `VCENTER_FQDN` and the vCenter CA file (main guide,
+  [Download and check the vCenter CA](README.md#download-and-check-the-vcenter-ca)).
+- `vc_login: no session`, with `401` in the curl error above it — the user name or password is
+  wrong: fix the env file before you try again.
+- `ERROR: UNAUTHORIZED` — vCenter refused the call: your SSO user lacks the vCenter privilege
+  for it. A vCenter administrator must run this chapter; see *If you are not a vCenter
+  administrator* in [HARBOR.md](HARBOR.md#if-you-are-not-a-vcenter-administrator).
+- `ERROR: UNAUTHENTICATED` — the session ended. Run `vc_login`, then the block again.
+- Any other `ERROR:` line — vCenter's own message follows the error's name.
+- A list that already shows `harbor.tanzu.vmware.com`: the next blocks skip what is done.
 
 ### Check the manifest
 
@@ -431,17 +438,22 @@ else
   vc /supervisor-services -X POST -H 'Content-Type: application/json' --data-binary "@$B" -w 'HTTP %{http_code}\n'
   rm -f "$B"
 fi
-vc "$A/versions" | jq -r '.[] | "version \(.version)  \(.state)"'
+vc "$A/versions" | jq -r 'if type == "array" then .[] | "version \(.version)  \(.state)" else "ERROR: \((.error_type)? // .)  \((.messages[0].default_message)? // "")" end'
 ```
 
 **Expect:** `HTTP 201` (or `already registered`), then `version 2.15.2+vmware.1-vks.1  ACTIVATED`.
 
-**If not:** `HTTP 403` — your user lacks **Manage Supervisor Services**:
-[HARBOR.md](HARBOR.md#if-you-are-not-a-vcenter-administrator) lists what to ask a vCenter
-administrator for. `HTTP 400` with a message saying the service
-already exists — vCenter knows Harbor in another version only; adding a version to it is an
-upgrade, which this guide does not cover. Any other `HTTP 400` — the message says why; do not
-edit the manifest.
+**If not:** when vCenter refuses the manifest, its own answer is printed first, as one line of
+JSON that ends in the `HTTP` code; nothing was registered.
+- `HTTP 403`, then `ERROR: UNAUTHORIZED` — your user lacks **Manage Supervisor Services**:
+  [HARBOR.md](HARBOR.md#if-you-are-not-a-vcenter-administrator) lists what to ask a vCenter
+  administrator for.
+- `HTTP 401`, or `ERROR: UNAUTHENTICATED` — the session ended. Run `vc_login`, then the block
+  again.
+- `HTTP 400` with a message saying the service already exists — vCenter knows Harbor in another
+  version only; adding a version to it is an upgrade, which this guide does not cover.
+- Any other `HTTP 400` — the message says why; do not edit the manifest.
+- Any other `ERROR:` line — vCenter's own message follows the error's name.
 
 ### Install it on your Supervisor
 
@@ -472,8 +484,7 @@ source ~/.vks-golang-web.env
 MARK="$HOME/.config/vks-golang-web/harbor-none-before"
 SUP="${SUPERVISOR_ID:-$(vc /supervisors/summaries | jq -r 'if (.items | length) == 1 then .items[0].supervisor else empty end')}"
 if [ -z "$SUP" ]; then
-  vc /supervisors/summaries | jq -r '.items[] | "\(.supervisor)  \(.info.name)"' \
-    && echo "Set SUPERVISOR_ID in ~/.vks-golang-web.env to one of the IDs above, run vc_login, then this block again"
+  vc /supervisors/summaries | jq -r 'if type == "object" and (.items | type) == "array" and (.items | length) == 0 then "no Supervisor: vCenter shows this user none" elif type == "object" and (.items | type) == "array" then (.items[] | "\(.supervisor)  \(.info.name)"), "Set SUPERVISOR_ID in ~/.vks-golang-web.env to one of the IDs above, run vc_login, then this block again" else "ERROR: \((.error_type)? // .)  \((.messages[0].default_message)? // "")" end'
 elif [ ! -s "$HARBOR_VALUES" ] || [ -z "$HARBOR_SERVICE_VERSION" ]; then
   echo "Not installing: the configuration file (step 4) or HARBOR_SERVICE_VERSION (Check the manifest) is missing"
 else
@@ -519,7 +530,7 @@ else
     until [ "$(vc "$S/harbor.tanzu.vmware.com" | jq -r --arg v "$HARBOR_SERVICE_VERSION" 'if .config_status == "CONFIGURED" and .current_version == $v then "yes" else "no" end' 2>/dev/null)" = yes ] || [ "$n" -ge 120 ]; do
       n=$((n + 1)); sleep 15
     done
-    vc "$S/harbor.tanzu.vmware.com" | jq -r '"\(.config_status)  \(.current_version)  \(.messages[0].details.default_message // "")"'
+    vc "$S/harbor.tanzu.vmware.com" | jq -r 'if type == "object" and (has("error_type") | not) then "\(.config_status)  \(.current_version)  \(.messages[0].details.default_message // "")" else "ERROR: \((.error_type)? // .)  \((.messages[0].default_message)? // "")" end'
   fi
 fi
 vc_logout
@@ -544,6 +555,15 @@ that.
   again (start with `vc_login`). `is in terminating status`: a Harbor uninstalled a moment ago is
   still being removed; wait until step 10's check shows nothing left, then run the block again.
 - `install: HTTP 403` — your user lacks **Manage Supervisor Services on Supervisors**.
+- `ERROR: UNAUTHORIZED`, or `no Supervisor: vCenter shows this user none`, and no `install:`
+  line — vCenter refused the list of Supervisors, or shows your SSO user none: the user lacks
+  the vCenter privilege for it. Nothing was installed. A vCenter administrator must run this
+  chapter; see *If you are not a vCenter administrator* in
+  [HARBOR.md](HARBOR.md#if-you-are-not-a-vcenter-administrator).
+- `ERROR: UNAUTHENTICATED` — the session ended. Run `vc_login`, then the block again.
+- Any other `ERROR:` line — vCenter's own message follows the error's name. Where the
+  `CONFIGURED …` line should be, it means the last read of the service failed: run `vc_login`,
+  then the block again.
 - `install: HTTP 400` and a message — vCenter refused the configuration, and the message says
   what it refused. If it names a value, correct it and write the configuration file again
   (step 4), then run the block again.
@@ -1054,6 +1074,7 @@ belong to it, keep them. With `unknown` — the Supervisor login ended: run the 
 |---|---|
 | `vc_api: no vCenter session — run vc_login` | A step 5 block was run without the one before it, or after `vc_logout`. Run `vc_login`, then the block again. |
 | A step 5 block prints `unauthenticated` or `HTTP 401` | The vCenter session ended. Run `vc_login` (once), then the block again. |
+| A step 5 block prints `ERROR: UNAUTHORIZED` or `HTTP 403` | vCenter refused the call: your SSO user lacks the vCenter privilege for it. A vCenter administrator must do step 5; [HARBOR.md](HARBOR.md#if-you-are-not-a-vcenter-administrator) lists what to ask for. |
 | `vc_login: command not found` | Run the first block of the main guide's *Set the variables* again; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | `install: HTTP 500` on every attempt | Read the message under it: step 5's **If not** names the three causes. |
 | `error: You must be logged in to the server (Unauthorized)`, or `Harbor namespace: not found` although Harbor is installed | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's [Renew the Supervisor login](README.md#renew-the-supervisor-login) block, then the block again. If you logged in with the certificate-checking alternative, use the renew block inside that alternative instead. |

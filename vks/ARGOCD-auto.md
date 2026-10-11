@@ -243,16 +243,24 @@ the SSO user for 5 minutes** (vCenter's default policy).
 ```sh
 source ~/.vks-argocd.env
 vc_login
-vc /supervisor-services | jq -r '.[] | "\(.supervisor_service)  \(.state)"'
+vc /supervisor-services | jq -r 'if type == "array" then .[] | "\(.supervisor_service)  \(.state)" else "ERROR: \((.error_type)? // .)  \((.messages[0].default_message)? // "")" end'
 ```
 
 **Expect:** `vCenter session opened`, then the Supervisor Services vCenter knows, one per line
 (for example `tkg.vsphere.vmware.com  ACTIVATED`).
 
-**If not:** a `curl:` certificate error — check `VCENTER_FQDN` and the vCenter CA file (main
-guide, step 2). `401` — the user name or password is wrong: fix the env file before you try
-again. A list that already shows `argocd-service.vsphere.vmware.com`: the next block skips
-what is done.
+**If not:**
+- A `curl:` certificate error — check `VCENTER_FQDN` and the vCenter CA file (main guide,
+  [Download and check the vCenter CA](README.md#download-and-check-the-vcenter-ca)).
+- `vc_login: no session`, with `401` in the curl error above it — the user name or password is
+  wrong: fix the env file before you try again.
+- `ERROR: UNAUTHORIZED` — vCenter refused the call: your SSO user lacks the vCenter privilege
+  for it. A vCenter administrator must run this step; see *If you are not a vCenter
+  administrator* in [ARGOCD.md](ARGOCD.md#if-you-are-not-a-vcenter-administrator).
+- `ERROR: UNAUTHENTICATED` — the session ended. Run `vc_login`, then the block again.
+- Any other `ERROR:` line — vCenter's own message follows the error's name.
+- A list that already shows `argocd-service.vsphere.vmware.com`: the next block skips what is
+  done.
 
 ### Register the service with vCenter
 
@@ -268,14 +276,20 @@ else
   vc /supervisor-services -X POST -H 'Content-Type: application/json' --data-binary "@$B" -w 'HTTP %{http_code}\n'
   rm -f "$B"
 fi
-vc /supervisor-services/argocd-service.vsphere.vmware.com/versions | jq -r '.[] | "version \(.version)  \(.state)"'
+vc /supervisor-services/argocd-service.vsphere.vmware.com/versions | jq -r 'if type == "array" then .[] | "version \(.version)  \(.state)" else "ERROR: \((.error_type)? // .)  \((.messages[0].default_message)? // "")" end'
 ```
 
 **Expect:** `HTTP 201` (or `already registered`), then `version 1.2.0-25642124  ACTIVATED`.
 
-**If not:** `HTTP 403` — your user lacks **Manage Supervisor Services**: a user that has it
-must do this step. `HTTP 400` with a message — the message says why; do not
-edit the manifest.
+**If not:** when vCenter refuses the manifest, its own answer is printed first, as one line of
+JSON that ends in the `HTTP` code; nothing was registered.
+- `HTTP 403`, then `ERROR: UNAUTHORIZED` — your user lacks **Manage Supervisor Services**: a
+  user that has it must do this step
+  ([ARGOCD.md](ARGOCD.md#if-you-are-not-a-vcenter-administrator) says what to ask for).
+- `HTTP 401`, or `ERROR: UNAUTHENTICATED` — the session ended. Run `vc_login`, then the block
+  again.
+- `HTTP 400` with a message — the message says why; do not edit the manifest.
+- Any other `ERROR:` line — vCenter's own message follows the error's name.
 
 ### Install it on your Supervisor
 
@@ -287,8 +301,7 @@ yours in `~/.vks-argocd.env` as `export SUPERVISOR_ID="…"`, run `vc_login`, th
 source ~/.vks-argocd.env
 SUP="${SUPERVISOR_ID:-$(vc /supervisors/summaries | jq -r 'if (.items | length) == 1 then .items[0].supervisor else empty end')}"
 if [ -z "$SUP" ]; then
-  vc /supervisors/summaries | jq -r '.items[] | "\(.supervisor)  \(.info.name)"' \
-    && echo "Set SUPERVISOR_ID in ~/.vks-argocd.env to one of the IDs above, run vc_login, then this block again"
+  vc /supervisors/summaries | jq -r 'if type == "object" and (.items | type) == "array" and (.items | length) == 0 then "no Supervisor: vCenter shows this user none" elif type == "object" and (.items | type) == "array" then (.items[] | "\(.supervisor)  \(.info.name)"), "Set SUPERVISOR_ID in ~/.vks-argocd.env to one of the IDs above, run vc_login, then this block again" else "ERROR: \((.error_type)? // .)  \((.messages[0].default_message)? // "")" end'
 else
   S="/supervisors/${SUP}/supervisor-services"
   C=200; n=0
@@ -307,7 +320,7 @@ else
     until [ "$(vc "$S/argocd-service.vsphere.vmware.com" | jq -r '.config_status // empty')" = CONFIGURED ] || [ "$n" -ge 40 ]; do
       n=$((n + 1)); sleep 15
     done
-    vc "$S/argocd-service.vsphere.vmware.com" | jq -r '"\(.config_status)  \(.current_version)  \(.messages[0].details.default_message // "")"'
+    vc "$S/argocd-service.vsphere.vmware.com" | jq -r 'if type == "object" and (has("error_type") | not) then "\(.config_status)  \(.current_version)  \(.messages[0].details.default_message // "")" else "ERROR: \((.error_type)? // .)  \((.messages[0].default_message)? // "")" end'
   fi
 fi
 vc_logout
@@ -318,11 +331,20 @@ block above, while vCenter prepares the service's account; the line is not print
 service was already installed — then within about a minute
 `CONFIGURED  1.2.0-25642124  Reason: ReconcileSucceeded. …`, then `vCenter session closed`.
 
-**If not:** `install: HTTP 500 (attempt 12)` — vCenter was still not ready after two minutes: run
-the block again (start with `vc_login`). `install: HTTP 403` — your user lacks the privilege.
-A status other than `CONFIGURED` after 10 minutes: the message on that line says why.
-`ReconcileFailed` with an image or download error means the Supervisor cannot reach
-`projects.packages.broadcom.com`: have your network administrator allow it.
+**If not:**
+- `install: HTTP 500 (attempt 12)` — vCenter was still not ready after two minutes: run the
+  block again (start with `vc_login`).
+- `install: HTTP 403` — your user lacks the privilege.
+- `ERROR: UNAUTHORIZED`, or `no Supervisor: vCenter shows this user none`, and no `install:`
+  line — vCenter refused the list of Supervisors, or shows your SSO user none: the user lacks
+  the vCenter privilege for it. Nothing was installed. A vCenter administrator must run this
+  step; see *If you are not a vCenter administrator* in
+  [ARGOCD.md](ARGOCD.md#if-you-are-not-a-vcenter-administrator).
+- `ERROR: UNAUTHENTICATED` — the session ended. Run `vc_login`, then the block again.
+- Any other `ERROR:` line — vCenter's own message follows the error's name.
+- A status other than `CONFIGURED` after 10 minutes: the message on that line says why.
+  `ReconcileFailed` with an image or download error means the Supervisor cannot reach
+  `projects.packages.broadcom.com`: have your network administrator allow it.
 
 <details>
 <summary><b>Alternative: the same step in the vSphere Client</b> (Broadcom's documented way)</summary>
@@ -777,6 +799,7 @@ if /usr/local/bin/argocd version --client 2>/dev/null | grep -q -e -vcf; then su
 | `error: You must be logged in to the server (Unauthorized)`, or a helper says *the Supervisor login ended* | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's [Renew the Supervisor login](README.md#renew-the-supervisor-login) block, then the block again. If you logged in with the certificate-checking alternative, use the renew block inside that alternative instead. |
 | `vc_api: no vCenter session — run vc_login` | A step 4 block was run without the one before it, or after `vc_logout`. Run `vc_login`, then the block again. |
 | A step 4 block prints `unauthenticated` or `HTTP 401` | The vCenter session ended. Run `vc_login` (once), then the block again. |
+| A step 4 block prints `ERROR: UNAUTHORIZED` or `HTTP 403` | vCenter refused the call: your SSO user lacks the vCenter privilege for it. A vCenter administrator must do step 4; [ARGOCD.md](ARGOCD.md#if-you-are-not-a-vcenter-administrator) says what to ask for. |
 | `argocd_session: command not found` | Re-run step 1's second block; it rewrites `~/.vks-argocd.functions` and keeps your values. |
 | `vc_login: command not found` | Run the first block of the main guide's [Set the variables](README.md#set-the-variables) again; it rewrites `~/.vks-golang-web.functions` and keeps your values. |
 | `argocd` asks `Proceed insecurely (y/n)?` or says it is not logged in | This terminal has no ArgoCD login: answer `n`, then run `argocd_session` first, as the blocks do. |
