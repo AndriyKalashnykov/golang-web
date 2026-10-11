@@ -23,11 +23,21 @@ look-up blocks of `CLUSTER-auto.md`, the check blocks of `ARGOCD.md` and `HARBOR
 of the published image and its delete. That user may create and delete clusters in its
 namespace and may not list the Supervisor's namespaces.
 
-**Not walked:** as the Edit-only user, anything that calls the vCenter API, and a cluster
-create; `ARGOCD-app.md` with the reader's own fork; Headlamp's optional settings, its page login in a browser and the desktop way;
-Harbor's uninstall when the guide's own marker is present; `kubectl_install`'s install
-branches. `REGISTRY.md`'s deploy blocks ran in their new place, on nodes that may already have
-held the image.
+Walked on the lab on 2026-10-11 (Linux, bash): Harbor's scripted install and then its uninstall
+with the guide's own marker present (all three uninstall blocks); the same Edit-only user against
+the vCenter API (its session opens; every read is refused or empty, which is what the scripted
+guides' `ERROR:` lines and `no cluster:` line now say); Headlamp's optional settings (a bad
+name, a gateway without Istio, a name, back to the default); `ARGOCD-app.md` with the image kept
+in Git, on a branch of this repository standing in for the reader's copy (a pushed digest was
+live 9.5 minutes later). In clean containers: every branch of `kubectl_install`, including a
+user without sudo. `vks/test/blocks_test.sh` now runs the changed blocks against stand-in
+answers in bash and zsh.
+
+**Not walked:** the create and delete blocks on the Mac; a cluster create as the Edit-only
+user; a PRIVATE repository with a token in `ARGOCD-app.md`; Headlamp's page login in a browser
+and the desktop way. `REGISTRY.md`'s deploy blocks ran in their new place, on nodes that may
+already have held the image. `ARGOCD-auto.md`'s install of the `argocd` program needs `sudo`
+at a terminal and has no other path.
 
 | file | what it holds |
 |---|---|

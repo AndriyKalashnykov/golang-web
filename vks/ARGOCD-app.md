@@ -647,7 +647,7 @@ the Application says.
 ### Use your own Git repository
 
 The other way to choose the image keeps it in Git: every change is then a commit, with an
-author and a history, and ArgoCD applies it a few minutes after the push. It needs a
+author and a history, and ArgoCD applies it within about ten minutes of the push. It needs a
 repository you can write to.
 
 1. Fork this repository (or copy its `k8s` folder into a repository of yours; keep the folder's
@@ -668,7 +668,8 @@ repository you can write to.
    Application*, then *Wait for the app and check its image*.
 
 After a later push, run *Wait for the app and check its image* until `Deployment:` shows the
-new digest: ArgoCD looks at Git every few minutes.
+new digest: ArgoCD Service 1.2.0 looks at Git every five to seven minutes (`timeout.reconciliation` in its
+`argocd-cm`), and the change follows a little later.
 
 **A private repository** needs a login for ArgoCD. Create an access token that may only read
 that repository, put the user name and the token into the env file as `APP_REPO_USERNAME` and

@@ -71,7 +71,7 @@ make version        # Print current version tag
 - `.mise.toml` -- **tool version single source of truth** (Renovate-tracked)
 - `.env.example` -- every setting, commented (`make check-env` keeps it complete); `.env` is gitignored
 - `.github/scripts/` -- `check-env.sh`, `check-kind-kubeconfig.sh`, `check-vks-docs.sh` (with its allowlist `check-vks-docs.allow` and its table of guides `check-vks-docs.blocks`: a new guide under `vks/` needs one line there) and `ghcr-prune-untagged.sh`, each with a `_test.sh`, and `k8s-context-guard_test.sh` (the `k8s-apply`/`k8s-delete` context guard), all run by `make scripts-test`
-- `vks/test/` -- `walk.sh`, the harness that extracts and runs the guides' blocks (the gate uses its extractor), with `walk_test.sh`; `mac-route.sh`, which makes the lab's addresses answer on a Mac behind the owner's reverse tunnels (`up`, `status`, `down`, `print-tunnel`) and removes only what it created, with `mac-route_test.sh`
+- `vks/test/` -- `walk.sh`, the harness that extracts and runs the guides' blocks (the gate uses its extractor), with `walk_test.sh`; `blocks_test.sh`, which runs blocks of the guides and the main guide's helper commands offline, in bash and zsh, against stand-in `curl` and `kubectl` (what vCenter answers a user without rights, `kubectl_install`, Headlamp's restart after a name change); `mac-route.sh`, which makes the lab's addresses answer on a Mac behind the owner's reverse tunnels (`up`, `status`, `down`, `print-tunnel`) and removes only what it created, with `mac-route_test.sh`
 - `.github/workflows/` -- CI and cleanup. The two Claude workflows are
   present but `.disabled` (see the Upgrade Backlog for why and how to restore)
 - `.github/CODEOWNERS` -- Workflow file protection (requires owner review)

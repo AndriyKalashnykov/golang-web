@@ -98,7 +98,8 @@ if [ -n "$V" ]; then kubectl_install "$V"; else echo "kubectl_install: cannot re
 
 **Expect:** `Client Version: v1.…` (and a `Kustomize Version` line), and no `WARNING` line. If
 this machine already has a kubectl within one minor version of the newest release, the block
-prints `kubectl v1.… is within one minor version of v1.…: supported, not changed` instead.
+prints `kubectl v1.… is within one minor version of v1.…: supported, not changed` instead, or
+`kubectl v1.… is already installed: not changed` when it is that release itself.
 
 **If not:**
 - `… installing into <your home>/.local/bin instead`: not an error. `sudo` would have asked for a

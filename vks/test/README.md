@@ -9,7 +9,13 @@ Two things run without a lab and are part of `make static-check`:
 - `make check-vks-docs` reads the guides (`.github/scripts/check-vks-docs.sh`): every block
   parses in bash and zsh, has an Expect, sources its env file, holds no comment and nothing after
   a line that can prompt; links resolve. It prints `checked N block(s) in M file(s)`.
-- `make scripts-test` runs `walk_test.sh`, `mac-route_test.sh` and the gate's own tests.
+- `make scripts-test` runs `walk_test.sh`, `mac-route_test.sh` and the gate's own tests, and
+  `blocks_test.sh`: blocks taken from the guides by their section title, run as written in bash
+  and zsh with a scratch HOME and stand-in `curl`, `kubectl` and `sleep`. It covers the blocks
+  that show a vCenter answer (a list, an empty list, `NOT_FOUND`, `UNAUTHORIZED`, a refused
+  registration), `kubectl_install`, and the Headlamp settings block's restart. Its header says
+  what it does not prove. A section that is renamed must be renamed in it too: it stops with
+  `the test's own setup failed` and names the title.
 
 ## Walk a guide
 

@@ -428,6 +428,11 @@ two minutes) until VKS has worked them in. It replaces all values in the object 
 value somebody else set there is removed. It refuses an object that VKS did not make, and it
 refuses the gateway setting on a cluster where Istio does not serve gateways.
 
+Headlamp reads its certificate once, when it starts. So when the name changed, the block also
+waits (up to two minutes) until cert-manager has made the certificate for the new name, and
+then restarts Headlamp: the page is away for some seconds. It restarts nothing when the name
+did not change, or when no certificate for the name has appeared.
+
 ```sh
 source ~/.vks-golang-web.env
 AC="${VKS_CLUSTER}-headlamp"
@@ -459,6 +464,25 @@ elif kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" patch add
     kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get addonconfig "$AC" -o jsonpath='{range .status.fieldErrors[*]}{.field}{": "}{.detail}{"\n"}{end}'
   elif [ -n "$H1" ] && [ "$H1" != "$H0" ]; then
     echo "worked in after $((n * 5)) s: ${WANT}"
+    if [ "$(printf '%s' "$CUR" | jq -r '.spec.values.hostname // "headlamp.vks.example.com"')" != "${HEADLAMP_ADDON_HOSTNAME:-headlamp.vks.example.com}" ]; then
+      HN="${HEADLAMP_ADDON_HOSTNAME:-headlamp.vks.example.com}"
+      n=0; SAN=""
+      until [ -n "$SAN" ] || [ "$n" -ge 24 ]; do
+        [ "$n" -eq 0 ] || sleep 5
+        n=$((n + 1))
+        SAN="$(kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$HEADLAMP_ADDON_NAMESPACE" get secret headlamp-tls-cert -o jsonpath='{.data.tls\.crt}' 2>/dev/null | base64 -d 2>/dev/null | openssl x509 -noout -text 2>/dev/null | tr ',' '\n' | sed 's/^ *//' | grep -x -F "DNS:${HN}")"
+        [ -n "$SAN" ] || echo "no certificate for ${HN} yet (read ${n} of 24)"
+      done
+      if [ -z "$SAN" ]; then
+        echo "NOT RESTARTED: cert-manager has made no certificate for ${HN} yet, and Headlamp still serves the old one. Read 'If not' below; the restart to run later is:"
+        echo "  kubectl --kubeconfig \"${GUEST_KUBECONFIG}\" -n \"${HEADLAMP_ADDON_NAMESPACE}\" rollout restart deployment headlamp"
+      elif kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$HEADLAMP_ADDON_NAMESPACE" rollout restart deployment headlamp \
+           && kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$HEADLAMP_ADDON_NAMESPACE" rollout status deployment headlamp --timeout=180s; then
+        echo "restarted Headlamp so that it serves the new certificate"
+      else
+        echo "RESTART NOT FINISHED (see the error above): Headlamp may still serve the old certificate. Read 'If not' below."
+      fi
+    fi
   else
     echo "NOT WORKED IN after $((n * 5)) s: the settings are stored, but VKS has not used them yet. Read 'If not' below."
   fi
@@ -468,17 +492,32 @@ fi
 ```
 
 **Expect:** `addonconfig.addons.kubernetes.vmware.com/<your cluster>-headlamp patched`, then
-`worked in after … s:` and the values, such as `{"hostname":"headlamp.example.test"}`. When you
-run it again with the same values: `unchanged: <your cluster>-headlamp already holds …`.
+`worked in after … s:` and the values, such as `{"hostname":"headlamp.example.test"}`. When
+the name changed, these follow: `no certificate for <the name> yet (read …)` lines while
+cert-manager makes the certificate (none when it is already there), then
+`deployment.apps/headlamp restarted`, the rollout's progress lines, and
+`restarted Headlamp so that it serves the new certificate`. When you run the block again with
+the same values: `unchanged: <your cluster>-headlamp already holds …`, and nothing is restarted.
 
 **If not:**
+- `NOT RESTARTED: …`: cert-manager made no certificate for the name within two minutes, so
+  Headlamp was left alone and still serves the old certificate.
+  `kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$HEADLAMP_ADDON_NAMESPACE" get certificates.cert-manager.io -o wide`
+  shows whether the certificate is ready. When it is, run the command the block printed, then
+  the check below.
+- `RESTART NOT FINISHED …`: the error above the line says why (your user may not restart the
+  deployment, or the new pod did not become ready in three minutes).
+  `kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$HEADLAMP_ADDON_NAMESPACE" get pods` shows the
+  pods; then run the check below.
 - `Not changed: … must be empty or a DNS name …`: fix the two lines in the env file.
 - `Not changed: … Istio does not serve gateways …`: install Istio first, or set
   `HEADLAMP_ADDON_GATEWAY="false"`.
 - `Not changed: … is not an object VKS made for this cluster`: somebody created an `AddonConfig`
   of that name by hand. Ask them; this chapter does not delete it.
 - `REFUSED by VKS:` and a line that names a setting: the value has the wrong form.
-- `NOT WORKED IN after 120 s`: run the block again; it then waits again or prints `unchanged`.
+- `NOT WORKED IN after 120 s`: run the block again; it prints `unchanged` once VKS has used the
+  settings. After a change of the name it did not restart Headlamp: do that yourself, with the
+  command under **If not** of the next block.
 
 VKS does not check setting names: a misspelled name in that object is accepted and dropped
 without a word. This block writes only the two names above. The add-on has more settings (its
@@ -503,7 +542,8 @@ echo "gateways in ${HEADLAMP_ADDON_NAMESPACE}: $(kubectl --kubeconfig "$GUEST_KU
 
 **Expect:** `certificate authority: subject=…` with the authority's name, then
 `https://<the name>:443/ at <the address>, trusting only that authority: HTTP 200`: the
-certificate is for that name and signed by that authority. The last line names a gateway and its
+certificate is for that name and signed by that authority. After a change of the name this
+holds once the block above has printed `restarted Headlamp …`. The last line names a gateway and its
 address only when `HEADLAMP_ADDON_GATEWAY` is `true`; otherwise nothing follows its colon.
 
 To finish option 2 of *Open the page*: make the DNS record `<the name>` → `<the address>`, and
@@ -512,10 +552,18 @@ the way your system does that. Then `https://<the name>/` opens without a warnin
 add-on makes that authority worthless; take it out of your trust store then.
 
 **If not:**
-- `HTTP 000` right after a change of the name: cert-manager is still making the new certificate.
-  Wait a minute and run the block again.
-- `HTTP 000` that stays, while *Open the page* answers 200: the certificate is not for that
-  name. `kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$HEADLAMP_ADDON_NAMESPACE" get certificates.cert-manager.io -o wide`
+- `HTTP 000` once, in the seconds after the restart: the new pod is not answering yet. Run the
+  block again.
+- `HTTP 000` that stays after a change of the name: Headlamp is still serving the certificate
+  it started with. It reads its certificate once, at start, and the block above restarts it
+  only after cert-manager has made the new certificate. If that block did not print
+  `restarted Headlamp …` (it printed `NOT RESTARTED`, `RESTART NOT FINISHED`, or `NOT WORKED IN`
+  and later `unchanged`), restart Headlamp yourself, then run this block again; it answers 200
+  once the new pod runs. The add-on undoes the restart's mark some minutes later and Headlamp
+  starts once more by itself; the certificate stays the new one:
+  `kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$HEADLAMP_ADDON_NAMESPACE" rollout restart deployment headlamp`
+- `HTTP 000` that stays after that restart, while *Open the page* answers 200: the certificate
+  is not for that name. `kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$HEADLAMP_ADDON_NAMESPACE" get certificates.cert-manager.io -o wide`
   shows the certificates and whether they are ready.
 - `unable to load certificate`: the secret holds no authority under `ca.crt`:
   `kubectl --kubeconfig "$GUEST_KUBECONFIG" -n "$HEADLAMP_ADDON_NAMESPACE" get secrets` lists

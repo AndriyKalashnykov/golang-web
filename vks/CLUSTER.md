@@ -85,8 +85,9 @@ kubectl_install "$V"
 ```
 
 **Expect:** `Guest cluster: v1.<minor>…`, then
-`kubectl v1.… is within one minor version of v1.…: supported, not changed`, or, when kubectl was
-further away, `Client Version:` with the cluster's `v1.<minor>`.
+`kubectl v1.… is within one minor version of v1.…: supported, not changed`, or
+`kubectl v1.… is already installed: not changed` when it is the cluster's own version, or, when
+kubectl was further away, `Client Version:` with the cluster's `v1.<minor>`.
 
 **If not:**
 - `No kubeconfig read …`, under a `kubectl` error: `secrets "<name>-kubeconfig" not found` —

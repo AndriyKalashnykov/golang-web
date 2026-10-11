@@ -23,9 +23,10 @@ changes nothing or tells you what to do.
 ## Create it with the vCenter API
 
 Do this only if your SSO user is a vCenter administrator. Broadcom's documentation asks for the
-*VI administrator* role to create a vSphere Namespace; with less, the create call below answers
-`HTTP 403`: [NAMESPACE.md](NAMESPACE.md#if-you-are-not-a-vcenter-administrator) says what to
-ask for then.
+*VI administrator* role to create a vSphere Namespace. With less, the blocks below stop before
+anything is created: vCenter shows your user no cluster, or a call prints `ERROR: UNAUTHORIZED`,
+or the create call answers `HTTP 403`.
+[NAMESPACE.md](NAMESPACE.md#if-you-are-not-a-vcenter-administrator) says what to ask for then.
 
 The calls below are for VMware Cloud Foundation 9.1.1, on a Supervisor whose workload
 network is a vSphere Distributed Switch with the Foundation Load Balancer. A Supervisor on NSX
@@ -74,7 +75,7 @@ lists vCenter's clusters. The create call needs the cluster's ID, not its name.
 ```sh
 source ~/.vks-golang-web.env
 vc_login
-vc_api /cluster | jq -r 'if type == "array" then .[] | "\(.cluster)  \(.name)" else "ERROR: \(.error_type // .)" end'
+vc_api /cluster | jq -r 'if type == "array" and length == 0 then "no cluster: vCenter shows this user none" elif type == "array" then .[] | "\(.cluster)  \(.name)" else "ERROR: \((.error_type)? // .)  \((.messages[0].default_message)? // "")" end'
 ```
 
 **Expect:** `vCenter session opened`, then one line per cluster: an ID such as `domain-c8`, then
@@ -88,6 +89,13 @@ one, put the ID of the cluster your Supervisor runs on in `~/.vks-golang-web.env
 - `vc_login: no session`, with `401` in the curl error above it: the user name or the password
   is wrong. Fix the env file before you try again.
 - `ERROR: UNAUTHENTICATED`: the session ended. Run `vc_login`, then the block again.
+- `no cluster: vCenter shows this user none`: vCenter lists only the clusters a user may see.
+  Your SSO user has no vCenter role on the cluster: a vCenter administrator must run this
+  chapter.
+- `ERROR: UNAUTHORIZED`: vCenter refused the call: your SSO user lacks the vCenter privilege for
+  it. A vCenter administrator must run this chapter; see *If you are not a vCenter
+  administrator* in [NAMESPACE.md](NAMESPACE.md#if-you-are-not-a-vcenter-administrator).
+- Any other `ERROR:` line: vCenter's own message follows the error's name.
 - `vc_login: command not found`: your helper file is older than this chapter. Run the main
   guide's first block again (it keeps your settings), then this block.
 
@@ -112,12 +120,21 @@ fi
   create call in this chapter is not made for that Supervisor. Create the namespace in the
   vSphere Client ([NAMESPACE-manual.md](NAMESPACE-manual.md)), or follow Broadcom's page linked
   above, then continue at [Check the namespace you have](NAMESPACE.md#check-the-namespace-you-have).
-- `network provider: UNKNOWN  Supervisor: NOT_FOUND`: that cluster has no Supervisor. Set
-  `VSPHERE_CLUSTER_ID` to the cluster that has one.
+- `network provider: UNKNOWN  Supervisor: NOT_FOUND`: vCenter shows your user no Supervisor on
+  that cluster. Either the cluster has none (set `VSPHERE_CLUSTER_ID` to the cluster that has
+  one), or your SSO user may not see it: then the cluster list above was empty or refused, and
+  a vCenter administrator must run this chapter.
+- `Supervisor: UNAUTHORIZED`: vCenter refused the call: your SSO user lacks the vCenter
+  privilege for it. A vCenter administrator must run this chapter; see *If you are not a vCenter
+  administrator* in [NAMESPACE.md](NAMESPACE.md#if-you-are-not-a-vcenter-administrator).
+- `Supervisor: UNAUTHENTICATED`: the session ended. Run `vc_login`, then the block again.
 - `Supervisor:` followed by anything but `RUNNING`: the Supervisor is not ready. Wait. The
   vSphere Client shows the Supervisor's **Config Status** on the **Supervisors** tab
   ([NAMESPACE-manual.md](NAMESPACE-manual.md#1-find-the-supervisor-its-address-and-vcenters-ca)).
-- `Set VSPHERE_CLUSTER_ID …`: vCenter has more than one cluster; see the block above.
+- `Set VSPHERE_CLUSTER_ID …`: the cluster list did not show exactly one cluster. Run the block
+  above again and read its output. Several clusters: set `VSPHERE_CLUSTER_ID` to the one your
+  Supervisor runs on. `no cluster: …` or an `ERROR:` line: vCenter shows your SSO user none,
+  and that block's **If not** says what to do.
 
 ### List the storage policies
 
@@ -125,14 +142,23 @@ A namespace gets its disks from a vCenter storage policy. This lists the policie
 
 ```sh
 source ~/.vks-golang-web.env
-vc_api /storage/policies | jq -r 'if type == "array" then .[] | .name else "ERROR: \(.error_type // .)" end' | sort
+vc_api /storage/policies | jq -r 'if type == "array" then .[] | .name else "ERROR: \((.error_type)? // .)  \((.messages[0].default_message)? // "")" end' | sort
 ```
 
 **Expect:** one policy name per line. Choose one whose datastore has room for the cluster's
 disks (tens of GB per node, plus what your apps store). Policies with `Encryption` in their
 name need a key provider; do not choose one unless you know the vCenter has it.
 
-**If not:** `ERROR: UNAUTHENTICATED` — run `vc_login`, then the block again.
+**If not:**
+- `ERROR: UNAUTHENTICATED`: the session ended. Run `vc_login`, then the block again.
+- `ERROR: UNAUTHORIZED`: vCenter refused the call: your SSO user lacks the vCenter privilege for
+  it. A vCenter administrator must run this chapter; see *If you are not a vCenter
+  administrator* in [NAMESPACE.md](NAMESPACE.md#if-you-are-not-a-vcenter-administrator).
+- `ERROR: INTERNAL_SERVER_ERROR`: vCenter failed to answer and does not say why. An SSO user
+  with no vCenter privilege gets this from the storage-policy list; if the cluster list above
+  was empty or the VM class list says `UNAUTHORIZED`, that is your case. As an administrator:
+  run the block again.
+- Any other `ERROR:` line: vCenter's own message follows the error's name.
 
 ### List the VM classes
 
@@ -141,14 +167,19 @@ the namespace.
 
 ```sh
 source ~/.vks-golang-web.env
-vc /virtual-machine-classes | jq -r 'if type == "array" then .[] | "\(.id)  \(.cpu_count // "?") CPU  \(.memory_MB // "?") MB" else "ERROR: \(.error_type // .)" end' | sort
+vc /virtual-machine-classes | jq -r 'if type == "array" then .[] | "\(.id)  \(.cpu_count // "?") CPU  \(.memory_MB // "?") MB" else "ERROR: \((.error_type)? // .)  \((.messages[0].default_message)? // "")" end' | sort
 ```
 
 **Expect:** one class per line, such as `best-effort-small  2 CPU  4096 MB`. A class with 2 CPUs
 and 4 GB is enough for this app; add one with 8 GB if you plan to add Istio later
 ([Choose the cluster's values](CLUSTER-auto.md#choose-the-clusters-values) has the sizes).
 
-**If not:** `ERROR: UNAUTHENTICATED` — run `vc_login`, then the block again.
+**If not:**
+- `ERROR: UNAUTHENTICATED`: the session ended. Run `vc_login`, then the block again.
+- `ERROR: UNAUTHORIZED`: vCenter refused the call: your SSO user lacks the vCenter privilege for
+  it. A vCenter administrator must run this chapter; see *If you are not a vCenter
+  administrator* in [NAMESPACE.md](NAMESPACE.md#if-you-are-not-a-vcenter-administrator).
+- Any other `ERROR:` line: vCenter's own message follows the error's name.
 
 ### Choose the namespace's values
 
@@ -213,10 +244,14 @@ user name, its domain and the role.
 
 **If not:**
 - `Not filled: no value for: STORAGE_POLICY_ID`: no storage policy has the name in
-  `STORAGE_POLICY`, or the vCenter session ended (run `vc_login`). The name must equal one line
-  of the list, capitals and spaces included.
-- `Not filled: no value for: VSPHERE_CLUSTER_ID`: vCenter has more than one cluster; set
-  `VSPHERE_CLUSTER_ID`.
+  `STORAGE_POLICY`, or vCenter did not answer with the list. The name must equal one line of
+  the list, capitals and spaces included. Run the block of *List the storage policies* again:
+  an `ERROR:` line there, and its **If not**, say why there is no list (the session ended, or
+  your SSO user lacks the privilege).
+- `Not filled: no value for: VSPHERE_CLUSTER_ID`: the cluster list did not show exactly one
+  cluster. Run the block of *Open a vCenter session and find the Supervisor's cluster* again.
+  Several clusters: set `VSPHERE_CLUSTER_ID`. `no cluster: …` or an `ERROR:` line: vCenter
+  shows your SSO user none, and that block's **If not** says what to do.
 - `Not filled: no value for: NAMESPACE_DOMAIN`: `SSO_USERNAME` has no `@domain` part. Write it
   in full, for example `administrator@vsphere.local`.
 - Any other name after `no value for:`: that line in the env file is empty.
@@ -239,8 +274,10 @@ if [ ! -s "$VC_SESSION" ]; then
   echo "STOP: no vCenter session is open. Run the first block of 'Open a vCenter session and find the Supervisor's cluster' again. Nothing was created."
 elif [ "$(jq -r '.namespace // empty' "$SPEC" 2>/dev/null)" != "$VKS_NAMESPACE" ]; then
   echo "STOP: the filled description is missing, or is for another namespace. Run the block above again."
+elif [ -z "$P" ]; then
+  echo "STOP: vCenter did not show this user the Supervisor on '${C}' (no cluster, or no privilege: see 'Read the Supervisor's network type'). Nothing was created."
 elif [ "$P" != VSPHERE_NETWORK ]; then
-  echo "STOP: this Supervisor's network provider is '${P:-unknown}', not VSPHERE_NETWORK. Nothing was created."
+  echo "STOP: this Supervisor's network provider is '${P}', not VSPHERE_NETWORK. Nothing was created."
 elif [ "$H" = 200 ]; then
   echo "STOP: a vSphere Namespace named '${VKS_NAMESPACE}' already exists. Nothing was changed."
 elif [ "$H" != 404 ]; then
@@ -259,7 +296,7 @@ else
       S="$(vc_api "/namespaces/instances/${VKS_NAMESPACE}" | jq -r '.config_status // empty')"
       echo "status: ${S:-no answer yet} (read ${n})"
     done
-    vc_api "/namespaces/instances/${VKS_NAMESPACE}" | jq -r '"\(.config_status)  networks: \([.networks[]?] | join(","))  VM classes: \([.vm_service_spec.vm_classes[]?] | join(","))"'
+    vc_api "/namespaces/instances/${VKS_NAMESPACE}" | jq -r 'if type == "object" and (has("error_type") | not) then "\(.config_status)  networks: \([.networks[]?] | join(","))  VM classes: \([.vm_service_spec.vm_classes[]?] | join(","))" else "ERROR: \((.error_type)? // .)  \((.messages[0].default_message)? // "")" end'
   else
     echo "Not created: vCenter did not accept the description, so nothing is waited for."
   fi
@@ -285,7 +322,15 @@ Now run both blocks of [Check the namespace you have](NAMESPACE.md#check-the-nam
 - `STOP: … already exists`: this guide never changes a namespace that exists. If it is yours,
   check it ([Check the namespace you have](NAMESPACE.md#check-the-namespace-you-have)); if not,
   choose another name.
-- `STOP: … network provider …`: see *Read the Supervisor's network type*.
+- `STOP: vCenter did not show this user the Supervisor …`: vCenter gave no network type for
+  that cluster. Run the block of *Read the Supervisor's network type* again: its output and its
+  **If not** tell the causes apart (no Supervisor on that cluster, a user who may not see it,
+  or a session that ended).
+- `STOP: … network provider is …`: the Supervisor's workload network is not a vSphere
+  Distributed Switch; see *Read the Supervisor's network type*.
+- `ERROR:` where the `RUNNING  networks: …` line should be: vCenter accepted the namespace, and
+  the last read of it failed. vCenter's own message follows the error's name. Run both blocks of
+  [Check the namespace you have](NAMESPACE.md#check-the-namespace-you-have).
 - `status: ERROR`, or no `RUNNING` after 10 minutes: open the namespace in the vSphere Client;
   its **Summary** shows the reason.
 - `networks:` with nothing after it: the namespace has no workload network, and a cluster in it
@@ -463,6 +508,7 @@ belong to the main guide.
 |---|---|
 | `vc_api: no vCenter session — run vc_login` | A block was run after `vc_logout`, or without *Open a vCenter session*. Run `vc_login`, then the block again. |
 | `ERROR: UNAUTHENTICATED`, or `HTTP 401`, from a vCenter block | The vCenter session ended. Run `vc_login` (once), then the block again. |
+| `ERROR: UNAUTHORIZED`, or `no cluster: vCenter shows this user none` | vCenter refused the call, or shows your SSO user no cluster: the user has no vCenter role for it. A vCenter administrator must run this chapter; [NAMESPACE.md](NAMESPACE.md#if-you-are-not-a-vcenter-administrator) says what to ask for. |
 | `vc_login: command not found`, or `vc_api: command not found` | Your `~/.vks-golang-web.functions` was written by an older version of the main guide. Run the main guide's first block again: it rewrites that file and keeps your values. |
 | `error: You must be logged in to the server (Unauthorized)` | Your Supervisor login ended (it lasts about 10 hours). Run the main guide's *Renew the Supervisor login* block. |
 | The namespace exists in vCenter but `kubectl get ns` answers `Forbidden` | Your SSO user is not in the namespace's permissions, or it was added after you logged in. Give it the **Edit** role ([Give your user a role](NAMESPACE-manual.md#4-give-your-user-a-role)), then run the main guide's *Delete the Supervisor login* block and log in again. |

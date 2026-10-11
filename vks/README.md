@@ -191,17 +191,18 @@ vc_logout() {
 
 # kubectl_install VERSION: installs upstream kubectl VERSION from dl.k8s.io into $KUBECTL_DIR
 # (a "+vmware.N" suffix is dropped; if that exact patch has no upstream build, the newest patch of
-# the same minor is used). It changes nothing when the kubectl you have is within one minor
-# version of VERSION, unless KUBECTL_MATCH is "exact". It never asks for a password: when
-# $KUBECTL_DIR needs administrator rights and sudo would ask, it installs into ~/.local/bin and
-# says so. The checksum guards against a corrupt download. On any failure the existing kubectl
-# is left as it was.
+# the same minor is used). It changes nothing when the kubectl you have is VERSION itself, or is
+# within one minor version of VERSION and KUBECTL_MATCH is not "exact". It never asks for a
+# password: when $KUBECTL_DIR needs administrator rights and sudo would ask, it installs into
+# ~/.local/bin and says so. The checksum guards against a corrupt download. On any failure the
+# existing kubectl is left as it was.
 kubectl_install() {
   local v="${1%%+*}" m os arch u t h d="${KUBECTL_DIR:-/usr/local/bin}" s="" cur x cm sm
   case "$v" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "kubectl_install: no version ('$1') — not logged in, or the server unreachable?" >&2; return 1 ;; esac
   case "$(uname -s)" in Linux) os=linux ;; Darwin) os=darwin ;; *) echo "kubectl_install: unsupported OS $(uname -s)" >&2; return 1 ;; esac
   case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; arm64|aarch64) arch=arm64 ;; *) echo "kubectl_install: unsupported CPU $(uname -m)" >&2; return 1 ;; esac
   cur="$(kubectl version --client 2>/dev/null | sed -n 's/^Client Version: \(v[0-9][0-9.]*\).*/\1/p')"
+  if [ -n "$cur" ] && [ "$cur" = "$v" ]; then echo "kubectl ${v} is already installed: not changed"; return 0; fi
   if [ -n "$cur" ] && [ "${KUBECTL_MATCH:-minor}" != exact ]; then
     x="${cur#v*.}"; cm="${x%%.*}"; x="${v#v*.}"; sm="${x%%.*}"
     case "${cm}${sm}" in
@@ -542,8 +543,9 @@ kubectl_install "$V"
 ```
 
 **Expect:** `Guest cluster: v1.<minor>…`, then
-`kubectl v1.… is within one minor version of v1.…: supported, not changed`, or, when kubectl was
-further away, `Client Version:` with the cluster's `v1.<minor>`.
+`kubectl v1.… is within one minor version of v1.…: supported, not changed`, or
+`kubectl v1.… is already installed: not changed` when it is the cluster's own version, or, when
+kubectl was further away, `Client Version:` with the cluster's `v1.<minor>`.
 
 **If not:** `No kubeconfig read …`, under a `kubectl` error: `secrets "<name>-kubeconfig" not
 found` — check `VKS_CLUSTER`; `Forbidden` — the **Edit** role is missing; `Unauthorized` — run
