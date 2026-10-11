@@ -241,9 +241,10 @@ greyed out until you open both Terms links — or the download icon does nothing
 
 `vcf` goes into `/usr/local/bin`: Broadcom's own command is `sudo install vcf /usr/local/bin/vcf`.
 The install block never asks for a password: if `sudo` would ask, `vcf` goes into `~/.local/bin`
-instead, and the block says so. That directory is this guide's choice; Broadcom documents no
-install without administrator rights. `vcf` keeps its plugins in your home directory either way. To have `vcf` in `/usr/local/bin`, give `sudo` your
-password first, as a block of its own (skip it if you have no `sudo` rights on this machine):
+instead, and the block says so. That directory is this guide's choice; Broadcom's steps for
+this download name no other directory. `vcf` keeps its plugins in your home directory either
+way. To have `vcf` in `/usr/local/bin`, give `sudo` your password first, as a block of its own
+(skip it if you have no `sudo` rights on this machine):
 
 ```sh
 sudo -v
@@ -487,16 +488,16 @@ block under [Install kubectl](#install-kubectl) first.
 D=/usr/local/bin
 U=https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
 if [ -d "$D" ] && [ -w "$D" ]; then
-  if ! { S="$(curl -fsSL "$U")" && printf '%s\n' "$S" | USE_SUDO=false bash; }; then
+  if ! { S="$(curl -fsSL "$U")" && [ -n "$S" ] && printf '%s\n' "$S" | USE_SUDO=false bash; }; then
     echo "Nothing installed: see the error above"
   fi
 elif sudo -n true 2>/dev/null; then
-  if ! { S="$(curl -fsSL "$U")" && printf '%s\n' "$S" | bash; }; then
+  if ! { S="$(curl -fsSL "$U")" && [ -n "$S" ] && printf '%s\n' "$S" | bash; }; then
     echo "Nothing installed: see the error above"
   fi
 else
   W="$D"; D="$HOME/.local/bin"
-  if mkdir -p "$D" && S="$(curl -fsSL "$U")"; then
+  if mkdir -p "$D" && S="$(curl -fsSL "$U")" && [ -n "$S" ]; then
     case ":$PATH:" in
       *":$D:"*) A="" ;;
       *) A=1; PATH="$D:$PATH" ;;
@@ -518,8 +519,9 @@ fi
 ```
 
 **Expect:** `Downloading https://get.helm.sh/helm-v4.…`, `Verifying checksum... Done.`, then
-`helm installed into /usr/local/bin/helm`. Without administrator rights the last lines are
-`helm installed into <your home>/.local/bin/helm` and `helm: … installed into … instead`.
+`helm installed into /usr/local/bin/helm`. Without administrator rights you see
+`helm installed into <your home>/.local/bin/helm`, then `helm: … installed into … instead`,
+and, the first time, the two `… was not on your PATH` lines.
 
 **If not:**
 - `Nothing installed: see the error above`: the download or the script failed, and a `helm` you

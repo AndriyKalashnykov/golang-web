@@ -776,10 +776,12 @@ for sh in $SHELLS; do
   icase; prep helm "$SU_HELM" "$T/dirs/w"; run2 "$sh" "$RUNF"
   line "$L: the script runs without sudo" "$OUT" "stand-in helm script: USE_SUDO=false HELM_INSTALL_DIR=unset"
   eq "$L: sudo is not called" "$(grep -c . "$T/fake/sudo.log" || true)" 0
+  hasnt "$L: no failure line" "$OUT" "Nothing installed"
   L="[$sh] SETUP, helm, sudo works without asking"
   icase SUDO_MODE=ok; prep helm "$SU_HELM" "$T/dirs/afile/bin"; run2 "$sh" "$RUNF"
   line "$L: the script runs as the project wrote it" "$OUT" "stand-in helm script: USE_SUDO=unset HELM_INSTALL_DIR=unset"
   hasnt "$L: no fallback" "$OUT" "instead"
+  hasnt "$L: no failure line" "$OUT" "Nothing installed"
   L="[$sh] SETUP, helm, sudo would ask"
   icase SUDO_MODE=refuse; prep helm "$SU_HELM" "$T/dirs/afile/bin"; run2 "$sh" "$RUNF"
   line "$L: the script is sent to ~/.local/bin, without sudo" "$OUT" "stand-in helm script: USE_SUDO=false HELM_INSTALL_DIR=$LB"
