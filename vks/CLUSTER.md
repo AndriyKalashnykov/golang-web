@@ -95,8 +95,9 @@ kubectl was further away, `Client Version:` with the cluster's `v1.<minor>`.
   **Edit** role is missing; `Unauthorized` — the Supervisor login ended (main guide, *Renew the
   Supervisor login*). A kubeconfig you saved earlier is kept. With none, `Guest cluster: unknown`
   and `kubectl_install: no version` follow: fix the cause and run the block again.
-- `… installing into <your home>/.local/bin instead`: not an error. If `… was not on your PATH`
-  follows, add the line it prints to `~/.zshrc` (zsh) or `~/.bashrc` (bash).
+- `… installed into <your home>/.local/bin instead`: not an error. If `… was not on your PATH`
+  follows, add the line it prints to `~/.zshrc` (zsh), `~/.bashrc` (bash on Linux) or
+  `~/.bash_profile` (bash on macOS).
 - `kubectl_install: cannot reach dl.k8s.io`, `… the checksum of the download does not match` or
   `… could not write …`: the kubeconfig is saved and kubectl is unchanged. [Install kubectl](SETUP.md#install-kubectl)
   says what to do for each.

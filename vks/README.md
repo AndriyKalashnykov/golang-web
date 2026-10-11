@@ -62,7 +62,7 @@ to do. [TROUBLESHOOTING.md](TROUBLESHOOTING.md) lists the errors by their text.
 | an SSO user with the **Edit** role on that vSphere Namespace, and its password | [Log in to the Supervisor](#log-in-to-the-supervisor) |
 | the SHA-256 fingerprint of the vCenter CA | [Download and check the vCenter CA](#download-and-check-the-vcenter-ca) |
 | a Broadcom support account that can download VMware vSphere Foundation 9 | [Install the VCF CLI and its plugins](SETUP.md#install-the-vcf-cli-and-its-plugins) |
-| sudo rights on this machine | [Install the tools](#install-the-tools) |
+| administrator (`sudo`) rights on this machine, for the package installs only; without them `kubectl` and `vcf` go into `~/.local/bin` | [Install the tools](#install-the-tools) |
 
 Every value can be looked up or made. A vCenter administrator finds the
 Supervisor's address and vCenter's CA in the vSphere Client
@@ -193,11 +193,11 @@ vc_logout() {
 # (a "+vmware.N" suffix is dropped; if that exact patch has no upstream build, the newest patch of
 # the same minor is used). It changes nothing when the kubectl you have is VERSION itself, or is
 # within one minor version of VERSION and KUBECTL_MATCH is not "exact". It never asks for a
-# password: when $KUBECTL_DIR needs administrator rights and sudo would ask, it installs into
-# ~/.local/bin and says so. The checksum guards against a corrupt download. On any failure the
-# existing kubectl is left as it was.
+# password: when $KUBECTL_DIR needs administrator rights and sudo would ask (or its install
+# fails), it installs into ~/.local/bin and says so. The checksum guards against a corrupt
+# download. On any failure the existing kubectl is left as it was.
 kubectl_install() {
-  local v="${1%%+*}" m os arch u t h d="${KUBECTL_DIR:-/usr/local/bin}" s="" cur x cm sm
+  local v="${1%%+*}" m os arch u t h d="${KUBECTL_DIR:-/usr/local/bin}" w cur x cm sm
   case "$v" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "kubectl_install: no version ('$1') — not logged in, or the server unreachable?" >&2; return 1 ;; esac
   case "$(uname -s)" in Linux) os=linux ;; Darwin) os=darwin ;; *) echo "kubectl_install: unsupported OS $(uname -s)" >&2; return 1 ;; esac
   case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; arm64|aarch64) arch=arm64 ;; *) echo "kubectl_install: unsupported CPU $(uname -m)" >&2; return 1 ;; esac
@@ -228,20 +228,22 @@ kubectl_install() {
   if [ "$( (sha256sum "$t/kubectl" 2>/dev/null || shasum -a 256 "$t/kubectl") | awk '{print $1}')" != "$h" ]; then
     rm -rf "$t"; echo "kubectl_install: the checksum of the download does not match (${u}) — kubectl NOT changed" >&2; return 1
   fi
-  if [ -d "$d" ] && [ -w "$d" ]; then s=""
-  elif [ ! -e "$d" ] && mkdir -p "$d" 2>/dev/null; then s=""
-  elif sudo -n true 2>/dev/null; then s=sudo
-  else
-    echo "kubectl_install: ${d} needs administrator rights and sudo would ask for a password: installing into ${HOME}/.local/bin instead (to use ${d}: run 'sudo -v', then this block again)" >&2
-    d="${HOME}/.local/bin"; mkdir -p "$d"
-  fi
-  if { [ -n "$s" ] && sudo -n install -d "$d" && sudo -n install -m 0755 "$t/kubectl" "$d/kubectl"; } \
-     || { [ -z "$s" ] && install -m 0755 "$t/kubectl" "$d/kubectl"; }; then
+  w="$d"
+  for x in "$d" "${HOME}/.local/bin"; do
+    if [ -d "$x/kubectl" ]; then
+      rm -rf "$t"; echo "kubectl_install: ${x}/kubectl is a directory, where the kubectl program must go: remove or rename it — kubectl NOT changed" >&2; return 1
+    fi
+  done
+  if { { { [ -d "$d" ] && [ -w "$d" ]; } || { [ ! -e "$d" ] && mkdir -p "$d" 2>/dev/null; }; } \
+       && install -m 0755 "$t/kubectl" "$d/kubectl"; } \
+     || { sudo -n install -d "$d" 2>/dev/null && sudo -n install -m 0755 "$t/kubectl" "$d/kubectl"; } \
+     || { d="${HOME}/.local/bin"; mkdir -p "$d" && install -m 0755 "$t/kubectl" "$d/kubectl" \
+          && echo "kubectl_install: ${w} needs administrator rights and this block never asks for a password: installed into ${d} instead. That is fine. To have it in ${w} instead: rm ${d}/kubectl, run 'sudo -v', then this block again." >&2; }; then
     rm -rf "$t"; "$d/kubectl" version --client
     case ":${PATH}:" in
       *":${d}:"*) ;;
       *) PATH="${d}:${PATH}"; hash -r 2>/dev/null
-         echo "kubectl_install: ${d} was not on your PATH: added for this terminal only. To keep it, add the next line to ~/.zshrc (zsh) or ~/.bashrc (bash), then open a new terminal:" >&2
+         echo "kubectl_install: ${d} was not on your PATH: added for this terminal only. Every later block needs it: add the next line to ~/.zshrc (zsh), ~/.bashrc (bash on Linux) or ~/.bash_profile (bash on macOS), then open a new terminal:" >&2
          echo "  export PATH=\"${d}:\$PATH\"" >&2 ;;
     esac
     hash -r 2>/dev/null
@@ -309,7 +311,11 @@ vcf version | head -1
 **Expect:** no `MISSING` line, then kubectl's `Client Version:` (and a `Kustomize Version` line),
 and `version: v9.…`.
 
-**If not:** do the part of [SETUP.md](SETUP.md) for each `MISSING` tool.
+**If not:** do the part of [SETUP.md](SETUP.md) for each `MISSING` tool. `MISSING: kubectl` or
+`MISSING: vcf` after an install that said `installed into <your home>/.local/bin instead`: the
+program is there, and this terminal does not look in that directory. Add the `export PATH=…`
+line the install printed to `~/.zshrc` (zsh), `~/.bashrc` (bash on Linux) or `~/.bash_profile` (bash on macOS),
+then open a new terminal; do not install again.
 
 ## Check out the repo
 

@@ -3,8 +3,8 @@
 # A new guide: add its line; 0 for a guide with no sh block (such as TROUBLESHOOTING.md).
 # A block added or removed: change the number. The gate prints the line to write.
 ARGOCD-app.md 20
-ARGOCD-auto.md 23
-ARGOCD-manual.md 28
+ARGOCD-auto.md 24
+ARGOCD-manual.md 29
 ARGOCD.md 1
 CLEANUP.md 8
 CLUSTER-auto.md 14
@@ -18,7 +18,7 @@ NAMESPACE-manual.md 2
 NAMESPACE.md 2
 README.md 22
 REGISTRY.md 16
-SETUP.md 20
+SETUP.md 21
 TROUBLESHOOTING.md 0
 addons/CERT-MANAGER.md 9
 addons/HEADLAMP.md 27

@@ -39,8 +39,44 @@ browser, by the owner, with the read-only token: the overview opens on the clust
 
 **Not walked:** a cluster create as the Edit-only user; a PRIVATE repository with a token in
 `ARGOCD-app.md`; Headlamp's desktop way; the Mac's create and delete in bash 3.2. `REGISTRY.md`'s deploy blocks ran in their new place, on nodes that may
-already have held the image. `ARGOCD-auto.md`'s install of the `argocd` program needs `sudo`
-at a terminal and has no other path.
+already have held the image.
+
+**One program, never a password (2026-10-11).** Five places install a single program file:
+`kubectl_install`, the Supervisor-kubectl alternative, the VCF CLI block, the `argocd` block of
+both ArgoCD guides, and helm's Linux block. All follow one policy: `/usr/local/bin` when it is
+writable; else `sudo -n install` (the real command is the probe, so a sudo that would ask, or
+that is not installed, simply fails); else `~/.local/bin`, with a line that says so and, when
+that directory is not on `PATH`, the `export PATH=…` line to add. No install block can prompt;
+an optional `sudo -v` block stands before the argocd and VCF installs, as it already did before
+kubectl. The policy is inlined in each block, not a helper: a reader with an older
+`~/.vks-golang-web.functions` would not have one, and the ArgoCD guides' install block reads no
+env file. `blocks_test.sh` holds the four inline copies equal and runs every arm against a
+stand-in `sudo`. Helm's block passes the script's own `HELM_INSTALL_DIR` and `USE_SUDO`; the
+script ends by looking for `helm` on `PATH`, so the block extends `PATH` before it runs it.
+Later blocks call `kubectl`, `vcf` and `argocd` by bare name, so a `~/.local/bin` install works
+in new terminals only after the reader adds the printed `PATH` line.
+
+Run as written in a clean `ubuntu:24.04` container the same day, a fresh login shell per block,
+no terminal, the real VCF CLI tarballs, the real argocd build and the real helm installer:
+
+| who | result |
+|---|---|
+| a user on a machine with no `sudo` installed | kubectl, `vcf` with all plugins, helm and argocd in `~/.local/bin`; the fallback and `PATH` lines printed; a new login shell found all four; the argocd clean-up removed it |
+| a user whose `sudo` asks for a password | the same |
+| a user with passwordless `sudo` | all four in `/usr/local/bin`, root-owned, mode 0755; the clean-up removed argocd through `sudo -n` |
+| root | all four in `/usr/local/bin` |
+
+The first `vcf` run in a new home asked nothing. After the review's fix round the same container
+run was repeated for the user with no `sudo` and the user with passwordless `sudo` (same
+results), and three failure paths were run for real as a user with no `sudo`: `KUBECTL_DIR` set
+to a directory of the reader's own that did not exist (created user-owned, kubectl installed
+there, no "needs administrator rights" line); helm with the download failing and an older helm
+already in `~/.local/bin` (`Nothing installed`, no "installed into" line); a directory named
+`vcf` where the program must go (`Nothing installed: … is a directory`).
+
+Not run: macOS; bash 3.2; zsh on a real machine; the Supervisor-kubectl alternative against a
+real Supervisor; a real password prompt after the `sudo -v` block. Ran only against the stand-in
+`sudo`: its directory creation succeeding and the copy then failing; an absent `/usr/local/bin`.
 
 | file | what it holds |
 |---|---|
@@ -175,8 +211,8 @@ Measured while writing it:
 - macOS older than 26: whether it ships `jq` is unverified.
 - podman 5.x on arm64 Linux other than 5.4.2, 5.7.0 (one push each, 2026-10-06) and 5.8.7; 4.9.3 fails (see below).
 - The Supervisor's own VCF CLI download when it works (this lab returns 503; see below).
-- `kubectl_install`'s new `sudo failed` message was not walked on the lab, only reproduced with
-  a failing `sudo` on Linux and the Mac.
+- `kubectl_install` with a `sudo -n` that fails: it now installs into `~/.local/bin` instead of
+  stopping. Run against a stand-in `sudo` only (`blocks_test.sh`), not on the lab or the Mac.
 
 ## The doc gate
 
@@ -412,7 +448,11 @@ Everything here was measured unless it says otherwise.
 
 ### macOS itself
 
-- A fresh Apple Silicon Mac has no `/usr/local/bin`; the kubectl and `vcf` blocks create it.
+- A fresh Apple Silicon Mac has no `/usr/local/bin`. The install blocks try a plain `mkdir -p`
+  (which fails there for a normal user), then `sudo -n` (passwordless sudo, or after the
+  `sudo -v` block); otherwise the program goes into
+  `~/.local/bin`, which is not on a login shell's `PATH` there, and the block prints the line
+  to add to `~/.zshrc` or `~/.bash_profile`.
 - Apple's `/usr/bin/make` (GNU Make 3.81, patched) ignores the Makefile's exported `PATH` for
   simple recipe lines. `SHELL := /usr/bin/env bash` fixes it; `/bin/bash` and `/bin/zsh` do not.
 - `install -D` is not supported and the group `root` does not exist; `base64 -d` works.
@@ -520,8 +560,8 @@ cluster v1.36.2), from Linux and from the M2 (the Intel build under Rosetta):
 - `--connect-timeout 10` on the dl.k8s.io downloads: with dl.k8s.io pointed at a black-hole
   address, step 2's block took 136 s before and 10 s after, and `kubectl_install <version>`
   1,089 s before and 94 s after.
-- The alternative block runs the downloaded kubectl once before `sudo install`, so one that
-  cannot run never replaces a working kubectl. Seven failure cases each left the existing
+- The alternative block runs the downloaded kubectl once before installing it, so one that
+  cannot run never replaces a working kubectl. It reads `KUBECTL_DIR` now (it ignored it). Seven failure cases each left the existing
   kubectl unchanged.
 - `kubectl_install`'s failure message starts with `kubectl_install: cannot reach dl.k8s.io`;
   the If-not and Troubleshooting rows key on that prefix. It ends `…, the checksum did not
@@ -529,8 +569,10 @@ cluster v1.36.2), from Linux and from the M2 (the Intel build under Rosetta):
 - The functions live in their own file (`~/.vks-golang-web.functions`), rewritten by step 1
   every time, because the env file is written under `set -C` and an existing user would never
   receive a new function.
-- The VCF CLI tarball holds `vcf-cli-linux_amd64`, not `./vcf`. The install block calls
-  `/usr/local/bin/vcf` explicitly and warns when another `vcf` comes first on `PATH`.
+- The VCF CLI tarball holds `vcf-cli-linux_amd64`, not `./vcf`. The install block calls the
+  `vcf` it installed by its full path (`"$D/vcf"`), only after the copy succeeded, and warns when
+  another `vcf` comes first on `PATH`. Before 2026-10-11 its lines were not chained: after a
+  failed copy an older `/usr/local/bin/vcf` installed the new plugins and printed its own version.
 - The 9.1.1 Linux_ARM64 CLI and plugin bundle exist on the portal and install as written.
   Public packages.broadcom.com stops at v9.0.2, so the portal is the source.
 - **The Supervisor's CLI download page** (`/wcp/vcf-cli/`) returns 503 here. Its nginx template

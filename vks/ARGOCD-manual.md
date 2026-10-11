@@ -102,9 +102,29 @@ it still differs, do not use it.
 
 ### Install the argocd program
 
-`argocd` is ArgoCD's command-line tool. This block installs Broadcom's build into
-`/usr/local/bin`; its `sudo` asks for your password. Run it only after the checksum above matched.
-The Mac program is built for Intel; on a Mac with Apple silicon it runs through Rosetta.
+`argocd` is ArgoCD's command-line tool. The second block below installs Broadcom's build. Run it
+only after the checksum above matched. The Mac program is built for Intel; on a Mac with Apple
+silicon it runs through Rosetta.
+
+Broadcom publishes no install steps for its build; the ArgoCD project's own command copies
+`argocd` into `/usr/local/bin` with `sudo`, and so does this block when it can. It never asks
+for a password. When `/usr/local/bin` needs administrator rights and `sudo` would ask, `argocd`
+goes into `~/.local/bin` instead, and the block says so: that is the directory the Kubernetes
+project documents for a Linux user without administrator rights, and this guide's choice for
+every single program it installs. To have `argocd` in `/usr/local/bin`, give `sudo` your password
+first, as a block of its own (skip it if you have no `sudo` rights on this machine):
+
+```sh
+sudo -v
+```
+
+**Expect:** a password prompt, then no output; no prompt and no output at all when `sudo` still
+remembers your password or never asks for one. **If not:** `… is not in the sudoers file`, or
+`a terminal is required` — you have no `sudo` rights here: go on, `argocd` goes into
+`~/.local/bin`. `sudo: command not found` — this machine has no `sudo`: skip this block; the
+next one installs into `~/.local/bin`.
+
+Now install `argocd`:
 
 ```sh
 case "$(uname -s)/$(uname -m)" in
@@ -113,15 +133,39 @@ case "$(uname -s)/$(uname -m)" in
   *)                          P=unsupported ;;
 esac
 ARGOCD_GZ="$HOME/Downloads/argocd-cli-${P}-v3.4.4-vcf.gz"
-if [ -x /usr/local/bin/argocd ] && ! /usr/local/bin/argocd version --client 2>/dev/null | grep -q -e -vcf; then
-  echo "Not installing: /usr/local/bin/argocd is another argocd. Move it away first, or use step 8's alternative."
+D=/usr/local/bin
+F=""; T=""
+for d in "$D" "$HOME/.local/bin"; do
+  if [ -x "$d/argocd" ] && ! "$d/argocd" version --client 2>/dev/null | grep -q -e -vcf; then F="$d/argocd"; fi
+done
+if [ -n "$F" ]; then
+  echo "Not installing: $F is another argocd. Move it away first, or use step 8's alternative."
 elif T="$(mktemp -d)" && gunzip -c "$ARGOCD_GZ" > "$T/argocd" && chmod +x "$T/argocd" \
-   && "$T/argocd" version --client >/dev/null \
-   && sudo install -d /usr/local/bin && sudo install -m 0755 "$T/argocd" /usr/local/bin/argocd; then
+   && "$T/argocd" version --client >/dev/null; then
+  N="$T/argocd"
+  [ -e "$D" ] || mkdir -p "$D" 2>/dev/null
+  X=""
+  for d in "$D" "$HOME/.local/bin"; do if [ -d "$d/argocd" ]; then X="$d/argocd"; fi; done
+  if [ -n "$X" ]; then
+    echo "Nothing installed: $X is a directory, where the argocd program must go. Remove or rename it, then run this block again."
+  elif { [ -d "$D" ] && [ -w "$D" ] && install -m 0755 "$N" "$D/argocd"; } \
+     || { sudo -n install -d "$D" 2>/dev/null && sudo -n install -m 0755 "$N" "$D/argocd"; } \
+     || { W="$D"; D="$HOME/.local/bin"; mkdir -p "$D" && install -m 0755 "$N" "$D/argocd" \
+          && echo "argocd: $W needs administrator rights and this block never asks for a password: installed into $D instead. That is fine. To have it in $W instead: rm $D/argocd, run 'sudo -v', then this block again."; }; then
+    case ":$PATH:" in
+      *":$D:"*) ;;
+      *) PATH="$D:$PATH"
+         echo "argocd: $D was not on your PATH: added for this terminal only. Every later block needs it: add the next line to ~/.zshrc (zsh), ~/.bashrc (bash on Linux) or ~/.bash_profile (bash on macOS), then open a new terminal:"
+         echo "  export PATH=\"$D:\$PATH\"" ;;
+    esac
+    hash -r 2>/dev/null
+    [ "$(command -v argocd)" = "$D/argocd" ] \
+      || echo "WARNING: 'argocd' on your PATH is '$(command -v argocd || echo not found)', not $D/argocd"
+    "$D/argocd" version --client | head -1
+  else
+    echo "Nothing installed: see the error above"
+  fi
   rm -rf "$T"
-  /usr/local/bin/argocd version --client | head -1
-  [ "$(command -v argocd)" = /usr/local/bin/argocd ] \
-    || echo "WARNING: 'argocd' on your PATH is '$(command -v argocd || echo not found)', not /usr/local/bin/argocd"
 else
   [ -n "$T" ] && rm -rf "$T"
   echo "Nothing installed: see the error above"
@@ -137,7 +181,17 @@ fi
   has no `argocd` program for this machine, so use step 8's alternative.
 - `Not installing: …`: an `argocd` from elsewhere (for example Homebrew) is at that path. This
   guide does not replace it.
-- A `WARNING` line: another `argocd` is found first, or `/usr/local/bin` is not in your `PATH`.
+- `argocd: … installed into <your home>/.local/bin instead`: not an error. The directory needs administrator rights and the block
+  never asks for a password, so `argocd` is in `~/.local/bin`. If a line `… was not on your PATH`
+  follows, add the line it prints to `~/.zshrc` (zsh), `~/.bashrc` (bash on Linux) or `~/.bash_profile` (bash on macOS),
+  so that new terminals find `argocd`; this terminal already does.
+- `argocd: command not found` in a later block, in a new terminal: the install went into
+  `~/.local/bin` and the `export PATH=…` line it printed is not in your shell's start file yet.
+  Add it, then open a new terminal.
+- A `WARNING` line: another `argocd` is found first. Put the directory named at the end of the
+  line first in your `PATH`, or remove the other `argocd`.
+- `Nothing installed: see the error above`: the line above it says why (a damaged download, a
+  full disk, or a home directory you may not write to).
 
 ## 2. Register the service with vCenter
 
@@ -796,13 +850,25 @@ page is reloaded.
 
 ### Remove the argocd program
 
-Only if step 1 installed it. Its `sudo` asks for your password.
+Only if step 1 installed it. This removes it from `~/.local/bin` and from `/usr/local/bin`, and
+never asks for a password.
 
 ```sh
-if /usr/local/bin/argocd version --client 2>/dev/null | grep -q -e -vcf; then sudo rm -f /usr/local/bin/argocd; fi
+D=/usr/local/bin
+for d in "$HOME/.local/bin" "$D"; do
+  if [ -x "$d/argocd" ] && "$d/argocd" version --client 2>/dev/null | grep -q -e -vcf; then
+    if [ -w "$d" ]; then rm -f "$d/argocd"
+    else sudo -n rm -f "$d/argocd" 2>/dev/null || echo "Left in place: $d/argocd is in a directory you may not write to. An administrator must remove it; with sudo rights, run: sudo rm -f $d/argocd"
+    fi
+  fi
+done
 ```
 
 **Expect:** no output.
+
+**If not:** `Left in place: …` — that copy is in a directory you may not write to, and this block
+never asks for a password. With `sudo` rights, run the command the line ends with; without
+them, ask an administrator of this machine to remove the file.
 
 ## Fix common problems
 
