@@ -33,9 +33,12 @@ live 9.5 minutes later). In clean containers: every branch of `kubectl_install`,
 user without sudo. `vks/test/blocks_test.sh` now runs the changed blocks against stand-in
 answers in bash and zsh.
 
-**Not walked:** the create and delete blocks on the Mac; a cluster create as the Edit-only
-user; a PRIVATE repository with a token in `ARGOCD-app.md`; Headlamp's page login in a browser
-and the desktop way. `REGISTRY.md`'s deploy blocks ran in their new place, on nodes that may
+On the Mac (zsh), the same day: the namespace and the cluster created and deleted with the
+scripted guides (the cluster was Available after 5.5 minutes). Headlamp's page login in a
+browser, by the owner, with the read-only token: the overview opens on the cluster.
+
+**Not walked:** a cluster create as the Edit-only user; a PRIVATE repository with a token in
+`ARGOCD-app.md`; Headlamp's desktop way; the Mac's create and delete in bash 3.2. `REGISTRY.md`'s deploy blocks ran in their new place, on nodes that may
 already have held the image. `ARGOCD-auto.md`'s install of the `argocd` program needs `sudo`
 at a terminal and has no other path.
 
