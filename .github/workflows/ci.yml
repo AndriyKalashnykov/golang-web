@@ -85,7 +85,7 @@ jobs:
       # .mise.toml, so a separate actions/setup-go step would be redundant
       # work and a second place for the Go version to drift.
       - name: Set up toolchain (mise)
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5
         with:
           version: ${{ env.MISE_VERSION }}
           cache: true
@@ -115,7 +115,7 @@ jobs:
       # .mise.toml, so a separate actions/setup-go step would be redundant
       # work and a second place for the Go version to drift.
       - name: Set up toolchain (mise)
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5
         with:
           version: ${{ env.MISE_VERSION }}
           cache: true
@@ -145,7 +145,7 @@ jobs:
       # .mise.toml, so a separate actions/setup-go step would be redundant
       # work and a second place for the Go version to drift.
       - name: Set up toolchain (mise)
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5
         with:
           version: ${{ env.MISE_VERSION }}
           cache: true
