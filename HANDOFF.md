@@ -4,7 +4,7 @@ Resume point for work on this repo. Durable facts and the backlog are in [CLAUDE
 the VKS runbook has its own [vks/HANDOFF.md](vks/HANDOFF.md). Keep this file short: replace its
 content when the state changes, do not append history (git has it).
 
-## State — 2026-10-15
+## State — 2026-10-16
 
 **v0.0.5 is released and signed** (`0.0.5`, `0.0`, `0`, `latest` = `sha256:cbd47f21…565d`, amd64 +
 arm64; `cosign verify` passes for the v0.0.5 identity and fails for v0.0.4). It closes `/shutdown`:
@@ -25,9 +25,8 @@ touches only files CI ignores (this file, README.md) gets no checks; merge it wi
 - **After every release, merge Renovate's `golang-web image` PR yourself** (owner, 2026-10-16):
   the self-image no longer automerges. Its `static-check` runs `make check-image-pin`, which
   fails unless the pin is the signed release (CLAUDE.md backlog, *Why it is not automerged*). Its
-  first real PR: confirm `gh pr view <n> --json autoMergeRequest` is null while it is open, and
-  read `check-image-pin`'s lines in its `static-check` log. Never `--admin` that PR past a red
-  `static-check`, even one reported as infrastructure: rerun it until the check gives a verdict.
+  Never `--admin` that PR past a red `static-check`, even one reported as infrastructure: rerun
+  it until the check gives a verdict. `static-check` now needs ghcr.io and Sigstore's TUF CDN.
 
 ## Next
 
@@ -35,7 +34,10 @@ touches only files CI ignores (this file, README.md) gets no checks; merge it wi
    [vks/PLAN.md](vks/PLAN.md). Start at the first phase not marked done there.
 1. **After 2026-10-19:** read the first CI run that lands on Ubuntu 26 (`ubuntu-latest` moves).
 2. **At the next tag:** read the `docker` job's `Smoke test` step; it is the first run of
-   `make image-smoke` in CI (local runs only so far).
+   `make image-smoke` in CI (local runs only so far). Then, on Renovate's `golang-web image` PR:
+   `gh pr view <n> --json autoMergeRequest` is null while it is open (first real PR since
+   automerge was turned off), and its `static-check` log shows `check-image-pin` passing for the
+   new version before you merge it.
 
 The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
 
