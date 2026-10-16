@@ -211,10 +211,10 @@ make version        # Print current version tag
       `IMAGE_PIN_TRIES`, not as a bad pin; an outage turns `static-check` red on every PR (merge
       with `--admin` after reading the message, but never the `golang-web image` PR: rerun its
       `static-check` until `check-image-pin` reaches a verdict). Not guarded: a PR that also edits the script or
-      the Makefile (it runs the PR's copy); a signed digest whose tag later moves to it. Two cosign
-      versions: the check uses `.mise.toml`'s, the `docker` job signs with cosign-installer's
-      default (3.0.6 at v4.1.2); both verified both releases' signatures, but nothing keeps them
-      aligned.
+      the Makefile (it runs the PR's copy); a signed digest whose tag later moves to it. One cosign
+      version since 2026-10-16: the `docker` job installs `.mise.toml`'s cosign with mise-action
+      (`install_args`), the one `check-image-pin` verifies with. v0.0.4 and v0.0.5 were signed with
+      3.0.6 (cosign-installer v4.1.2's default); 3.0.6, 3.1.1 and 3.1.3 verify both.
       **An age wait cannot guard it (measured 2026-10-16, renovate 44.155.3, debug lookups with the
       pin set back to 0.0.4):** ghcr.io gives Renovate no release time. With any
       `minimumReleaseAge` (1 hour tried) and the default `minimumReleaseAgeBehaviour:
@@ -264,7 +264,8 @@ make version        # Print current version tag
 - [x] **`latest` is signed: v0.0.4 released 2026-10-01.** `0.0.4` (and, until v0.0.5, `0.0`, `0` and
       `latest`) is `sha256:a7df346e...69eec` (amd64 + arm64), and
       `cosign verify` passes for it and fails for a wrong tag identity. `0.0.3` stays unsigned.
-      Verify any release with:
+      Verify any release with (needs cosign 3 or newer; 2.6.x needs `--new-bundle-format`, older 2.x
+      cannot verify these signatures, measured 2026-10-16):
       ```
       cosign verify ghcr.io/andriykalashnykov/golang-web:<version-without-v> \
         --certificate-identity https://github.com/AndriyKalashnykov/golang-web/.github/workflows/ci.yml@refs/tags/<vX.Y.Z> \

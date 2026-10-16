@@ -301,8 +301,18 @@ jobs:
       # Sign the pushed digest once (cosign keyless OIDC via Sigstore Fulcio/Rekor),
       # verify it, then tag. A tag is published only for a verified signed digest.
       # ----------------------------------------------------------------
+      # cosign comes from .mise.toml, the same pin `make check-image-pin` verifies with, so the
+      # signer and the verifier cannot drift apart. Only cosign is installed (install_args), and
+      # cache: false keeps this partial install out of the other jobs' mise cache.
       - name: Install cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: aqua:sigstore/cosign
+          cache: false
+
+      - name: Show cosign version
+        run: cosign version
 
       - name: Sign image with cosign
         env:
