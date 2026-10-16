@@ -62,11 +62,12 @@
   },
   "packageRules": [
     {
-      "description": "Wait 3 days before automerging major updates",
+      "description": "Wait 3 days before automerging major updates. timestamp-optional: ghcr.io and registry.k8s.io give Renovate no release time, and under the default timestamp-required such a major would stay pending forever (measured 2026-10-16, renovate 44.155.3); it now gets no wait instead.",
       "matchUpdateTypes": [
         "major"
       ],
-      "minimumReleaseAge": "3 days"
+      "minimumReleaseAge": "3 days",
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
     },
     {
       "description": "Group GitHub Actions into one PR",
@@ -93,6 +94,14 @@
       "groupName": "Docker dependencies"
     },
     {
+      "description": "This repo's own image, pinned in k8s/golang-web.yaml: its own PR, never automerged. Renovate follows registry tags, not releases (#305 proposed a 0.0.5 tag a week before v0.0.5), so a person merges the pin after checking the tag is a release. An age wait cannot guard it: ghcr.io gives no release time.",
+      "matchPackageNames": [
+        "ghcr.io/andriykalashnykov/golang-web"
+      ],
+      "groupName": "golang-web image",
+      "automerge": false
+    },
+    {
       "description": "Group Go module dependencies",
       "matchManagers": [
         "gomod"
@@ -103,7 +112,7 @@
       ]
     },
     {
-      "description": "Group tool-version bumps (.mise.toml + the remaining Makefile pins) into one PR. minimumReleaseAge 3 days covers the aqua tag-before-publish race: aqua-backed tools get a git tag before their GitHub Release artifacts publish, so `mise install` 404s on a same-day bump.",
+      "description": "Group tool-version bumps (.mise.toml + the remaining Makefile pins) into one PR. minimumReleaseAge 3 days covers the aqua tag-before-publish race: aqua-backed tools get a git tag before their GitHub Release artifacts publish, so `mise install` 404s on a same-day bump. Renovate dates a GitHub tag by the later of its tag time (the commit date for a lightweight tag) and its Release's publish time, so the gap is a lightweight tag on an older commit, looked up before its Release is published. timestamp-optional: a dep with no release time (cloud-provider-kind on registry.k8s.io, govulncheck, read from go.googlesource.com git tags because the module proxy has no entry for its cmd/ path) was held forever under the default timestamp-required (measured 2026-10-16); it now gets no wait.",
       "matchManagers": [
         "mise",
         "custom.regex"
@@ -112,7 +121,8 @@
         "!go"
       ],
       "groupName": "Tool versions",
-      "minimumReleaseAge": "3 days"
+      "minimumReleaseAge": "3 days",
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
     },
     {
       "description": "cloud-provider-kind is tracked by a custom.regex manager with datasource=docker, but the value is a bare version consumed as an image TAG, not a digest-pinnable image reference. config:best-practices' docker:pinDigests would try to append @sha256 and error the branch on every run.",

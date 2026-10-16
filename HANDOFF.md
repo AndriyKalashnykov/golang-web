@@ -21,8 +21,11 @@ touches only files CI ignores (this file, README.md) gets no checks; merge it wi
   manifest is applied again; the README and the vks guides say so.
 - **vks door A:** the owner kept ClusterIP + port-forward as the default after 0.0.5.
 - **Deploy `main`, never a release tag** (owner, 2026-10-16): a tag's `k8s/` names the release
-  before it. Documented in the README and `vks/ARGOCD-app.md`; for a security release, move
-  `main`'s pin by hand once the image is published (CLAUDE.md backlog).
+  before it. Documented in the README and `vks/ARGOCD-app.md`.
+- **After every release, merge Renovate's `golang-web image` PR yourself** (owner, 2026-10-16):
+  the self-image no longer automerges. Check it names a released version first (CLAUDE.md
+  backlog, *Why it is not automerged*). Its first real PR: confirm
+  `gh pr view <n> --json autoMergeRequest` is null.
 
 ## Next
 
