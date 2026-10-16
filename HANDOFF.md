@@ -34,7 +34,10 @@ touches only files CI ignores (this file, README.md) gets no checks; merge it wi
    [vks/PLAN.md](vks/PLAN.md). Start at the first phase not marked done there.
 1. **After 2026-10-19:** read the first CI run that lands on Ubuntu 26 (`ubuntu-latest` moves).
 2. **At the next tag:** read the `docker` job's `Smoke test` step; it is the first run of
-   `make image-smoke` in CI (local runs only so far). Then, on Renovate's `golang-web image` PR:
+   `make image-smoke` in CI (local runs only so far). It is also the first release signed with
+   `.mise.toml`'s cosign (3.1.3, installed by mise-action; probed on a runner, never on a tag):
+   the `Check the cosign on PATH` and `Verify the signature` steps must pass, or no tag is
+   published. Then, on Renovate's `golang-web image` PR:
    `gh pr view <n> --json autoMergeRequest` is null while it is open (first real PR since
    automerge was turned off), and its `static-check` log shows `check-image-pin` passing for the
    new version before you merge it.
