@@ -28,8 +28,9 @@ command line > shell > `.env` > default). act is told to ignore `.env`.
 make deps           # Install the pinned toolchain via mise (.mise.toml)
 make build          # Build the Go binary
 make test           # Run tests with coverage
-make static-check   # All quality + security checks (check-env, check-kind-kubeconfig, check-vks-docs, check-toolchain-alignment, lint-ci, lint, sec, vulncheck, secrets, trivy-fs, trivy-config, diagrams-check, scripts-test)
+make static-check   # All quality + security checks (check-env, check-image-pin, check-kind-kubeconfig, check-vks-docs, check-toolchain-alignment, lint-ci, lint, sec, vulncheck, secrets, trivy-fs, trivy-config, diagrams-check, scripts-test)
 make check-env      # .env.example documents every setting the Makefile and Go code read
+make check-image-pin  # every k8s/ pin of the image is a release: the registry tag names the digest, and cosign verify passes for this repo's v<version> release run (needs ghcr.io and Sigstore)
 make check-kind-kubeconfig  # kind-*/e2e use only KIND_KUBECONFIG (~/.kube/kind-golang-web.yaml), never the ambient kubeconfig; reads `make -n`, starts nothing
 make check-vks-docs # The vks/ guides: every `sh` block parses (bash, zsh), has an Expect, sources its env file; links resolve; prints "checked N block(s) in M file(s)"
 make format         # Auto-format Go source files
@@ -71,7 +72,7 @@ make version        # Print current version tag
 - `k8s/kind-config.yaml` -- KinD cluster configuration
 - `.mise.toml` -- **tool version single source of truth** (Renovate-tracked)
 - `.env.example` -- every setting, commented (`make check-env` keeps it complete); `.env` is gitignored
-- `.github/scripts/` -- `check-env.sh`, `check-kind-kubeconfig.sh`, `check-vks-docs.sh` (with its allowlist `check-vks-docs.allow` and its table of guides `check-vks-docs.blocks`: a new guide under `vks/` needs one line there), `ghcr-prune-untagged.sh` and `image-smoke.sh` (the image's `/shutdown` check behind `make image-smoke`), each with a `_test.sh`, and `k8s-context-guard_test.sh` (the `k8s-apply`/`k8s-delete` context guard), all run by `make scripts-test`
+- `.github/scripts/` -- `check-env.sh`, `check-image-pin.sh` (the pinned image is a signed release, behind `make check-image-pin`), `check-kind-kubeconfig.sh`, `check-vks-docs.sh` (with its allowlist `check-vks-docs.allow` and its table of guides `check-vks-docs.blocks`: a new guide under `vks/` needs one line there), `ghcr-prune-untagged.sh` and `image-smoke.sh` (the image's `/shutdown` check behind `make image-smoke`), each with a `_test.sh`, and `k8s-context-guard_test.sh` (the `k8s-apply`/`k8s-delete` context guard), all run by `make scripts-test`
 - `vks/test/` -- `walk.sh`, the harness that extracts and runs the guides' blocks (the gate uses its extractor), with `walk_test.sh`; `blocks_test.sh`, which runs blocks of the guides and the main guide's helper commands offline, in bash and zsh, against stand-in `curl` and `kubectl` (what vCenter answers a user without rights, `kubectl_install`, Headlamp's restart after a name change, the blocks that install one program without ever asking for a password); `mac-route.sh`, which makes the lab's addresses answer on a Mac behind the owner's reverse tunnels (`up`, `status`, `down`, `print-tunnel`) and removes only what it created, with `mac-route_test.sh`
 - `.github/workflows/` -- CI and cleanup. The two Claude workflows are
   present but `.disabled` (see the Upgrade Backlog for why and how to restore)
@@ -185,11 +186,10 @@ make version        # Print current version tag
       moved by hand in #351); v0.0.3 ~5.5 months (Renovate dormant; fixed by hand in #175,
       2026-09-24). No bound; user docs quote none.
       **Maintainer action after every release (since 2026-10-16):** merge Renovate's
-      `golang-web image` PR once the tag's image is published, after checking the PR names a
-      released version: run the `cosign verify` command in the *`latest` is signed* entry on the
-      PR's `<version>@<digest>` with the `v<version>` identity; a stray tag's image fails it. It
-      no longer merges itself, so the window above now lasts
-      until that merge; for a security release do it at once, or move the pin by hand as #351 did.
+      `golang-web image` PR once the tag's image is published and its `static-check` is green
+      (`make check-image-pin` there proves the pin is the release). It no longer merges itself, so
+      the window above now lasts until that merge; for a security release do it at once, or move
+      the pin by hand as #351 did.
       **Why it is not automerged:** Renovate tracks registry tags, not releases. #305 proposed a
       `0.0.5` tag on 2026-10-08, a week before the release, with automerge on; it auto-closed and
       was reopened after the release. GHCR has no version from that week now, so such a tag was
@@ -197,10 +197,24 @@ make version        # Print current version tag
       a plain `make image-push` pushes `version.txt`'s value, `v0.0.4` then (with the `v`), so
       not that without a `VERSION=` override. `renovate.json`
       gives the self-image its own group with `automerge: false` (owner, 2026-10-16). That moves the
-      decision to a person; it does not close it: a PR from a stray tag looks like a release's and
-      passes the required checks, none of which reads the pin. A real guard would be a required
-      check that runs `cosign verify` on the pinned digest (a hand-pushed image is unsigned); not
-      built.
+      decision to a person, and `make check-image-pin` (in `static-check`, required) now reads the
+      pin: for every pin of the image in tracked `k8s/**/*.y{a,}ml` (a line naming the image that
+      does not parse fails), the registry tag must still name the pinned digest (`crane digest`),
+      and `cosign verify` must pass with the exact identity of this repo's release run for
+      `refs/tags/v<version>`, on a push, from this repository (`--certificate-github-workflow-*`:
+      ci.yml has `workflow_call`, so the identity alone would not bind the calling repository).
+      Measured 2026-10-16, cosign 3.1.3 and crane 0.22.1 against ghcr.io: 0.0.5 and 0.0.4 pass;
+      0.0.4's digest pinned as 0.0.5 fails on the tag; unsigned 0.0.3 fails ("no signatures
+      found"); identity `andriykalashnykov/...` (lowercase) or another repository fails; 0.0.4's
+      digest verified as v0.0.5 fails in cosign itself ("expected SAN value"). Sigstore's TUF CDN
+      unreachable (proxy to a dead port, empty HOME) is reported as infrastructure after
+      `IMAGE_PIN_TRIES`, not as a bad pin; an outage turns `static-check` red on every PR (merge
+      with `--admin` after reading the message, but never the `golang-web image` PR: rerun its
+      `static-check` until `check-image-pin` reaches a verdict). Not guarded: a PR that also edits the script or
+      the Makefile (it runs the PR's copy); a signed digest whose tag later moves to it. Two cosign
+      versions: the check uses `.mise.toml`'s, the `docker` job signs with cosign-installer's
+      default (3.0.6 at v4.1.2); both verified both releases' signatures, but nothing keeps them
+      aligned.
       **An age wait cannot guard it (measured 2026-10-16, renovate 44.155.3, debug lookups with the
       pin set back to 0.0.4):** ghcr.io gives Renovate no release time. With any
       `minimumReleaseAge` (1 hour tried) and the default `minimumReleaseAgeBehaviour:

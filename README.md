@@ -727,6 +727,7 @@ Intel Macs are not covered.
 | `make ci-run` | Runs the GitHub Actions workflow on this machine with [act](https://github.com/nektos/act) (needs Docker) |
 | `make check-env` | Fails if `.env.example` misses a setting the Makefile or the Go code reads |
 | `make check-vks-docs` | Fails if a guide under `vks/` has a block that does not parse, lacks its **Expect**, uses a setting without loading the env file, or has a broken link |
+| `make check-image-pin` | Fails unless every pin of the published image in `k8s/` is a release: the registry tag still names the pinned digest, and the digest is signed by this repository's release run for that version. Needs ghcr.io and Sigstore. |
 | `make check-kind-kubeconfig` | Fails if a KinD or e2e command could read or write your own kubeconfig instead of the cluster's own file, or if the default of `KIND_KUBECONFIG` is not an absolute path. Starts no cluster. |
 | `make release` | Asks for a new `vX.Y.Z` tag, writes it to `version.txt`, commits, tags and pushes. The tag starts the CI job that publishes and signs the image. The tag's `k8s/golang-web.yaml` still names the previous release: once CI has published the image, move `k8s/golang-web.yaml` on `main` to it. |
 

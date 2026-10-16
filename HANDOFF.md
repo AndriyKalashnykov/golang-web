@@ -23,9 +23,11 @@ touches only files CI ignores (this file, README.md) gets no checks; merge it wi
 - **Deploy `main`, never a release tag** (owner, 2026-10-16): a tag's `k8s/` names the release
   before it. Documented in the README and `vks/ARGOCD-app.md`.
 - **After every release, merge Renovate's `golang-web image` PR yourself** (owner, 2026-10-16):
-  the self-image no longer automerges. Check it names a released version first (CLAUDE.md
-  backlog, *Why it is not automerged*). Its first real PR: confirm
-  `gh pr view <n> --json autoMergeRequest` is null.
+  the self-image no longer automerges. Its `static-check` runs `make check-image-pin`, which
+  fails unless the pin is the signed release (CLAUDE.md backlog, *Why it is not automerged*). Its
+  first real PR: confirm `gh pr view <n> --json autoMergeRequest` is null while it is open, and
+  read `check-image-pin`'s lines in its `static-check` log. Never `--admin` that PR past a red
+  `static-check`, even one reported as infrastructure: rerun it until the check gives a verdict.
 
 ## Next
 
