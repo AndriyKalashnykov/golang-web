@@ -224,7 +224,8 @@ make version        # Print current version tag
       (registry.k8s.io, released 2026-10-02) and govulncheck 1.9.0 (2026-10-11); no PR had opened.
       Both age rules (majors, Tool versions) now set `timestamp-optional`, so a dep with no release
       time gets no wait; a lookup showed both bumps proceed while golangci-lint 2.15.0 and trivy
-      0.76.0 (under 3 days old) are still held. `make renovate-validate` does not check that
+      0.76.0 (under 3 days old) are still held. Seen in production: Renovate's #357 (2026-10-16,
+      after #356) bumped both, cloud-provider-kind to 0.12.0 and govulncheck to 1.9.0. `make renovate-validate` does not check that
       option's value (a misspelling passes); only a lookup proves it. The aqua guard is weaker
       than its description once was: Renovate dates a GitHub tag by the later of its tag time
       (a lightweight tag's commit date) and its Release's publish time, so a lightweight tag on an
