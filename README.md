@@ -309,7 +309,7 @@ in more than one place, the order is: command line, then a variable exported in 
 ## Run the published image
 
 A multi-arch image (`linux/amd64`, `linux/arm64`) is published to GitHub's registry on every
-release. Its tags have no `v`: `0.0.4`, `0.0`, `0` and `latest`.
+release. Its tags have no `v`: `X.Y.Z`, `X.Y`, `X` and `latest`.
 
 Pull it and run it; with Docker, replace `podman` with `docker`:
 
@@ -317,9 +317,6 @@ Pull it and run it; with Docker, replace `podman` with `docker`:
 podman pull ghcr.io/andriykalashnykov/golang-web:latest
 podman run --rm -p 127.0.0.1:8080:8080 ghcr.io/andriykalashnykov/golang-web:latest
 ```
-
-`127.0.0.1` keeps the port to this machine: the 0.0.4 image serves `/shutdown`, which stops
-the app for anyone who can reach it.
 
 Expect the log line `Starting web server on port 8080`. Open <http://localhost:8080>. Press
 Ctrl-C to stop it. If port 8080 is taken, change the first `8080`, as in `-p 127.0.0.1:9090:8080`.
@@ -338,8 +335,8 @@ Expect this last line:
 golang-web running: http://localhost:8080/   logs: make image-logs   stop: make image-stop
 ```
 
-The image is named `ghcr.io/andriykalashnykov/golang-web:v0.0.4`. That is only a local name;
-nothing is uploaded.
+The image is named `ghcr.io/andriykalashnykov/golang-web:<version>`, where `<version>` is the
+contents of `version.txt`. That is only a local name; nothing is uploaded.
 
 | Command | What it does |
 |---|---|
@@ -347,6 +344,7 @@ nothing is uploaded.
 | `make image-run-bg` | Builds the image and runs it in the background on port 8080 (`APP_PORT=9090` to change) |
 | `make image-logs` | Follows the container's log; Ctrl-C to leave (the `make: ***` line it prints then is normal) |
 | `make image-stop` | Stops the container; expect `Stopped golang-web.` |
+| `make image-smoke` | Checks the built image starts and keeps `/shutdown` closed; expect `PASS: … keeps /shutdown closed by default`. `IMAGE_SMOKE_REF=<image>` checks another image |
 
 ### Choose podman or Docker
 
@@ -420,11 +418,10 @@ If `kubectl config current-context` still prints `kind-golang-web`, also run
 ## Deploy the published image to a cluster
 
 Needs kubectl and a test cluster; the one `make e2e` created works. The image deployed is the
-published `ghcr.io/andriykalashnykov/golang-web:0.0.4`, not one you built.
+published one that `k8s/golang-web.yaml` pins, not one you built.
 
-Do not use a cluster that others can reach: the 0.0.4 image always serves `/shutdown`, so
-anyone who can open the app's address can stop it. The first release after 0.0.4 will serve
-it only with `ENABLE_SHUTDOWN=true`.
+Releases 0.0.4 and older serve `/shutdown` to anyone who can reach the app. If one of them is
+deployed, run this section again to replace it.
 
 Check which cluster kubectl points at. For the local cluster, first point this terminal at its
 kubeconfig file (skip this line for any other cluster):
@@ -504,7 +501,7 @@ The image is pushed as `<registry>/<owner>/golang-web:<version>`:
 |---|---|---|
 | `<registry>` | The registry host. Variable: `IMAGE_REGISTRY`. | `ghcr.io` (GitHub's registry) |
 | `<owner>` | Your account on that registry. On ghcr.io: your GitHub user or organization name, in lowercase. Variable: `OWNER`. | `andriykalashnykov` (the author; you cannot push there) |
-| `<version>` | The contents of `version.txt`. | `v0.0.4` |
+| `<version>` | The contents of `version.txt`. | `cat version.txt` |
 
 ### 1. Create a token the registry accepts
 
@@ -536,7 +533,7 @@ your registry's host and, when your login name is not the owner name,
 Expect your owner name in the image (the version is whatever `version.txt` holds):
 
 ```text
-Image (image-push target)    - ghcr.io/octocat/golang-web:v0.0.4  <- set OWNER / IMAGE_REGISTRY for your own
+Image (image-push target)    - ghcr.io/octocat/golang-web:<version>  <- set OWNER / IMAGE_REGISTRY for your own
 ```
 
 ### 3. Log in
@@ -561,7 +558,7 @@ and no `Push to ... failed.` at the end:
 
 ```text
 podman buildx is available.
-Building ghcr.io/octocat/golang-web:v0.0.4 for linux/amd64,linux/arm64
+Building ghcr.io/octocat/golang-web:<version> for linux/amd64,linux/arm64
 ```
 
 (`docker buildx is available.` when the engine is Docker.)
@@ -606,7 +603,7 @@ Expect (your image, context and namespace differ; `configured` replaces `created
 is already in that namespace, as it is in the local cluster after `make e2e`):
 
 ```text
-Deploying ghcr.io/octocat/golang-web:v0.0.4 to context 'kind-golang-web', namespace 'default'.
+Deploying ghcr.io/octocat/golang-web:<version> to context 'kind-golang-web', namespace 'default'.
 deployment.apps/golang-web created
 service/golang-web-service created
 deployment "golang-web" successfully rolled out
@@ -675,7 +672,7 @@ A statically linked Go binary in a distroless image, behind a LoadBalancer Servi
 | `/` | GET | Main page, plain text: `Hello, World`, a request counter, and the pod's node, name, namespace, IP and service account (`empty` outside Kubernetes). Set `APP_CONTEXT` to serve it on another path. |
 | `/healthz` | GET | Liveness/readiness probe — returns `{"health":"ok", "Version":…, "BuildTime":…}` (both empty under `make run`; set by `make build` and the image) |
 | `/metrics` | GET | Prometheus exposition; counter key `request_count_promtotal` |
-| `/shutdown` | any | Exits the process for anyone who can reach it, with no login. A build of this checkout serves it only with `ENABLE_SHUTDOWN=true`; the published 0.0.4 image always serves it. When it is off, the path is not special: it returns the main page, or 404 when `APP_CONTEXT` is set. |
+| `/shutdown` | any | Exits the process for anyone who can reach it, with no login. Served only with `ENABLE_SHUTDOWN=true`; images 0.0.4 and older serve it always. When it is off, the path is not special: it returns the main page, or 404 when `APP_CONTEXT` is set. |
 
 The main page under `make run`:
 

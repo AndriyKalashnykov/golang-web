@@ -242,7 +242,11 @@ out=$(cd "$T/work" && bash "$WALK" run "$T/stub/out" --yes-run --home "$T/home2"
 took=$(( $(date +%s) - start ))
 spid=$(cat "$T/home2/stubborn.pid" 2>/dev/null || true)
 eq "--timeout: exit status 124 for a block whose child ignores TERM" "$(cat "$T/stub/out/results/001.rc")" 124
-if [ -n "$spid" ] && kill -0 "$spid" 2>/dev/null; then
+# A zombie counts as gone: it was killed but nothing reaped it. Under act the job runs through
+# `docker exec` in a container whose PID 1 (`tail -f /dev/null`) never reaps, so the killed child
+# stays a zombie and `kill -0` alone still succeeds (measured: Z, parent 1).
+alive() { kill -0 "$1" 2>/dev/null && case "$(ps -o stat= -p "$1" 2>/dev/null)" in Z* | '') return 1 ;; *) return 0 ;; esac; }
+if [ -n "$spid" ] && alive "$spid"; then
   bad "--timeout: the TERM-ignoring child is gone when the walk returns" "pid $spid is still alive after ${took}s"
   kill -KILL "$spid" 2>/dev/null          # a process this test started, by its own pid
 else

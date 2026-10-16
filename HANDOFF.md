@@ -4,35 +4,30 @@ Resume point for work on this repo. Durable facts and the backlog are in [CLAUDE
 the VKS runbook has its own [vks/HANDOFF.md](vks/HANDOFF.md). Keep this file short: replace its
 content when the state changes, do not append history (git has it).
 
-## State — 2026-10-07
+## State — 2026-10-15
 
-`main` is green. No open PRs, worktrees or local branches.
-**v0.0.4 is released and signed** (`latest` points at it), and **`main` is protected**:
+**v0.0.5 is released and signed** (`0.0.5`, `0.0`, `0`, `latest` = `sha256:cbd47f21…565d`, amd64 +
+arm64; `cosign verify` passes for the v0.0.5 identity and fails for v0.0.4). It closes `/shutdown`:
+the image serves it only with `ENABLE_SHUTDOWN=true` (run on amd64 with podman and docker; arm64
+compared statically, not run). `/healthz` reports the real build time. **`main` is protected**:
 `static-check`, `build` and `test` are required and the branch must be up to date. A PR that
 touches only files CI ignores (this file, README.md) gets no checks; merge it with
 `gh pr merge <n> --squash --admin`.
 
-Nothing is in progress. The last work, 2026-10-06:
-
-- **`/shutdown` is off unless `ENABLE_SHUTDOWN=true`** (#277). The published 0.0.4 image, which
-  `k8s/golang-web.yaml` pins, still serves it to anyone: that closes only with the next release.
-- **README:** sections run install, use, reference; Homebrew is the one macOS starting point;
-  Debian 12 needs Docker (its podman 4.3 cannot build the image).
-- **Tested platforms:** every section walked on eight platforms in one clean pass each; what was
-  and was not exercised is in the README table, its note, and CLAUDE.md's backlog entry.
-- **`vks/README.md`:** unchanged apart from the podman version sentence; its last full walk is
-  2026-10-05 (details in `vks/HANDOFF.md`).
-- **vks-airgap-cicd:** its KinD teardown and bring-up no longer remove or replace this project's
-  LoadBalancer controller. The deliberate differences between the two projects are listed in
-  CLAUDE.md.
+- **The release path now checks the image:** the tag-only `docker` job's smoke test is
+  `make image-smoke`, which fails if the image serves `/shutdown` by default (proven against the
+  published 0.0.4 and 0.0.5, on both engines). It first runs on the next tag.
+- **`k8s/golang-web.yaml` pins 0.0.5.** A cluster that was given 0.0.4 keeps it until the
+  manifest is applied again; the README and the vks guides say so.
+- **vks door A:** the owner kept ClusterIP + port-forward as the default after 0.0.5.
 
 ## Next
 
 0. **In progress since 2026-10-10: the `vks/` end-to-end story.** Plan, decisions and phases:
    [vks/PLAN.md](vks/PLAN.md). Start at the first phase not marked done there.
 1. **After 2026-10-19:** read the first CI run that lands on Ubuntu 26 (`ubuntu-latest` moves).
-2. **At the next release:** check `/healthz` of the released image shows a build timestamp, not
-   `now` (#247; it runs only on a tag, so a local build is the only proof so far).
+2. **At the next tag:** read the `docker` job's `Smoke test` step; it is the first run of
+   `make image-smoke` in CI (local runs only so far).
 
 The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
 
