@@ -799,12 +799,20 @@ mr X=1 -- down
 eq "down after up --file: exit 0" "$rc" 0
 reset_fakes
 
+# As root without SUDO_UID (act runs job steps as root; GitHub runs them as `runner`) the real
+# relay refuses to go on, by design, so these cases cannot run. The refusal itself is checked by
+# the drop test below, which replaces the system calls and runs as any user.
+SRC=$T/relay.src   # also read by the drop test below, so it is set outside the guard
+real_skipped=0
+if [ "$(id -u)" = 0 ] && [ -z "${SUDO_UID:-}" ]; then
+  real_skipped=1
+  echo "SKIP  real relay: running as root without SUDO_UID; the relay refuses that by design (the drop test below covers the refusal)"
+else
 # --- the real relay, on 127.0.0.1 -------------------------------------------------------------
 # Everything but the bind to an lo0 alias and the drop from root: start (it goes to the
 # background and prints its PID), bytes out, the end of the client's data passed on
 # (half-close), bytes back, the log, the limits, stop.
 R=$T/real; mkdir -p "$R"
-SRC=$T/relay.src
 # rr <label> <arguments…>: start a relay; sets out and rc; a PID it printed is remembered for cleanup
 rr() {
   out=$(python3 -I - --tag vks-mac-route "$@" < "$SRC" 2>&1); rc=$?
@@ -902,6 +910,7 @@ rr --listen "127.0.0.1:$lp" --connect "127.0.0.1:$sp" --log "$R/link.log"
 has "real relay: a log path that is a symbolic link is refused" "$rc $out" "1 relay: cannot open the log $R/link.log: "
 [ ! -e "$R/target.log" ] && ok "real relay: … and nothing was written through it" || bad "real relay: … and nothing was written through it" "exists"
 
+fi
 # The drop from root cannot run here (no root). Its logic is run with the system calls
 # replaced: what it calls, in which order, and that it never goes on as root.
 droptest=$(python3 - "$SRC" <<'PY'
@@ -955,4 +964,5 @@ root, setuid has no effect -> refusing to continue as root | calls [('setgroups'
 order in main: True
 log failure: survived"
 
-if [ "$fails" -eq 0 ]; then echo "mac-route.sh tests: all $checks checks passed"; else echo "mac-route.sh tests: $fails of $checks FAILED"; exit 1; fi
+skipnote=""; [ "$real_skipped" = 0 ] || skipnote=" (the real-relay section was SKIPPED: root without SUDO_UID)"
+if [ "$fails" -eq 0 ]; then echo "mac-route.sh tests: all $checks checks passed$skipnote"; else echo "mac-route.sh tests: $fails of $checks FAILED$skipnote"; exit 1; fi

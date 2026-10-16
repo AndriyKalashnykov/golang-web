@@ -1135,6 +1135,13 @@ ci-run: deps
 	@# --env-file /dev/null: act would otherwise load ./.env, which is make syntax (`?=`), not
 	@# dotenv: act dies on it (measured), and in dotenv form it would inject local settings and
 	@# REGISTRY_TOKEN into the CI containers, so the run would no longer mirror GitHub.
+	@# --container-options --init: act starts each job container with `tail -f /dev/null` as
+	@# PID 1 and runs the steps through `docker exec`, so a killed orphan is never reaped and
+	@# stays a zombie that `kill -0` and `ps` still see. GitHub's runners are VMs whose init
+	@# reaps. MEASURED in act's layout: mac-route_test went from 29 to 8 failures with an init.
+	@# The 8 left were its real relay, which refuses to run as root without SUDO_UID: act runs
+	@# steps as root, GitHub as the user `runner`. mac-route_test now skips that section there,
+	@# and says so; its drop test still checks the refusal.
 	@plat='$(ACT_ARCH)'; \
 	if [ -z "$$plat" ]; then \
 	  arch=$$(docker info --format '{{.Architecture}}') || { echo "docker info failed (output above); start Docker and retry."; exit 1; }; \
@@ -1143,7 +1150,7 @@ ci-run: deps
 	fi; \
 	echo "Running the CI workflow with act in $$plat job containers..."; \
 	[ "$$plat" = linux/amd64 ] || echo "Note: GitHub runs this workflow on linux/amd64; this $$plat run does not prove amd64."; \
-	act push --container-architecture "$$plat" --rm --env-file /dev/null \
+	act push --container-architecture "$$plat" --rm --env-file /dev/null --container-options "--init" \
 		--container-daemon-socket unix:///var/run/docker.sock \
 		-P ubuntu-latest=$(ACT_RUNNER_IMAGE)
 
