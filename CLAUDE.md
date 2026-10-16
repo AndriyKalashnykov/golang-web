@@ -184,15 +184,37 @@ make version        # Print current version tag
       v0.0.4 12 min (Renovate #234); v0.0.5 3.5 h (Renovate proposed it after 3 h, the pin was
       moved by hand in #351); v0.0.3 ~5.5 months (Renovate dormant; fixed by hand in #175,
       2026-09-24). No bound; user docs quote none.
-      **Maintainer action for a security release:** move the pin by hand as soon as the tag's
-      image is published, as #351 did.
-      **Known weakness:** Renovate tracks registry tags, not releases. #305 proposed `v0.0.5` on
-      2026-10-08, a week before the release, with automerge on; it auto-closed and was reopened
-      after the release. GHCR has no version from that week now, so a `0.0.5` tag was likely
-      pushed and deleted (cause unverified; the Mend log linked in #305 would settle it). Any
-      semver tag pushed to the package by hand would be proposed for `main`'s pin with automerge
-      on (#305 was, for ~19 h, and did not merge; why is unknown, its CI runs are gone). Guarding
-      that (e.g. a `minimumReleaseAge` rule for the self-image) is an open owner choice.
+      **Maintainer action after every release (since 2026-10-16):** merge Renovate's
+      `golang-web image` PR once the tag's image is published, after checking the PR names a
+      released version: run the `cosign verify` command in the *`latest` is signed* entry on the
+      PR's `<version>@<digest>` with the `v<version>` identity; a stray tag's image fails it. It
+      no longer merges itself, so the window above now lasts
+      until that merge; for a security release do it at once, or move the pin by hand as #351 did.
+      **Why it is not automerged:** Renovate tracks registry tags, not releases. #305 proposed a
+      `0.0.5` tag on 2026-10-08, a week before the release, with automerge on; it auto-closed and
+      was reopened after the release. GHCR has no version from that week now, so such a tag was
+      pushed and deleted. The cause is unverified (the Mend log linked in #305 would settle it);
+      a plain `make image-push` pushes `version.txt`'s value, `v0.0.4` then (with the `v`), so
+      not that without a `VERSION=` override. `renovate.json`
+      gives the self-image its own group with `automerge: false` (owner, 2026-10-16). That moves the
+      decision to a person; it does not close it: a PR from a stray tag looks like a release's and
+      passes the required checks, none of which reads the pin. A real guard would be a required
+      check that runs `cosign verify` on the pinned digest (a hand-pushed image is unsigned); not
+      built.
+      **An age wait cannot guard it (measured 2026-10-16, renovate 44.155.3, debug lookups with the
+      pin set back to 0.0.4):** ghcr.io gives Renovate no release time. With any
+      `minimumReleaseAge` (1 hour tried) and the default `minimumReleaseAgeBehaviour:
+      timestamp-required`, 0.0.5 stayed "pending, no releaseTimestamp" for ever; without the rule it
+      was proposed. With `timestamp-optional` the wait is skipped, a no-op. The same hold had frozen
+      two tool bumps under the "Tool versions" 3-day rule: cloud-provider-kind 0.12.0
+      (registry.k8s.io, released 2026-10-02) and govulncheck 1.9.0 (2026-10-11); no PR had opened.
+      Both age rules (majors, Tool versions) now set `timestamp-optional`, so a dep with no release
+      time gets no wait; a lookup showed both bumps proceed while golangci-lint 2.15.0 and trivy
+      0.76.0 (under 3 days old) are still held. `make renovate-validate` does not check that
+      option's value (a misspelling passes); only a lookup proves it. The aqua guard is weaker
+      than its description once was: Renovate dates a GitHub tag by the later of its tag time
+      (a lightweight tag's commit date) and its Release's publish time, so a lightweight tag on an
+      older commit, looked up before its Release exists, can pass the 3 days at once.
 - [x] **`BuildTime` in released images (#247): proven on v0.0.5.** Its `/healthz` reports
       `"BuildTime":"2026-10-15T23:28:57.909Z"` (0.0.4 reported `"now"`).
 - [ ] **macOS, local KinD cluster: a second LoadBalancer Service never gets its address.**
