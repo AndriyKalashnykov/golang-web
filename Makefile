@@ -520,9 +520,22 @@ scripts-test: deps
 	@bash .github/scripts/k8s-context-guard_test.sh
 	@bash .github/scripts/check-vks-docs_test.sh
 	@bash .github/scripts/image-smoke_test.sh
+	@bash .github/scripts/check-image-pin_test.sh
 	@bash vks/test/walk_test.sh
 	@bash vks/test/blocks_test.sh
 	@bash vks/test/mac-route_test.sh
+
+# check-image-pin: the image whose pins under k8s/ are checked, and the GitHub repository whose
+# release run must have signed it, spelled as GitHub spells it (the certificate identity is
+# case-sensitive). Not derived from OWNER: OWNER names where YOUR pushes go.
+IMAGE_PIN_IMAGE ?= ghcr.io/andriykalashnykov/golang-web
+IMAGE_PIN_REPO ?= AndriyKalashnykov/golang-web
+# check-image-pin: attempts per network call (registry, Sigstore) before it reports infrastructure.
+IMAGE_PIN_TRIES ?= 3
+
+#check-image-pin: @ Verify every k8s/ pin of the image is a release: the tag names the digest, and the release run signed it
+check-image-pin: deps
+	@IMAGE_PIN_IMAGE=$(IMAGE_PIN_IMAGE) IMAGE_PIN_REPO=$(IMAGE_PIN_REPO) IMAGE_PIN_TRIES=$(IMAGE_PIN_TRIES) bash .github/scripts/check-image-pin.sh
 
 #check-kind-kubeconfig: @ Verify the KinD and e2e targets use only KinD's own kubeconfig file
 check-kind-kubeconfig:
@@ -541,7 +554,7 @@ check-env:
 	@bash .github/scripts/check-env.sh
 
 #static-check: @ Run all quality and security checks
-static-check: check-env check-kind-kubeconfig check-vks-docs check-vks-templates check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config diagrams-check scripts-test
+static-check: check-env check-image-pin check-kind-kubeconfig check-vks-docs check-vks-templates check-toolchain-alignment lint-ci lint sec vulncheck secrets trivy-fs trivy-config diagrams-check scripts-test
 	@echo "Static check passed."
 
 #format: @ Auto-format Go source files
@@ -1216,7 +1229,7 @@ deps-prune-check: deps
 	fi
 
 .PHONY: help engines deps deps-engine deps-buildx registry-login deps-verify deps-kind check-toolchain-alignment \
-	check-env check-kind-kubeconfig check-vks-docs check-vks-templates scripts-test \
+	check-env check-image-pin check-kind-kubeconfig check-vks-docs check-vks-templates scripts-test \
 	diagrams diagrams-check \
 	test build lint lint-ci sec vulncheck secrets \
 	trivy-fs trivy-config static-check format run coverage-check \
