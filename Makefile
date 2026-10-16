@@ -51,10 +51,10 @@ CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 # the customManager matchString in renovate.json anchors on `\n` with no blank
 # or comment line between. Do not insert commentary in that gap.
 # renovate: datasource=docker depName=registry.k8s.io/cloud-provider-kind/cloud-controller-manager extractVersion=^v(?<version>.*)$
-CLOUD_PROVIDER_KIND_VERSION := 0.11.1
+CLOUD_PROVIDER_KIND_VERSION := 0.12.0
 # Renovate CLI, run via `npx renovate@$(RENOVATE_VERSION)`; not a mise tool.
 # renovate: datasource=npm depName=renovate
-RENOVATE_VERSION    := 44.155.3
+RENOVATE_VERSION    := 44.155.4
 # PlantUML renderer for docs/diagrams/*.puml. Runs as a container (not a mise
 # tool) so no JRE is needed on the host.
 # renovate: datasource=docker depName=plantuml/plantuml
