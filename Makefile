@@ -519,6 +519,7 @@ scripts-test: deps
 	@bash .github/scripts/check-kind-kubeconfig_test.sh
 	@bash .github/scripts/k8s-context-guard_test.sh
 	@bash .github/scripts/check-vks-docs_test.sh
+	@bash .github/scripts/image-smoke_test.sh
 	@bash vks/test/walk_test.sh
 	@bash vks/test/blocks_test.sh
 	@bash vks/test/mac-route_test.sh
@@ -598,6 +599,18 @@ update: deps
 	@before=$$(cat go.mod go.sum | cksum); go get -u ./... && go mod tidy || exit 1; \
 	if [ "$$before" = "$$(cat go.mod go.sum | cksum)" ]; then echo "Dependencies already up to date."; \
 	else echo "Dependencies updated (go.mod / go.sum changed):"; git diff --stat -- go.mod go.sum; fi
+
+# image-smoke: the image to check (default: the image-build image) and how long, in seconds, to
+# wait for it to answer and for the control container to exit.
+IMAGE_SMOKE_REF ?= $(OPV)
+IMAGE_SMOKE_TIMEOUT ?= 30
+
+#image-smoke: @ Check an image starts and keeps /shutdown closed unless ENABLE_SHUTDOWN=true (IMAGE_SMOKE_REF)
+# Runs two containers on ephemeral 127.0.0.1 ports, so no port is fixed. CI calls it with
+# CONTAINER_ENGINE=docker because the image it tests is loaded into docker's store.
+image-smoke:
+	@$(call engine_ready,$(DOCKERCMD))
+	@ENGINE=$(DOCKERCMD) IMAGE_SMOKE_REF=$(IMAGE_SMOKE_REF) IMAGE_SMOKE_TIMEOUT=$(IMAGE_SMOKE_TIMEOUT) bash .github/scripts/image-smoke.sh
 
 #image-test-fg: @ Run container in foreground with test overrides
 image-test-fg: image-build
@@ -1201,7 +1214,7 @@ deps-prune-check: deps
 	test build lint lint-ci sec vulncheck secrets \
 	trivy-fs trivy-config static-check format run coverage-check \
 	image-build clean update \
-	image-test-fg image-run-bg \
+	image-smoke image-test-fg image-run-bg \
 	image-logs image-stop image-push \
 	k8s-apply k8s-delete \
 	kind-cloud-provider-start kind-cloud-provider-stop kind-cloud-provider-restart \

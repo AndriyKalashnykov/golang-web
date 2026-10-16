@@ -95,9 +95,8 @@ D4. **Add-ons** in `vks/addons/`. **Headlamp** ⚑: Desktop with the guest kubec
     Gateway API CRDs and an Accepted `GatewayClass istio`; the `Gateway` in its own namespace
     labelled `baseline`, proven with `--dry-run=server`; a ClusterIP Service + `HTTPRoute`.
 D5. **Deploy has three doors.** A. published image: by default with a ClusterIP Service and a
-    port-forward ⚑, because the pinned 0.0.4 image serves `/shutdown` to anyone; the
-    LoadBalancer form is a stated choice with that warning (it goes away with the next
-    release: owner's call). B. build, push to Harbor, deploy by digest. C. ArgoCD Application
+    port-forward ⚑ (owner, 2026-10-15: kept after 0.0.5 closed `/shutdown`, because only
+    kubeconfig holders then reach the app); the LoadBalancer form is a stated choice. B. build, push to Harbor, deploy by digest. C. ArgoCD Application
     on `k8s/` through a `kustomization.yaml`: the image override is **name + digest** ⚑
     (MEASURED with kustomize: name alone keeps the ghcr digest; name + tag drops the digest
     and brings back the stale-tag failure), stored in the Application by default so no fork is
@@ -495,8 +494,8 @@ None blocks a phase; each is a place where a green gate says nothing.
 
 ## Open with the owner (defaults are in force until overruled)
 
-- **Door A's exposure:** default is ClusterIP + port-forward until a release without the open
-  `/shutdown` exists. A new release would let door A use the LoadBalancer.
+- **Door A's exposure:** settled 2026-10-15. 0.0.5 closed `/shutdown`; the owner kept ClusterIP +
+  port-forward as the default, with LoadBalancer as the stated alternative.
 - **Helm:** read as "installed, checked and tested where it is needed (Headlamp)", not as a
   prerequisite for everyone.
 - **Image Updater:** measured in phase 9, shipped only if it works.

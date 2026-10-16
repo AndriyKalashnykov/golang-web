@@ -248,29 +248,16 @@ jobs:
           ignore-unfixed: true
 
       # ----------------------------------------------------------------
-      # GATE 3: Smoke test — run the container, verify /healthz responds.
-      # distroless/nonroot has no shell, so the check is fully external.
+      # GATE 3: Smoke test — the image starts, answers /healthz, and does
+      # not serve /shutdown unless ENABLE_SHUTDOWN=true (0.0.4 shipped it
+      # open to anyone). A control container with ENABLE_SHUTDOWN=true must
+      # exit, which proves the check can see an exit. distroless/nonroot has
+      # no shell, so the check is fully external; ports are ephemeral.
+      # CONTAINER_ENGINE=docker: the image was loaded into docker's store,
+      # and the Makefile would otherwise pick the runner's podman.
       # ----------------------------------------------------------------
       - name: Smoke test
-        run: |
-          set -euo pipefail
-          docker run -d --name golang-web-smoke -p 18080:8080 golang-web:scan
-          ok=0
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:18080/healthz | grep -q '"health":"ok"'; then
-              echo "Smoke test passed on attempt $i"
-              ok=1
-              break
-            fi
-            sleep 1
-          done
-          if [ "$ok" -ne 1 ]; then
-            echo "Smoke test failed — container logs:"
-            docker logs golang-web-smoke || true
-            docker rm -f golang-web-smoke >/dev/null 2>&1 || true
-            exit 1
-          fi
-          docker rm -f golang-web-smoke >/dev/null 2>&1 || true
+        run: make image-smoke CONTAINER_ENGINE=docker IMAGE_SMOKE_REF=golang-web:scan
 
       # ----------------------------------------------------------------
       # All gates passed → push multi-arch with attestations BY DIGEST (no tags

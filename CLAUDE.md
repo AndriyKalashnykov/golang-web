@@ -37,6 +37,7 @@ make ci             # Full local CI pipeline (deps, deps-verify, format, deps-pr
 make ci-run         # Run GitHub Actions workflow locally via act (jobs in the Docker engine's arch; ACT_ARCH overrides)
 make run            # Run locally on port 8080
 make image-build    # Build Docker image
+make image-smoke    # Check an image starts and keeps /shutdown closed by default (IMAGE_SMOKE_REF=<image>)
 make e2e            # Run e2e tests (KinD + cloud-provider-kind + curl checks)
 make kind-delete    # Clean up KinD cluster (prunes this cluster's sidecars only)
 make release        # Create and push a new semver tag
@@ -57,7 +58,7 @@ make version        # Print current version tag
 - **static-check**: All quality + security checks (`make static-check`, list above) on ubuntu-latest
 - **build**: Build (`make build`) after static-check passes
 - **test**: Test with coverage threshold (`make coverage-check`) after static-check passes (parallel with build)
-- **docker** (tags only, after build + test): Trivy image scan and smoke test, then push the multi-arch image BY DIGEST, `cosign sign` it, `cosign verify` it, and only then attach the release tags (`--dry-run` first confirms the tagged digest equals the signed one). `flavor: latest=auto`, so a prerelease tag does not move `latest`.
+- **docker** (tags only, after build + test): Trivy image scan and smoke test (`make image-smoke`: fails if the image serves `/shutdown` by default), then push the multi-arch image BY DIGEST, `cosign sign` it, `cosign verify` it, and only then attach the release tags (`--dry-run` first confirms the tagged digest equals the signed one). `flavor: latest=auto`, so a prerelease tag does not move `latest`.
 
 ## Project Structure
 
@@ -70,7 +71,7 @@ make version        # Print current version tag
 - `k8s/kind-config.yaml` -- KinD cluster configuration
 - `.mise.toml` -- **tool version single source of truth** (Renovate-tracked)
 - `.env.example` -- every setting, commented (`make check-env` keeps it complete); `.env` is gitignored
-- `.github/scripts/` -- `check-env.sh`, `check-kind-kubeconfig.sh`, `check-vks-docs.sh` (with its allowlist `check-vks-docs.allow` and its table of guides `check-vks-docs.blocks`: a new guide under `vks/` needs one line there) and `ghcr-prune-untagged.sh`, each with a `_test.sh`, and `k8s-context-guard_test.sh` (the `k8s-apply`/`k8s-delete` context guard), all run by `make scripts-test`
+- `.github/scripts/` -- `check-env.sh`, `check-kind-kubeconfig.sh`, `check-vks-docs.sh` (with its allowlist `check-vks-docs.allow` and its table of guides `check-vks-docs.blocks`: a new guide under `vks/` needs one line there), `ghcr-prune-untagged.sh` and `image-smoke.sh` (the image's `/shutdown` check behind `make image-smoke`), each with a `_test.sh`, and `k8s-context-guard_test.sh` (the `k8s-apply`/`k8s-delete` context guard), all run by `make scripts-test`
 - `vks/test/` -- `walk.sh`, the harness that extracts and runs the guides' blocks (the gate uses its extractor), with `walk_test.sh`; `blocks_test.sh`, which runs blocks of the guides and the main guide's helper commands offline, in bash and zsh, against stand-in `curl` and `kubectl` (what vCenter answers a user without rights, `kubectl_install`, Headlamp's restart after a name change, the blocks that install one program without ever asking for a password); `mac-route.sh`, which makes the lab's addresses answer on a Mac behind the owner's reverse tunnels (`up`, `status`, `down`, `print-tunnel`) and removes only what it created, with `mac-route_test.sh`
 - `.github/workflows/` -- CI and cleanup. The two Claude workflows are
   present but `.disabled` (see the Upgrade Backlog for why and how to restore)
@@ -158,16 +159,18 @@ make version        # Print current version tag
       and 5 and `make release` were not run, and the amd64 image was pushed but not run. Every section
       after the mise line ran in a terminal with mise activated. The macOS 26.6.2 row is an earlier
       Mac that no longer exists.
-- [ ] **`/shutdown` is gated in the source, not in any published image (2026-10-06).** `main.go`
-      registers it only when `ENABLE_SHUTDOWN` is exactly `true`, and logs
-      `shutdown endpoint: enabled|disabled` at start. The 0.0.4 image (`latest`) still serves it
-      to anyone, and `k8s/golang-web.yaml` pins 0.0.4 behind a LoadBalancer Service. The exposure
-      closes only with the next release and Renovate's bump of that pin; when to release is the
-      owner's decision. Until then the README warns in both sections that run the published image.
-- [ ] **`BuildTime` in released images (#247) is unproven until the next tag.** The 0.0.4 image's
-      `/healthz` reports `"BuildTime":"now"`: `ci.yml` passed `MY_VERSION` but not
-      `MY_BUILDTIME`. Both image builds now pass the metadata step's `created` timestamp. A local
-      build with the argument returns it; the workflow path runs only on a tag.
+- [x] **`/shutdown` closed in a published image: v0.0.5, 2026-10-15.** `main.go` registers it only
+      when `ENABLE_SHUTDOWN` is exactly `true`. Run on amd64 with docker: unset, `1`, `TRUE`,
+      `" true"` and 8 path variants (`/shutdown/`, `//shutdown`, `/%73hutdown`, ...) all reach the
+      catch-all page and the container keeps running; `ENABLE_SHUTDOWN=true` stops it.
+      `make image-smoke` passes on podman and docker.
+      arm64 was compared statically (same Go, ldflags and gate strings), not run.
+      `k8s/golang-web.yaml` pins 0.0.5. Images 0.0.4 and older still serve it; a cluster given one
+      keeps it until the manifest is applied again. Guarded from now on by `make image-smoke`
+      in the tag-only `docker` job (two containers: a control with `ENABLE_SHUTDOWN=true` must
+      exit, the image's defaults must not); it first runs in CI on the next tag.
+- [x] **`BuildTime` in released images (#247): proven on v0.0.5.** Its `/healthz` reports
+      `"BuildTime":"2026-10-15T23:28:57.909Z"` (0.0.4 reported `"now"`).
 - [ ] **macOS, local KinD cluster: a second LoadBalancer Service never gets its address.**
       cloud-provider-kind publishes Services on host port 8080 there, the e2e Service holds it,
       and deleting the second Service's namespace then waits forever on its finalizer (measured:

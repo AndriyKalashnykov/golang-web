@@ -79,10 +79,11 @@ not want (the last one wins).
 | `APP_SERVICE_TYPE` | `ClusterIP` (reach the app through `kubectl port-forward`) or `LoadBalancer` (the app gets an address of its own) |
 | `APP_REPO_USERNAME`, `APP_REPO_TOKEN` | only for a private Git repository of your own (*Use your own Git repository* below) |
 
-**Why `ClusterIP` is the default.** The published image `0.0.4` answers `/shutdown` for anyone
-who can reach it, and the app then stops. With `ClusterIP` only people who hold the cluster's
-kubeconfig reach the app. Set `LoadBalancer` only on a network where every machine that can
-reach the address may stop the app.
+**Why `ClusterIP` is the default.** With `ClusterIP` only people who hold the cluster's kubeconfig
+reach the app. Set `LoadBalancer` when every machine on that network may reach it. Images 0.0.4
+and older also stop for anyone who requests `/shutdown`: if you pinned `APP_REVISION` to a
+commit, check which image it deploys with `git show "$APP_REVISION":k8s/golang-web.yaml | grep image:`
+and move the pin forward if it shows `0.0.4`.
 
 **What `main` means.** With `APP_REVISION="main"` ArgoCD follows this repository: a change to
 the `k8s` folder here reaches your cluster a few minutes later, without asking you. To decide that

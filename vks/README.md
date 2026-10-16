@@ -602,9 +602,8 @@ kubectl config set-context --current --namespace=golang-web
 ### Deploy the published image
 
 By default the app gets no address of its own. Its Service is made as type `ClusterIP`, which
-only the cluster reaches, and you open the app through `kubectl port-forward`, because the
-published image (version 0.0.4) exits when anyone who can reach it requests its `/shutdown`
-path.
+only the cluster reaches, and you open the app through `kubectl port-forward`, so only someone
+who holds the cluster's kubeconfig can reach it.
 
 This writes `ClusterIP` in place of `LoadBalancer` in the Service of `k8s/golang-web.yaml`
 (only for this command; the file is not changed), applies it, waits up to 150 seconds for the
@@ -630,14 +629,13 @@ kubectl get svc golang-web-service -o jsonpath='{"service type: "}{.spec.type}{"
   from the one this block looks for. Run `git pull`, then the block again.
 
 <details>
-<summary><b>Alternative: give the app a LoadBalancer address</b> (only on a network where everyone who reaches the address may stop the app)</summary>
+<summary><b>Alternative: give the app a LoadBalancer address</b> (everything on that network can then reach the app)</summary>
 
 Run this INSTEAD of the block above, or after it to change your choice. It applies
 `k8s/golang-web.yaml` as it is: the Service is of type `LoadBalancer`, and the cluster gives the
 app an IP address that your machine, and everything else on that network, can reach.
-**Anyone who can reach that address can stop the app** by requesting `/shutdown`; Kubernetes
-starts it again each time. This warning ends with the first published image that has the
-`/shutdown` path switched off.
+Images 0.0.4 and older also stop for anyone who requests `/shutdown` at that address; the image
+`k8s/golang-web.yaml` pins now does not.
 
 ```sh
 source ~/.vks-golang-web.env
