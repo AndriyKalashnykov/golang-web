@@ -1140,8 +1140,8 @@ ci-run: deps
 	@# stays a zombie that `kill -0` and `ps` still see. GitHub's runners are VMs whose init
 	@# reaps. MEASURED in act's layout: mac-route_test went from 29 to 8 failures with an init.
 	@# The 8 left were its real relay, which refuses to run as root without SUDO_UID: act runs
-	@# steps as root, GitHub as the user `runner`. mac-route_test now skips that section there,
-	@# and says so; its drop test still checks the refusal.
+	@# steps as root, GitHub as the user `runner`. As root, mac-route_test now gives the relay a
+	@# user to drop to (SUDO_UID, or nobody), so it drops for real and every check runs.
 	@plat='$(ACT_ARCH)'; \
 	if [ -z "$$plat" ]; then \
 	  arch=$$(docker info --format '{{.Architecture}}') || { echo "docker info failed (output above); start Docker and retry."; exit 1; }; \
