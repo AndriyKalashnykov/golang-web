@@ -31,7 +31,7 @@ node = "24"
 "go:github.com/securego/gosec/v2/cmd/gosec" = "7b1b5cebe007d62fb58eacb90fc571112939ec30"
 "aqua:gitleaks/gitleaks"      = "8.30.1"
 "aqua:aquasecurity/trivy"     = "0.75.0"
-"go:golang.org/x/vuln/cmd/govulncheck" = "1.8.0"
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"
 
 # === Local Kubernetes / CI ===
 "aqua:kubernetes-sigs/kind"   = "0.33.0"
