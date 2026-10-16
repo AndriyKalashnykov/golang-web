@@ -20,6 +20,9 @@ touches only files CI ignores (this file, README.md) gets no checks; merge it wi
 - **`k8s/golang-web.yaml` pins 0.0.5.** A cluster that was given 0.0.4 keeps it until the
   manifest is applied again; the README and the vks guides say so.
 - **vks door A:** the owner kept ClusterIP + port-forward as the default after 0.0.5.
+- **Deploy `main`, never a release tag** (owner, 2026-10-16): a tag's `k8s/` names the release
+  before it. Documented in the README and `vks/ARGOCD-app.md`; for a security release, move
+  `main`'s pin by hand once the image is published (CLAUDE.md backlog).
 
 ## Next
 

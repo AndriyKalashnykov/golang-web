@@ -74,7 +74,7 @@ not want (the last one wins).
 |---|---|
 | `ARGOCD_APP` | the name of the Application in ArgoCD |
 | `APP_NAMESPACE` | the Kubernetes namespace in the guest cluster that ArgoCD creates for the app. **Use one that does not exist yet**: the blocks refuse a namespace they did not create |
-| `APP_REPO`, `APP_REVISION` | the Git repository and the branch, tag or commit ArgoCD reads the `k8s` folder from |
+| `APP_REPO`, `APP_REVISION` | the Git repository and the branch or commit ArgoCD reads the `k8s` folder from: `main` or a commit of it, not a release tag (*Which image runs* below) |
 | `APP_IMAGE` | the image to run, as `<name>@sha256:<digest>`. Empty means: the published image, exactly as the file in Git names it |
 | `APP_SERVICE_TYPE` | `ClusterIP` (reach the app through `kubectl port-forward`) or `LoadBalancer` (the app gets an address of its own) |
 | `APP_REPO_USERNAME`, `APP_REPO_TOKEN` | only for a private Git repository of your own (*Use your own Git repository* below) |
@@ -83,11 +83,20 @@ not want (the last one wins).
 cluster: only workloads in that cluster, and people whose kubeconfig allows `port-forward`, reach
 it. Set `LoadBalancer` when every machine on that network may reach it.
 
-**Which image runs.** Images 0.0.4 and older stop for anyone who requests `/shutdown`. A release
-tag names the image of the release before it (tag `v0.0.5` deploys 0.0.4), so read what the
-cluster runs, not the tag: *Wait for the app and check its image* prints it on the `Deployment:`
-line. If that shows `0.0.4` or older, set `APP_REVISION` to `main`, or to a commit of `main` from
-after its `k8s/golang-web.yaml` names `0.0.5`.
+**Which image runs.** With `APP_IMAGE` empty (the published image) the image is the one
+`k8s/golang-web.yaml` names at `APP_REVISION`. Deploy `main`, the default, or a commit of it;
+never a release tag. A release tag names the image of the release before it:
+`k8s/golang-web.yaml` can name a release only once CI has published its image, so the commit that
+moves it comes after the tag. Tag `v0.0.5` deploys 0.0.4, and images 0.0.4 and older stop for
+anyone who requests `/shutdown`. For a while after a release `main` also still names the previous
+one. So read what the cluster runs: *Wait for the app and check its image* prints it on the
+`Deployment:` line. In your clone of this repository, on `main` after `git pull`, `version.txt`
+names the newest release and `grep image: k8s/golang-web.yaml` the one `main` deploys. If they
+differ, wait until the file names the newest: with `main` the cluster then gets it by itself. A
+pinned commit needs a new pin: `git ls-remote "$APP_REPO" main` prints the commit `main` is on
+now; put it into the env file as `APP_REVISION`, then run *Create the Application* and *Wait for
+the app and check its image* again (*Deploy another image*). With your own image in `APP_IMAGE`,
+or your own repository, this paragraph does not apply: those decide the image.
 
 **What `main` means.** With `APP_REVISION="main"` ArgoCD follows this repository: a change to
 the `k8s` folder here reaches your cluster a few minutes later, without asking you. To decide that
@@ -104,7 +113,7 @@ GIT_TERMINAL_PROMPT=0 git ls-remote "$APP_REPO" "$APP_REVISION"
 | `APP_REVISION` is | the block prints |
 |---|---|
 | a branch, such as `main` | one line: 40 letters and digits (the commit), then `refs/heads/<the branch>` |
-| a tag | the same with `refs/tags/<the tag>`; a second line ending in `^{}`, when there is one, holds the commit |
+| a tag | the same with `refs/tags/<the tag>`; a second line ending in `^{}`, when there is one, holds the commit (do not deploy a release tag: *Which image runs*) |
 | a commit (40 letters and digits) | nothing: a commit is already pinned |
 
 Put the 40 characters into the env file as `APP_REVISION` to pin that commit.

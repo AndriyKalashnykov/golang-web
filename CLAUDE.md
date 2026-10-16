@@ -169,13 +169,30 @@ make version        # Print current version tag
       keeps it until the manifest is applied again. Guarded from now on by `make image-smoke`
       in the tag-only `docker` job (two containers: a control with `ENABLE_SHUTDOWN=true` must
       exit, the image's defaults must not); it first runs in CI on the next tag.
-- [ ] **A release tag deploys the release before it (measured 2026-10-15).** `make release` tags
-      the commit that bumps `version.txt`; `k8s/golang-web.yaml` can only name the new image once
-      CI has built it, so the pin moves in a later commit. `git show <tag>:k8s/golang-web.yaml`:
-      `v0.0.5` -> 0.0.4, `v0.0.4` -> 0.0.3, `v0.0.3` -> v0.0.1. Anyone who deploys `k8s/` at a
-      tag (ArgoCD `APP_REVISION=v0.0.5`) gets the older image; `vks/ARGOCD-app.md` tells readers to
-      check the running image instead. A tag cannot name its own digest, so the fix is a
-      process choice (e.g. a second tag on the pin commit, or document "deploy `main`"); owner's call.
+- [x] **A release tag deploys the release before it: documented "deploy `main`" (owner,
+      2026-10-16).** `make release` tags the commit that bumps `version.txt`; the image exists
+      only after the tag's CI run (~8 min), so `k8s/golang-web.yaml` names it in a later commit.
+      Since v0.0.4, `git show <tag>:k8s/golang-web.yaml`: `v0.0.5` -> 0.0.4, `v0.0.4` -> 0.0.3
+      (`v0.0.3` sits on 8fdc867, a later commit that bumps Renovate's pin, and names `v0.0.1`,
+      a tag that never existed). No process change: the README
+      (*Deploy the published image*, the `make release` row) and `vks/ARGOCD-app.md` (*Which image
+      runs*, the `APP_REVISION` row) say deploy `main` or a commit of it, never a tag, and check the
+      running image. Every documented default already reads `main`. Only `v0.0.5` has
+      `k8s/kustomization.yaml`, so it is the one tag the guide's (kustomize) Application can
+      deploy, and it deploys 0.0.4.
+      **The window:** `main` also names the previous release until the pin commit lands. Measured:
+      v0.0.4 12 min (Renovate #234); v0.0.5 3.5 h (Renovate proposed it after 3 h, the pin was
+      moved by hand in #351); v0.0.3 ~5.5 months (Renovate dormant; fixed by hand in #175,
+      2026-09-24). No bound; user docs quote none.
+      **Maintainer action for a security release:** move the pin by hand as soon as the tag's
+      image is published, as #351 did.
+      **Known weakness:** Renovate tracks registry tags, not releases. #305 proposed `v0.0.5` on
+      2026-10-08, a week before the release, with automerge on; it auto-closed and was reopened
+      after the release. GHCR has no version from that week now, so a `0.0.5` tag was likely
+      pushed and deleted (cause unverified; the Mend log linked in #305 would settle it). Any
+      semver tag pushed to the package by hand would be proposed for `main`'s pin with automerge
+      on (#305 was, for ~19 h, and did not merge; why is unknown, its CI runs are gone). Guarding
+      that (e.g. a `minimumReleaseAge` rule for the self-image) is an open owner choice.
 - [x] **`BuildTime` in released images (#247): proven on v0.0.5.** Its `/healthz` reports
       `"BuildTime":"2026-10-15T23:28:57.909Z"` (0.0.4 reported `"now"`).
 - [ ] **macOS, local KinD cluster: a second LoadBalancer Service never gets its address.**
