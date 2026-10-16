@@ -4,8 +4,9 @@
 # switch (MAC_ROUTE_TEST=1): `uname`, `ifconfig`, `route`, `scutil`, `sudo`, `lsof` and the
 # relay's interpreter are stand-ins, the hosts file is a scratch file, and `ps`, `kill`, `cp`
 # are the real ones behind a wrapper (a relay stand-in is a real process, so the PID, start
-# time and command line checks are real). The relay itself is then run for real, on 127.0.0.1.
-# Not reachable here: a bind to an lo0 alias, the drop from root, and macOS's own tools.
+# time and command line checks are real). The relay itself is then run for real, on 127.0.0.1;
+# run as root (as under act), it drops to SUDO_UID, or to nobody. Not reachable here: a bind to an
+# lo0 alias and macOS's own tools; the real drop from root only when the tests run as root.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 MR=$HERE/mac-route.sh
@@ -799,12 +800,21 @@ mr X=1 -- down
 eq "down after up --file: exit 0" "$rc" 0
 reset_fakes
 
+SRC=$T/relay.src   # also read by the drop test below
 # --- the real relay, on 127.0.0.1 -------------------------------------------------------------
 # Everything but the bind to an lo0 alias and the drop from root: start (it goes to the
 # background and prints its PID), bytes out, the end of the client's data passed on
 # (half-close), bytes back, the log, the limits, stop.
 R=$T/real; mkdir -p "$R"
-SRC=$T/relay.src
+# As root (act runs job steps as root; GitHub runs them as `runner`) the relay drops to SUDO_UID
+# before it opens its log, and refuses to stay root. Give it a user to drop to (nobody) when sudo
+# gave none or gave root, and let that user reach the log directory: the drop then runs for real.
+relay_uid=$(id -u)
+if [ "$relay_uid" = 0 ]; then
+  case "${SUDO_UID:-0}" in 0) export SUDO_UID=65534 SUDO_GID=65534 ;; esac
+  relay_uid=$SUDO_UID
+  chmod 711 "$T"; chmod 777 "$R"
+fi
 # rr <label> <arguments…>: start a relay; sets out and rc; a PID it printed is remembered for cleanup
 rr() {
   out=$(python3 -I - --tag vks-mac-route "$@" < "$SRC" 2>&1); rc=$?
@@ -853,7 +863,8 @@ PY
 )
   eq "real relay: bytes go out, the end of the data is passed on, the answer comes back" "$reply" "got:4321-gnip"
   i=0; while ! grep -q 'closed' "$R/relay.log" && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
-  has "real relay: logs what it listens on and its limits" "$(cat "$R/relay.log")" "listening on 127.0.0.1:$lp, connecting to 127.0.0.1:$sp, pid $rpid, uid $(id -u), at most 64 connections, idle limit 1800 s"
+  has "real relay: logs what it listens on and its limits" "$(cat "$R/relay.log")" "listening on 127.0.0.1:$lp, connecting to 127.0.0.1:$sp, pid $rpid, uid $relay_uid, at most 64 connections, idle limit 1800 s"
+  eq "real relay: it runs as uid $relay_uid (started as uid $(id -u))" "$(ps -o uid= -p "$rpid" | tr -d ' ')" "$relay_uid"
   has "real relay: logs the byte counts, not the bytes" "$(cat "$R/relay.log")" "closed: 9 bytes out, 13 bytes back"
   hasnt "real relay: no payload in the log" "$(cat "$R/relay.log")" "ping"
   rr --listen "127.0.0.1:$lp" --connect "127.0.0.1:$sp" --log "$R/relay2.log"
@@ -902,8 +913,9 @@ rr --listen "127.0.0.1:$lp" --connect "127.0.0.1:$sp" --log "$R/link.log"
 has "real relay: a log path that is a symbolic link is refused" "$rc $out" "1 relay: cannot open the log $R/link.log: "
 [ ! -e "$R/target.log" ] && ok "real relay: … and nothing was written through it" || bad "real relay: … and nothing was written through it" "exists"
 
-# The drop from root cannot run here (no root). Its logic is run with the system calls
-# replaced: what it calls, in which order, and that it never goes on as root.
+# The drop from root runs for real above only when the tests run as root. Its logic is also run
+# here with the system calls replaced: what it calls, in which order, and that it never goes on
+# as root.
 droptest=$(python3 - "$SRC" <<'PY'
 import os, sys, types
 src = open(sys.argv[1]).read()
