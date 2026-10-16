@@ -169,6 +169,13 @@ make version        # Print current version tag
       keeps it until the manifest is applied again. Guarded from now on by `make image-smoke`
       in the tag-only `docker` job (two containers: a control with `ENABLE_SHUTDOWN=true` must
       exit, the image's defaults must not); it first runs in CI on the next tag.
+- [ ] **A release tag deploys the release before it (measured 2026-10-15).** `make release` tags
+      the commit that bumps `version.txt`; `k8s/golang-web.yaml` can only name the new image once
+      CI has built it, so the pin moves in a later commit. `git show <tag>:k8s/golang-web.yaml`:
+      `v0.0.5` -> 0.0.4, `v0.0.4` -> 0.0.3, `v0.0.3` -> v0.0.1. Anyone who deploys `k8s/` at a
+      tag (ArgoCD `APP_REVISION=v0.0.5`) gets the older image; `vks/ARGOCD-app.md` tells readers to
+      check the running image instead. A tag cannot name its own digest, so the fix is a
+      process choice (e.g. a second tag on the pin commit, or document "deploy `main`"); owner's call.
 - [x] **`BuildTime` in released images (#247): proven on v0.0.5.** Its `/healthz` reports
       `"BuildTime":"2026-10-15T23:28:57.909Z"` (0.0.4 reported `"now"`).
 - [ ] **macOS, local KinD cluster: a second LoadBalancer Service never gets its address.**
@@ -200,8 +207,8 @@ make version        # Print current version tag
       sign-before-tag job end to end: `cosign verify` passed, the image was multi-arch, and
       `latest` did not move. The prerelease image (7 GHCR versions) and its git tag were deleted
       afterwards.
-- [x] **`latest` is signed: v0.0.4 released 2026-10-01.** `0.0.4`, `0.0`,
-      `0` and `latest` all point at `sha256:a7df346e...69eec` (amd64 + arm64), and
+- [x] **`latest` is signed: v0.0.4 released 2026-10-01.** `0.0.4` (and, until v0.0.5, `0.0`, `0` and
+      `latest`) is `sha256:a7df346e...69eec` (amd64 + arm64), and
       `cosign verify` passes for it and fails for a wrong tag identity. `0.0.3` stays unsigned.
       Verify any release with:
       ```
@@ -209,7 +216,7 @@ make version        # Print current version tag
         --certificate-identity https://github.com/AndriyKalashnykov/golang-web/.github/workflows/ci.yml@refs/tags/<vX.Y.Z> \
         --certificate-oidc-issuer https://token.actions.githubusercontent.com
       ```
-      `k8s/golang-web.yaml` pins `0.0.4@sha256:a7df346e...` (Renovate, #234).
+      `k8s/golang-web.yaml` pinned `0.0.4@sha256:a7df346e...` (Renovate, #234) until v0.0.5.
 - [x] **Cleanup workflow re-enabled 2026-09-25** (it had been `disabled_inactivity`). Its first
       real run, 2026-09-27, logged "7 versions; 1 orphaned images, keeping the
       newest 1": nothing deleted, as the dry run predicted.

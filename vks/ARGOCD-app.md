@@ -79,11 +79,15 @@ not want (the last one wins).
 | `APP_SERVICE_TYPE` | `ClusterIP` (reach the app through `kubectl port-forward`) or `LoadBalancer` (the app gets an address of its own) |
 | `APP_REPO_USERNAME`, `APP_REPO_TOKEN` | only for a private Git repository of your own (*Use your own Git repository* below) |
 
-**Why `ClusterIP` is the default.** With `ClusterIP` only people who hold the cluster's kubeconfig
-reach the app. Set `LoadBalancer` when every machine on that network may reach it. Images 0.0.4
-and older also stop for anyone who requests `/shutdown`: if you pinned `APP_REVISION` to a
-commit, check which image it deploys with `git show "$APP_REVISION":k8s/golang-web.yaml | grep image:`
-and move the pin forward if it shows `0.0.4`.
+**Why `ClusterIP` is the default.** With `ClusterIP` the app has no address outside the guest
+cluster: only workloads in that cluster, and people whose kubeconfig allows `port-forward`, reach
+it. Set `LoadBalancer` when every machine on that network may reach it.
+
+**Which image runs.** Images 0.0.4 and older stop for anyone who requests `/shutdown`. A release
+tag names the image of the release before it (tag `v0.0.5` deploys 0.0.4), so read what the
+cluster runs, not the tag: *Wait for the app and check its image* prints it on the `Deployment:`
+line. If that shows `0.0.4` or older, set `APP_REVISION` to `main`, or to a commit of `main` from
+after its `k8s/golang-web.yaml` names `0.0.5`.
 
 **What `main` means.** With `APP_REVISION="main"` ArgoCD follows this repository: a change to
 the `k8s` folder here reaches your cluster a few minutes later, without asking you. To decide that

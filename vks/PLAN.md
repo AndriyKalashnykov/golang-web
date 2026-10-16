@@ -335,7 +335,7 @@ there.
 **Phase 6 (door A).** `README.md`, *Deploy the published image*: NEW block, the published image
 with the Service written as `ClusterIP` by `sed` on the way to `kubectl apply`, then the
 Service's type printed; NEW collapsed alternative that applies the file as it is
-(`LoadBalancer`), with the `/shutdown` warning. Checked on a workstation only: the `sed` changes
+(`LoadBalancer`), with the `/shutdown` warning (reworded 2026-10-15, after 0.0.5). Checked on a workstation only: the `sed` changes
 exactly one line of `k8s/golang-web.yaml`, and the `jsonpath` prints `service type: ClusterIP`
 (`kubectl patch --local`). **Not run on a lab:** both blocks, the change from one Service type
 to the other and back on a live Service, a pull of the ghcr image by a guest node, and the reach

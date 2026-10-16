@@ -11,6 +11,8 @@
 #            echoes "GET /shutdown"; /healthz must still answer; the container must still be the
 #            same running one (same start time, no restart).
 # The operator's ENABLE_SHUTDOWN never reaches either container: only explicit -e values do.
+# curl ignores ~/.curlrc and any proxy setting (-q --noproxy): both would send 127.0.0.1 elsewhere.
+# If a release removes /shutdown entirely, the control can no longer exit: change the control.
 #
 # Inputs (environment): ENGINE (podman|docker), IMAGE_SMOKE_REF (image to test),
 # IMAGE_SMOKE_TIMEOUT (seconds to wait for start and for the control's exit; default 30).
@@ -24,9 +26,12 @@ CTR_PORT=8080
 NAMES=()
 cleanup() {
   local n
-  for n in "${NAMES[@]}"; do "$ENGINE" rm -f "$n" >/dev/null 2>&1 || true; done
+  # ${NAMES[@]+...}: bash 3.2 (macOS) treats an empty array as unset under set -u.
+  for n in ${NAMES[@]+"${NAMES[@]}"}; do "$ENGINE" rm -f "$n" >/dev/null 2>&1 || true; done
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 harness() { echo "FAIL (harness, not the image): $*" >&2; exit 1; }
@@ -58,21 +63,22 @@ identity() { "$ENGINE" inspect -f '{{.State.StartedAt}} {{.RestartCount}}' "$1" 
 
 healthy() {
   local body
-  body=$(curl -s -m 2 "http://127.0.0.1:$PORT/healthz" 2>/dev/null) || return 1
+  body=$(curl -q -s --noproxy '*' -m 2 "http://127.0.0.1:$PORT/healthz" 2>/dev/null) || return 1
   case "$body" in *'"health":"ok"'*) return 0 ;; *) return 1 ;; esac
 }
 
-# wait_ready <name>: poll /healthz until it answers, the container stops, or TIMEOUT passes.
+# wait_ready <name> <fail|harness>: poll /healthz until it answers, the container stops, or
+# TIMEOUT passes; report through the given function (the control's problems are the harness's).
 wait_ready() {
-  local i=0
+  local i=0 report=$2
   while [ "$i" -lt "$TIMEOUT" ]; do
     healthy && return 0
-    if [ "$(running "$1")" != true ]; then logs "$1"; fail "$1 stopped before /healthz answered"; fi
+    if [ "$(running "$1")" != true ]; then logs "$1"; "$report" "$1 stopped before /healthz answered"; fi
     sleep 1
     i=$((i + 1))
   done
   logs "$1"
-  fail "$1: /healthz did not answer within ${TIMEOUT}s"
+  "$report" "$1: /healthz did not answer within ${TIMEOUT}s"
 }
 
 echo "image-smoke: $REF on $ENGINE"
@@ -80,8 +86,8 @@ echo "image-smoke: $REF on $ENGINE"
 # ---- control arm: the check must be able to see an exit --------------------------------------
 CTL=golang-web-smoke-ctl-$$
 start "$CTL" -e ENABLE_SHUTDOWN=true
-wait_ready "$CTL"
-curl -s -o /dev/null -m 5 "http://127.0.0.1:$PORT/shutdown" >/dev/null 2>&1 || true
+wait_ready "$CTL" harness
+curl -q -s --noproxy '*' -o /dev/null -m 5 "http://127.0.0.1:$PORT/shutdown" >/dev/null 2>&1 || true
 i=0
 while [ "$(running "$CTL")" = true ] && [ "$i" -lt "$TIMEOUT" ]; do sleep 1; i=$((i + 1)); done
 [ "$(running "$CTL")" = true ] && {
@@ -95,9 +101,9 @@ echo "  control: ENABLE_SHUTDOWN=true -> GET /shutdown stopped the container (ex
 # ---- subject arm: the image's own defaults ----------------------------------------------------
 SUB=golang-web-smoke-$$
 start "$SUB"
-wait_ready "$SUB"
+wait_ready "$SUB" fail
 before=$(identity "$SUB")
-resp=$(curl -s -m 5 -w '\n%{http_code}' "http://127.0.0.1:$PORT/shutdown" 2>/dev/null)
+resp=$(curl -q -s --noproxy '*' -m 5 -w '\n%{http_code}' "http://127.0.0.1:$PORT/shutdown" 2>/dev/null)
 rc=$?
 status=${resp##*$'\n'}
 body=${resp%$'\n'*}

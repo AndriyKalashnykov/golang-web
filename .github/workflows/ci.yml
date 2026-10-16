@@ -90,6 +90,13 @@ jobs:
           version: ${{ env.MISE_VERSION }}
           cache: true
 
+      # act's runner image (catthehacker/ubuntu) has no gettext-base, which GitHub's
+      # runners ship; check-vks-templates needs its GNU envsubst (the aqua envsubst
+      # is a different program). Runs only under act (`make ci-run`).
+      - name: Install envsubst (act only)
+        if: ${{ env.ACT }}
+        run: command -v envsubst >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gettext-base; }
+
       - name: Static check
         run: make static-check
 
@@ -255,6 +262,8 @@ jobs:
       # no shell, so the check is fully external; ports are ephemeral.
       # CONTAINER_ENGINE=docker: the image was loaded into docker's store,
       # and the Makefile would otherwise pick the runner's podman.
+      # It checks golang-web:scan (amd64, this job's first build), not the
+      # multi-arch digest pushed below; arm64 is not run.
       # ----------------------------------------------------------------
       - name: Smoke test
         run: make image-smoke CONTAINER_ENGINE=docker IMAGE_SMOKE_REF=golang-web:scan

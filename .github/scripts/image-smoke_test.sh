@@ -25,8 +25,9 @@ case "\$1" in
   run) shift; name=""; args="\$*"
        while [ \$# -gt 0 ]; do case "\$1" in --name) name=\$2; shift;; esac; shift; done
        p=\$(( \$(cat "$D/port") + 1 )); echo \$p > "$D/port"
-       echo "\$args" > "\$c/\$name.args"; echo \$p > "\$c/\$name.port"; echo "\$name" > "$D/byport-\$p"
-       case "\$args" in *"ENABLE_SHUTDOWN=true"*) echo ctl ;; *) echo sub ;; esac > "\$c/\$name.role"
+       echo \$p > "\$c/\$name.port"; echo "\$name" > "$D/byport-\$p"
+       case "\$args" in *"ENABLE_SHUTDOWN=true"*) role=ctl ;; *) role=sub ;; esac
+       echo \$role > "\$c/\$name.role"; echo "\$args" >> "$D/\$role.args"
        echo true > "\$c/\$name.run"; echo T0 > "\$c/\$name.start"; echo cid ;;
   port) echo "127.0.0.1:\$(cat "\$c/\$2.port")" ;;
   inspect) f=\$3; n=\$4
@@ -79,9 +80,12 @@ check() {
 
 new_case closed;   check "correct image passes" 0 "PASS: img keeps /shutdown closed by default"
 # The operator's ENABLE_SHUTDOWN=true (set in check) must reach only the control container.
-sub_args=$(cat "$D"/c/golang-web-smoke-[0-9]*.args)
-case "$sub_args" in *ENABLE_SHUTDOWN*) echo "FAIL subject got ENABLE_SHUTDOWN: $sub_args"; fails=$((fails + 1)) ;;
-  *) echo "ok   operator ENABLE_SHUTDOWN does not reach the subject container" ;; esac
+# The fake engine appends each container's run arguments to $D/<role>.args: exactly one subject.
+if [ "$(wc -l < "$D/sub.args" 2>/dev/null || echo 0)" -ne 1 ]; then
+  echo "FAIL expected exactly one subject container run"; fails=$((fails + 1))
+elif grep -q ENABLE_SHUTDOWN "$D/sub.args"; then
+  echo "FAIL subject got ENABLE_SHUTDOWN: $(cat "$D/sub.args")"; fails=$((fails + 1))
+else echo "ok   operator ENABLE_SHUTDOWN does not reach the subject container"; fi
 rm -rf "$D"
 new_case open;     check "open /shutdown fails"      1 "FAIL: /shutdown is served by default"; rm -rf "$D"
 new_case graceful; check "graceful /shutdown fails"  1 "was not answered by the catch-all handler"; rm -rf "$D"
