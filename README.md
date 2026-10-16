@@ -420,8 +420,10 @@ If `kubectl config current-context` still prints `kind-golang-web`, also run
 Needs kubectl and a test cluster; the one `make e2e` created works. The image deployed is the
 published one that `k8s/golang-web.yaml` pins, not one you built.
 
-Releases 0.0.4 and older serve `/shutdown` to anyone who can reach the app. If one of them is
-deployed, run this section again to replace it.
+Run it from `main`, the branch a clone starts on, not from a release tag: a tag's
+`k8s/golang-web.yaml` names the release before it, because the image is published only after the
+tag. Releases 0.0.4 and older serve `/shutdown` to anyone who can reach the app. If one of them
+is deployed, run `git switch main && git pull`, then this section again to replace it.
 
 Check which cluster kubectl points at. For the local cluster, first point this terminal at its
 kubeconfig file (skip this line for any other cluster):
@@ -726,7 +728,7 @@ Intel Macs are not covered.
 | `make check-env` | Fails if `.env.example` misses a setting the Makefile or the Go code reads |
 | `make check-vks-docs` | Fails if a guide under `vks/` has a block that does not parse, lacks its **Expect**, uses a setting without loading the env file, or has a broken link |
 | `make check-kind-kubeconfig` | Fails if a KinD or e2e command could read or write your own kubeconfig instead of the cluster's own file, or if the default of `KIND_KUBECONFIG` is not an absolute path. Starts no cluster. |
-| `make release` | Asks for a new `vX.Y.Z` tag, writes it to `version.txt`, commits, tags and pushes. The tag starts the CI job that publishes and signs the image. |
+| `make release` | Asks for a new `vX.Y.Z` tag, writes it to `version.txt`, commits, tags and pushes. The tag starts the CI job that publishes and signs the image. The tag's `k8s/golang-web.yaml` still names the previous release: once CI has published the image, move `k8s/golang-web.yaml` on `main` to it. |
 
 Where versions are pinned:
 
