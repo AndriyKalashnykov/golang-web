@@ -299,8 +299,9 @@ vks/test/mac-route.sh status
 vks/test/mac-route.sh down
 ```
 
-The list for this lab (the addresses are in "The lab" below; the tunnel ports are the ones the
-earlier walks used):
+The list the earlier walks used (the tunnel ports are theirs). The `.130` and `.132` lines are
+the Harbor and guest cluster that are gone (see "The lab" below). Replace them with the
+addresses the new ones get:
 
 ```
 192.168.100.50:443:18443
@@ -343,22 +344,34 @@ The owner restarted the lab the same day; nothing inside it was checked after th
 `make creds` in that repo prints the endpoints; the passwords are in its gitignored
 `secrets.env`.
 
+**State on 2026-10-19:** the lab is up but bare. Its `lab-start` began at 10:44 and reported every
+workload ready at 10:52. Read at about 11:10, without changing anything, with
+`make lab-versions` and `kubectl` against the Supervisor. The Supervisor kubeconfig is
+`~/.local/state/nested-lab/kubeconfig`, which `make kubectl-login` writes.
+
 | | value |
 |---|---|
-| `HARBOR_FQDN` | `harbor.env1.lab.test` = 192.168.101.130, project `apps` (**public**) |
-| `VCENTER_FQDN` | `vcsa.env1.lab.test` = 192.168.100.50 |
-| `SUPERVISOR_ENDPOINT` | `192.168.101.128` |
-| `VKS_NAMESPACE` / `VKS_CLUSTER` | `lab` / `lab-gc1`, v1.36.2+vmware.2, guest API `192.168.101.132:6443` |
-| guest kubeconfig | secret `lab-gc1-kubeconfig` in namespace `lab` (as of 2026-09-23) |
-| Harbor's namespace on the Supervisor | `svc-harbor-90dbv` (as of 2026-09-23; platform-chosen) |
+| `VCENTER_FQDN` | `vcsa.env1.lab.test` = 192.168.100.50, vCenter 9.1.1.0.25712839 (matches the pin) |
+| ESXi | `esxi01.env1.lab.test`, 9.1.1.0.25714478 (matches the pin) |
+| `SUPERVISOR_ENDPOINT` | `192.168.101.128`, Kubernetes v1.34.9+vmware.1 |
+| Supervisor Services | VKS 3.7.2+v1.36, `cci-ns`, Velero; all `CONFIGURED` |
+| `VKS_NAMESPACE` | `lab` exists, with **no guest cluster** in it (none on the Supervisor at all) |
+| `VKS_CLUSTER` | **none.** `lab-gc1` (guest API `192.168.101.132:6443`, kubeconfig secret `lab-gc1-kubeconfig`) is gone |
+| `HARBOR_FQDN` | **not installed.** `harbor.env1.lab.test` = 192.168.101.130, project `apps`, and its Supervisor namespace `svc-harbor-90dbv` are gone |
+| ArgoCD Service | not installed |
 
-- After the last walk Harbor's `apps` has no `golang-web` repository and no robot, and the
-  guest cluster has no `golang-web` namespace.
+- So a walk starts with [CLUSTER.md](CLUSTER.md) (create a guest cluster) and
+  [HARBOR.md](HARBOR.md) (install Harbor). Install Harbor first, as `CLUSTER.md` says. The new
+  Harbor's address, and its Supervisor namespace, are chosen by the platform at install time.
+  The old `apps` project was public. The Harbor guides create the project private, and
+  [REGISTRY.md](REGISTRY.md) checks which it is and handles both.
+- `make guest-status` in the lab repo reports `no guest cluster found` until one exists. Name it
+  with `GUEST_NS=` and `GUEST_CLUSTER=`.
 - **Harbor's registry volume is 10 GiB and fills up.** A push then fails with
   `blob upload invalid` (the registry log says `no space left on device`; the client does not).
   Deleting a repository frees nothing until garbage collection runs. GC with
-  `delete_untagged=true` took it from 99% to 60% on 2026-09-29. Most of it is the `cicd`
-  project's repositories.
+  `delete_untagged=true` took it from 99% to 60% on 2026-09-29. Most of it was the old
+  Harbor's `cicd` project.
 - The worker nodes cache older `golang-web` tags; deploying by tag once started a stale image
   that crash-looped. That is why the README deploys by digest.
 
