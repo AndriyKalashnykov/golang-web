@@ -11,26 +11,31 @@ the published image or from your own build.
 
 | Part | What it uses |
 |------|--------------|
-| App | Go and its standard `net/http`; `/healthz` and Prometheus `/metrics` |
-| Image | distroless, for amd64 and arm64, signed with cosign; built with podman or Docker |
+| App | Go `net/http`; `/healthz` and Prometheus `/metrics` |
+| Published image | distroless, amd64 and arm64, signed with cosign |
+| Your own build | podman or Docker |
 | Local cluster | [KinD](https://kind.sigs.k8s.io/) with [cloud-provider-kind](https://github.com/kubernetes-sigs/cloud-provider-kind) |
-| Tools | Versions pinned in [`.mise.toml`](.mise.toml), installed by `make deps` |
-| CI | GitHub Actions; [Renovate](https://docs.renovatebot.com/) keeps the versions current |
+| VKS guides | vSphere Namespace, guest cluster, Harbor, Argo CD, Headlamp, Istio |
+| Dev tools | Go, linters, scanners and kind, pinned in [`.mise.toml`](.mise.toml) and installed by `make deps` |
+| CI | GitHub Actions; [Renovate](https://docs.renovatebot.com/) keeps versions current |
 
 ## Install the prerequisites
 
-You install the tools below yourself. `make deps`, in the next section, installs the rest.
+Install these yourself. `make deps`, the first command in [Run it locally](#run-it-locally),
+installs mise, Go, kind and the linters into your home directory, and podman only when you have
+no engine. It never installs Docker or kubectl.
 
 | To | Install |
 |----|---------|
-| Build, test and run the app | make, Git and curl |
-| Also build or run the image | podman or Docker |
-| Also deploy to a cluster | kubectl |
-| Also run the local Kubernetes cluster (`make e2e`) or the CI workflow (`make ci-run`) | Docker (KinD needs it, even if you build with podman) and kubectl |
+| Build, test and run the app | [make](https://www.gnu.org/software/make/), [Git](https://git-scm.com/) and [curl](https://curl.se/); on a Mac, [Homebrew](https://brew.sh) |
+| Also build or run the image | [podman](https://podman.io/) or [Docker](https://docs.docker.com/) |
+| Also deploy to a cluster you have | [kubectl](https://kubernetes.io/docs/tasks/tools/) |
+| Also run the local cluster (`make e2e`) | Docker and kubectl. `make e2e` needs Docker even when you build with podman |
+| Also run the CI workflow here (`make ci-run`) | Docker |
 
-Find your system in [Tested platforms](#tested-platforms), follow its section from top to
-bottom, then [Install kubectl](#install-kubectl) if you need it and
-[Check the tools](#check-the-tools).
+Check your system in [Tested platforms](#tested-platforms), then follow
+[Ubuntu or Debian](#ubuntu-or-debian) or [macOS](#macos) from top to bottom. Both end with
+[Install kubectl](#install-kubectl), if you need it, and [Check the tools](#check-the-tools).
 
 ### Tested platforms
 
@@ -38,14 +43,18 @@ bottom, then [Install kubectl](#install-kubectl) if you need it and
 |----|--------------|-------------|----------|
 | Ubuntu 24.04.5 LTS | x86_64 | GNU Make 4.3, Git 2.43.0, podman 4.9.3, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
 | Ubuntu 26.04.1 LTS | x86_64 | GNU Make 4.4.1, Git 2.53.0, podman 5.7.0, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
-| Debian 12.15 | x86_64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section, with Docker. podman 4.3.1 does not build the image |
-| Debian 13.7 | x86_64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section, with Docker or with podman |
 | Ubuntu 24.04.4 LTS | arm64 | GNU Make 4.3, Git 2.43.0, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.9.3 | Every section, with Docker. podman 4.9.3 does not push the image |
 | Ubuntu 26.04 LTS | arm64 | GNU Make 4.4.1, Git 2.53.0, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.7.0 | Every section, with Docker. `make image-push` also works with podman |
-| Debian 12.15 | arm64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.3.1 | Every section, with Docker. podman 4.3.1 does not push the image |
+| Debian 12.15 | x86_64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section, with Docker. podman 4.3.1 does not build the image |
+| Debian 13.7 | x86_64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section with Docker. With podman: every section except `make e2e` and `make ci-run` |
+| Debian 12.15 | arm64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.3.1 | Every section, with Docker. podman 4.3.1 does not build the image |
 | Debian 13.6 | arm64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section, with Docker. `make image-push` also works with podman |
-| macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | Every section except the kubectl install block |
 | macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 with engine 29.5.2 in Colima 0.10.3 (buildx 0.37.2), kubectl 1.37.1 (1.36.2 before the install block), kind 0.33.0 | Every section, with Docker, except the LoadBalancer block and the namespace delete (use `make kind-delete`). With podman: the run, image, push and contributor sections; `make e2e` and `make ci-run` need Docker |
+| macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | An earlier version of this README (2026-09-24), except the kubectl install block |
+
+Each row is one walk of the README, on 2026-10-06 unless the row says otherwise. Not walked
+anywhere: push steps 1 and 5, and the Kubernetes sections' separate kubeconfig file (added
+2026-10-09).
 
 Intel Macs are not tested.
 
@@ -59,16 +68,28 @@ sudo apt-get update && sudo apt-get install -y make git curl
 
 Expect the install to end without an error.
 
+If `sudo` is not found, or says you are not in the sudoers file (Debian installed with a root
+password), run this alone, enter the root password, then log out and back in and run the
+block above again:
+
+```bash
+su -c "apt-get install -y sudo && usermod -aG sudo $USER"
+```
+
 #### 2. Install podman or Docker
 
-Install one engine. If both are installed, the `make` commands use podman.
+Install one engine. If both are installed, the image commands use podman; `make e2e` and
+`make ci-run` always use Docker.
 
 | Your case | Install |
 |-----------|---------|
 | You will run `make e2e` or `make ci-run` | Docker |
 | Debian 12 (its podman 4.3 cannot build the image) | Docker |
-| arm64 (`uname -m` prints `aarch64`) and you will push the image, on Ubuntu 24.04 (its podman 4.9 cannot push it) | Docker |
-| Anything else | podman, or nothing: `make deps` installs podman when it finds no engine (its `sudo apt-get` asks for your password) |
+| arm64 (`uname -m` prints `aarch64`) with podman older than 5 (Ubuntu 24.04 has 4.9), and you will push the image | Docker |
+| Anything else | podman |
+
+If podman is already installed in one of the Docker cases, also run
+`export CONTAINER_ENGINE=docker`; see [Choose podman or Docker](#choose-podman-or-docker).
 
 **podman:**
 
@@ -76,7 +97,7 @@ Install one engine. If both are installed, the `make` commands use podman.
 sudo apt-get update && sudo apt-get install -y podman
 ```
 
-Expect the install to end without an error.
+Expect the install to end without an error. Then `podman --version` must print 4.9 or newer.
 
 **Docker.** The first line reads whether you have Ubuntu or Debian:
 
@@ -100,7 +121,8 @@ esac
 ```
 
 Expect no error. Then log out and back in: until you do, `docker` needs `sudo`. After that,
-`docker info` works without `sudo`.
+`docker info` works without `sudo`. Being in the `docker` group is equivalent to root on this
+machine.
 
 If not:
 
@@ -126,12 +148,10 @@ and can take several minutes.
 
 Expect `==> Installation successful!` near the end.
 
-Do not `brew install make`: it adds GNU Make as `gmake`, and this README uses the `make` the
-installer adds.
-
 #### 2. Put brew on your PATH
 
-Run this as its own block, after the installer has finished:
+Run this as its own block, after the installer has finished. It is for zsh, the macOS default
+shell:
 
 ```bash
 B=/opt/homebrew/bin/brew; [ -x "$B" ] || B=/usr/local/bin/brew
@@ -140,12 +160,12 @@ eval "$($B shellenv)"
 brew --version
 ```
 
-Expect `Homebrew 4.…` (or newer).
+Expect a line starting `Homebrew `.
 
 #### 3. Install podman, or Docker with Colima
 
-Install one engine. If both are installed, the `make` commands use podman. Pick Docker if you
-will run `make e2e` or `make ci-run`: KinD needs Docker. On a Mac either engine runs in a small
+Install one engine. If both are installed, the image commands use podman; `make e2e` and
+`make ci-run` always use Docker. Pick Docker if you will run either of them. On a Mac either engine runs in a small
 virtual machine, which the blocks below start.
 
 **podman:**
@@ -227,33 +247,29 @@ If not:
 
 ### Check the tools
 
-This lists what is still missing and prints the versions of the rest.
+This lists what is still missing and asks each engine for its version, so an engine that is
+installed but not running shows up here.
 
 ```bash
 for t in make git curl; do
   command -v "$t" >/dev/null 2>&1 || echo "MISSING: $t"
 done
-command -v podman >/dev/null 2>&1 && podman --version
-command -v docker >/dev/null 2>&1 && docker --version
+git --version
+command -v podman >/dev/null 2>&1 && podman info --format 'podman {{.Version.Version}}'
+command -v docker >/dev/null 2>&1 && docker info --format 'docker {{.ServerVersion}}'
 command -v kubectl >/dev/null 2>&1 && kubectl version --client
+echo "Checked: make git curl podman docker kubectl"
 ```
 
-Expect no `MISSING` line, then a version line for each engine you installed and, if you
-installed it, kubectl's `Client Version:`. No engine line is fine when you left podman to
-`make deps`.
+Expect no `MISSING` line, a `git version` line, `podman …` or `docker …` for each engine you
+installed, kubectl's `Client Version:` if you installed it, and `Checked: …` at the end.
 
-### What `make deps` installs for you
+If not:
 
-You do not install these. `make deps` does, into your home directory, and it is safe to run
-again at any time:
-
-| Tool | Notes |
-|------|-------|
-| [mise](https://mise.jdx.dev/) | Goes into `~/.local/bin`. It installs the rest of this table. |
-| Go, the linters and scanners, kind | The versions pinned in [`.mise.toml`](.mise.toml) |
-| [Podman](https://podman.io/) | Only when neither podman nor Docker is installed. |
-
-`make deps` does not install Docker or kubectl.
+- An error after `git --version` on a Mac: Apple's command line tools are missing. Run
+  [1. Install Homebrew](#1-install-homebrew).
+- An error after `podman` or `docker`: the engine is not running. On a Mac, run
+  `podman machine start` or `colima start`. On Linux with Docker, log out and back in first.
 
 ## Run it locally
 
@@ -262,7 +278,18 @@ Needs make, Git and curl; see [Install the prerequisites](#install-the-prerequis
 ```bash
 git clone https://github.com/AndriyKalashnykov/golang-web.git
 cd golang-web
+```
+
+Install the pinned tools. Run it alone: with no engine installed it installs podman, and on
+Linux it then asks for your password.
+
+```bash
 make deps
+```
+
+Expect it to end without an error. The first run downloads the tools; later runs print one line.
+
+```bash
 make build
 make test
 make run
@@ -270,7 +297,6 @@ make run
 
 | Command | What it does |
 |---|---|
-| `make deps` | Installs the tools listed in [What `make deps` installs for you](#what-make-deps-installs-for-you). The first run downloads them; later runs print one line. |
 | `make build` | Builds the Go binary `manager`. |
 | `make test` | Runs the tests with coverage. |
 | `make run` | Starts the app on port 8080 and keeps running. |
@@ -282,7 +308,7 @@ Starting web server on port 8080
 Open http://localhost:8080/
 ```
 
-Open <http://localhost:8080>; [Endpoints](#endpoints) shows the page. Press Ctrl-C to stop the
+Open <http://localhost:8080>: expect `Hello, World` and `request 0 GET /`. Press Ctrl-C to stop the
 app; the `make: *** … Error` line it leaves is normal. If port 8080 is taken, use another:
 `make run APP_PORT=9090`.
 
@@ -306,7 +332,8 @@ echo 'eval "$(~/.local/bin/mise activate zsh)"' >> ~/.zshrc
 echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
 ```
 
-Expect `go version` in the repo directory to print `go1.27.1`.
+Expect `go version` in the repo directory to print the Go version pinned in
+[`.mise.toml`](.mise.toml).
 
 ## Change settings
 
@@ -346,7 +373,7 @@ podman is also installed:
 
 | To | Do this |
 |---|---|
-| Use Docker for one command | Add `CONTAINER_ENGINE=docker` to it, as in `make engines CONTAINER_ENGINE=docker` |
+| Use Docker for one command | Add `CONTAINER_ENGINE=docker` to it, as in `make image-run-bg CONTAINER_ENGINE=docker` |
 | Use Docker for every command in this terminal | `export CONTAINER_ENGINE=docker` |
 | See which engine the commands use | `make engines` |
 
@@ -379,9 +406,9 @@ contents of `version.txt`. That is only a local name; nothing is uploaded.
 
 Needs Docker and kubectl; see [Install the prerequisites](#install-the-prerequisites). You do
 not install KinD: the `make` commands in this section install the version pinned in
-[`.mise.toml`](.mise.toml) and find it themselves, without `kind` on your `PATH`. Stop
-anything that uses port 8080 first; on macOS the cluster publishes the app there, on every
-network interface of the Mac.
+[`.mise.toml`](.mise.toml) and find it themselves, without `kind` on your `PATH`. On macOS,
+stop anything that uses port 8080 first: the cluster publishes the app there, on every network
+interface of the Mac.
 
 ```bash
 make e2e
@@ -410,27 +437,12 @@ kubectl get pods
 ```
 
 Expect one `golang-web-…` pod with `1/1` and `Running`. The `export` changes this terminal
-only; to go back, `unset KUBECONFIG` (or set it to the value it had). For another file, set `KIND_KUBECONFIG` (see [`.env.example`](.env.example)).
+only; to go back, `unset KUBECONFIG` (or set it to the value it had). For another file, set
+`KIND_KUBECONFIG` (see [`.env.example`](.env.example)), and use that path in every
+`export KUBECONFIG=` line below; `make kind-create` prints the right one.
 
-The cluster keeps running until you delete it; the next section can use it. To delete it:
-
-```bash
-make kind-delete
-```
-
-Expect `KinD cluster 'golang-web' deleted.`
-
-If you created this cluster with a version of this repo that wrote it into your own kubeconfig,
-its entries stay there after the delete. In a terminal where `KUBECONFIG` is not set to the
-file above, remove them:
-
-```bash
-kubectl config delete-context kind-golang-web; kubectl config delete-cluster kind-golang-web; kubectl config delete-user kind-golang-web
-```
-
-Each prints `deleted …`, or `error: cannot delete …, not in …` when the entry was not there.
-If `kubectl config current-context` still prints `kind-golang-web`, also run
-`kubectl config unset current-context`.
+The cluster keeps running: the next section and step 5 of the push section use it. Delete it
+when you are done: [Delete the local cluster](#delete-the-local-cluster).
 
 ## Deploy the published image to a cluster
 
@@ -482,7 +494,7 @@ kill "$PF"
 ```
 
 Expect `Hello, World` and the line `MY_POD_NAMESPACE: golang-web-demo`. Also normal: a job
-number after the first line, one `curl: (7) Failed to connect` line before the page, and in
+number after the first line, one or more `curl: (7) Failed to connect` lines before the page, and in
 zsh a `terminated` line at the end.
 
 Optional, and only where the cluster gives the Service an IP address your machine can reach:
@@ -499,9 +511,10 @@ Expect the same page. If the first command prints `timed out waiting for the con
 cluster has no LoadBalancer controller or publishes a hostname instead of an IP: run
 `kubectl get svc -n "$NS" golang-web-service` and read the EXTERNAL-IP column.
 
-Remove everything this section created. On macOS with the local cluster, skip this command and
-run `make kind-delete` instead: there the cluster can publish only one LoadBalancer Service on
-port 8080, so this Service never gets its address and the delete waits forever.
+Remove everything this section created. On macOS with the local cluster, skip this command:
+there the cluster can publish only one LoadBalancer Service on port 8080, so this Service never
+gets its address and the delete waits forever.
+[Delete the local cluster](#delete-the-local-cluster) removes it with the cluster.
 
 ```bash
 kubectl delete namespace "$NS"
@@ -592,7 +605,8 @@ If it stops:
 |---|---|
 | `Push to ... failed.` | Check `OWNER` is yours (step 2), that the token has `write:packages` (step 1), and that you logged in with the same engine you push with (step 3). |
 | `This Docker uses the classic image store` | Follow the printed instructions to turn on the containerd image store, or push one platform: `make image-push PUSH_PLATFORMS=linux/amd64`. |
-| `podman older than 5 is refused` (arm64 Linux with podman 4.x) | Use Docker for both steps: `make registry-login CONTAINER_ENGINE=docker`, then `make image-push CONTAINER_ENGINE=docker`. Or upgrade to podman 5.8. |
+| `podman older than 5 is refused` (arm64 Linux with podman 4.x) | Use Docker for both steps: `make registry-login CONTAINER_ENGINE=docker`, then `make image-push CONTAINER_ENGINE=docker`. Or use podman 5 or newer (Ubuntu 26.04 and Debian 13 have it). |
+| `labelled the amd64 image variant` | The same: use Docker for both steps, or push arm64 only: `make image-push PUSH_PLATFORMS=linux/arm64`, if every node of your cluster is arm64. |
 | `'podman buildx' is not available` (podman older than 4.9, such as Debian 12's 4.3) | Use Docker for both steps: `make registry-login CONTAINER_ENGINE=docker`, then `make image-push CONTAINER_ENGINE=docker`. |
 
 ### 5. Deploy the image you pushed
@@ -602,13 +616,13 @@ first. `make k8s-apply` deploys into kubectl's current context and current names
 prints both before it changes anything. `make e2e` does not change which cluster kubectl points
 at, so the block below starts by pointing this terminal at the local cluster. Its first line is
 for the local cluster only: leave it out for any other cluster. Run the block in the same
-terminal, so `OWNER` is still set:
+terminal, so `OWNER` is still set. If you deleted the local cluster, run `make kind-create`
+first.
 
 ```bash
 export KUBECONFIG="$HOME/.kube/kind-golang-web.yaml"
 kubectl config current-context
-make k8s-apply
-kubectl rollout status deployment/golang-web --timeout=180s
+make k8s-apply && kubectl rollout status deployment/golang-web --timeout=180s
 ```
 
 The second line must print `kind-golang-web` for the local cluster, or the name of the cluster
@@ -618,8 +632,8 @@ namespace and the two commands that go on: `make k8s-apply K8S_CONTEXT=<that nam
 stops if kubectl points somewhere else by the time you run it, or `make k8s-apply CONFIRM=yes`.
 `CONFIRM=yes` counts only when typed on that command line, not from the environment or `.env`.
 
-Expect (your image, context and namespace differ; `configured` replaces `created` when the app
-is already in that namespace, as it is in the local cluster after `make e2e`):
+Expect (your image, context and namespace differ; after `make e2e` the app is already in the
+local cluster, so the deployment line reads `configured` and the service line `unchanged`):
 
 ```text
 Deploying ghcr.io/octocat/golang-web:<version> to context 'kind-golang-web', namespace 'default'.
@@ -631,9 +645,15 @@ deployment "golang-web" successfully rolled out
 If the rollout times out and `kubectl get pods` shows `ImagePullBackOff`, the cluster cannot
 pull the image: check the package is public and that `OWNER` is the one you pushed with.
 
-Reach the app with the port-forward block in
-[Deploy the published image to a cluster](#deploy-the-published-image-to-a-cluster), leaving
-out `-n "$NS"`. Remove the app:
+Open it through a port-forward:
+
+```bash
+kubectl port-forward svc/golang-web-service 18080:8080 >/dev/null & PF=$!
+curl -sS --retry 10 --retry-connrefused --retry-delay 1 http://localhost:18080/myhello/
+kill "$PF"
+```
+
+Expect `Hello, World` and the line `MY_POD_NAMESPACE:` with your namespace. Remove the app:
 
 ```bash
 make k8s-delete
@@ -653,6 +673,28 @@ When you are done, remove the token from this terminal with `unset REGISTRY_TOKE
 | `REGISTRY_TOKEN` | none | Token or password for the registry |
 | `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms built and pushed as one tag; comma-separated, no spaces |
 | `K8S_CONTEXT` | none | The kubectl context `make k8s-apply` and `make k8s-delete` may act on; they stop when the current context is another one |
+
+## Delete the local cluster
+
+When you are done with the local cluster:
+
+```bash
+make kind-delete
+```
+
+Expect `KinD cluster 'golang-web' deleted.`
+
+If you created this cluster with a version of this repo that wrote it into your own kubeconfig,
+its entries stay there after the delete. In a terminal where `KUBECONFIG` is not set to
+`~/.kube/kind-golang-web.yaml`, remove them:
+
+```bash
+kubectl config delete-context kind-golang-web; kubectl config delete-cluster kind-golang-web; kubectl config delete-user kind-golang-web
+```
+
+Each prints `deleted …` (the first also prints `warning: this removed your active context`
+when it was the current one), or `error: cannot delete …, not in …` when the entry was not
+there. If it was the current context, also run `kubectl config unset current-context`.
 
 ## Deploy onto VMware VKS
 
