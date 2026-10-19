@@ -4,7 +4,7 @@ Resume point for work on this repo. Durable facts and the backlog are in [CLAUDE
 the VKS runbook has its own [vks/HANDOFF.md](vks/HANDOFF.md). Keep this file short: replace its
 content when the state changes, do not append history (git has it).
 
-## State — 2026-10-16
+## State — 2026-10-19
 
 **v0.0.5 is released and signed** (`0.0.5`, `0.0`, `0`, `latest` = `sha256:cbd47f21…565d`, amd64 +
 arm64; `cosign verify` passes for the v0.0.5 identity and fails for v0.0.4). It closes `/shutdown`:
@@ -24,15 +24,28 @@ touches only files CI ignores (this file, README.md) gets no checks; merge it wi
   before it. Documented in the README and `vks/ARGOCD-app.md`.
 - **After every release, merge Renovate's `golang-web image` PR yourself** (owner, 2026-10-16):
   the self-image no longer automerges. Its `static-check` runs `make check-image-pin`, which
-  fails unless the pin is the signed release (CLAUDE.md backlog, *Why it is not automerged*). Its
+  fails unless the pin is the signed release (CLAUDE.md backlog, *Why it is not automerged*).
   Never `--admin` that PR past a red `static-check`, even one reported as infrastructure: rerun
   it until the check gives a verdict. `static-check` now needs ghcr.io and Sigstore's TUF CDN.
+- **README rewritten for first-time users** (#374, #378, 2026-10-19). Prerequisites now come as
+  one section per tested OS, in install order. The README also gains a tool-check block, a
+  `cosign verify` block for the release in `version.txt`, and Expect text for `make build`,
+  `make test` and `make run`. Four adversaries reviewed it (Docker, K8s, shell, a first-time
+  walker), and their findings are fixed. Tried on this host: the tool check and the cosign
+  block, in bash and zsh, and both cosign failures. The README was not walked on a clean
+  machine after the rewrite. Its *Tested platforms* table still records the 2026-10-06 walks.
+- **`make image-push` advice on arm64 Linux** (#377): it says podman 5 or newer, not 5.8.
+  Shown with a stand-in podman and `uname`, never on a real arm64 machine. `vks/SETUP.md` and
+  `vks/TROUBLESHOOTING.md` were changed to match.
 
 ## Next
 
 0. **In progress since 2026-10-10: the `vks/` end-to-end story.** Plan, decisions and phases:
    [vks/PLAN.md](vks/PLAN.md). Start at the first phase not marked done there.
-1. **After 2026-10-19:** read the first CI run that lands on Ubuntu 26 (`ubuntu-latest` moves).
+1. **Read the first CI run that lands on Ubuntu 26** (`ubuntu-latest` moves from 2026-10-19,
+   rolled out over time). Every job of the 2026-10-19 runs on `main` (#376, #377, #378) still
+   ran on `ubuntu-24.04`. To check a run:
+   `gh run view <id> --log | grep 'Image: ubuntu'`.
 2. **At the next tag:** read the `docker` job's `Smoke test` step; it is the first run of
    `make image-smoke` in CI (local runs only so far). It is also the first release signed with
    `.mise.toml`'s cosign (3.1.3, installed by mise-action; probed on a runner, never on a tag):
@@ -41,6 +54,14 @@ touches only files CI ignores (this file, README.md) gets no checks; merge it wi
    `gh pr view <n> --json autoMergeRequest` is null while it is open (first real PR since
    automerge was turned off), and its `static-check` log shows `check-image-pin` passing for the
    new version before you merge it.
+3. **Next README walk** (needs the owner's machines). These paths have never been walked:
+   - the Debian fallback when `sudo` is missing (`su -c …`);
+   - a bare Mac, from the Homebrew installer on;
+   - the blocks pasted into macOS `/bin/bash` 3.2;
+   - push steps 1 and 5;
+   - the cluster's own kubeconfig file (`~/.kube/kind-golang-web.yaml`).
+
+   Then update *Tested platforms*.
 
 The open, not-urgent items are in CLAUDE.md → Upgrade Backlog.
 
