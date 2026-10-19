@@ -289,19 +289,31 @@ make deps
 
 Expect it to end without an error. The first run downloads the tools; later runs print one line.
 
+Build the Go binary:
+
 ```bash
 make build
+```
+
+Expect no error, and a new file `manager` (about 13 MB) in this directory.
+
+Run the tests with coverage:
+
+```bash
 make test
+```
+
+Expect `--- PASS` lines, then `ok  github.com/AndriyKalashnykov/golang-web … coverage: …% of
+statements`, then the coverage of each function. The `write failed` lines come from tests of
+error handling and are normal. A `--- FAIL` line, or `FAIL` instead of `ok`, means a test failed.
+
+Start the app on port 8080:
+
+```bash
 make run
 ```
 
-| Command | What it does |
-|---|---|
-| `make build` | Builds the Go binary `manager`. |
-| `make test` | Runs the tests with coverage. |
-| `make run` | Starts the app on port 8080 and keeps running. |
-
-Expect `make run` to end with these lines (each after a timestamp) and stay in the foreground:
+Expect it to end with these lines (each after a timestamp) and stay in the foreground:
 
 ```text
 Starting web server on port 8080
@@ -338,7 +350,8 @@ Expect `go version` in the repo directory to print the Go version pinned in
 ## Change settings
 
 Optional: every setting has a default. To change a setting once, put it on the command line,
-as in `make run APP_PORT=9090 MESSAGE_TO=You`. To change settings for every `make` command,
+as in `make run APP_PORT=9090 MESSAGE_TO=You` (the port, and the word after `Hello,` on the
+page). To change settings for every `make` command,
 copy the example file, then uncomment and edit the lines you want in `.env`:
 
 ```bash
@@ -363,6 +376,24 @@ podman run --rm -p 127.0.0.1:8080:8080 ghcr.io/andriykalashnykov/golang-web:late
 
 Expect the log line `Starting web server on port 8080`. Open <http://localhost:8080>. Press
 Ctrl-C to stop it. If port 8080 is taken, change the first `8080`, as in `-p 127.0.0.1:9090:8080`.
+
+### Check the image's signature
+
+Optional. Every release is signed by this repository's CI run for its tag. To check that the
+image of the current release (the version in `version.txt`) was built there and not changed
+since, run this in the `golang-web` directory, after `make deps` (it installs cosign):
+
+```bash
+V="$(cat version.txt)"
+~/.local/bin/mise exec -- cosign verify "ghcr.io/andriykalashnykov/golang-web:${V#v}" \
+  --certificate-identity "https://github.com/AndriyKalashnykov/golang-web/.github/workflows/ci.yml@refs/tags/$V" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null
+```
+
+Expect `Verification for ghcr.io/andriykalashnykov/golang-web:<version> --`, then a list of the
+checks that passed. Any `Error:` line means the check failed: `no signatures found` (releases
+0.0.3 and older are not signed) or `expected SAN value` (the image was not signed by that
+release's run).
 
 ## Build and run the image locally
 
@@ -400,7 +431,7 @@ contents of `version.txt`. That is only a local name; nothing is uploaded.
 | `make image-run-bg` | Builds the image and runs it in the background on port 8080 (`APP_PORT=9090` to change) |
 | `make image-logs` | Follows the container's log; Ctrl-C to leave (the `make: ***` line it prints then is normal) |
 | `make image-stop` | Stops the container; expect `Stopped golang-web.` |
-| `make image-smoke` | Checks the built image starts and keeps `/shutdown` closed; expect `PASS: … keeps /shutdown closed by default`. `IMAGE_SMOKE_REF=<image>` checks another image |
+| `make image-smoke` | Checks the built image starts and keeps `/shutdown` (a path that stops the app; see [Endpoints](#endpoints)) closed; expect `PASS: … keeps /shutdown closed by default`. `IMAGE_SMOKE_REF=<image>` checks another image |
 
 ## Test it on a local Kubernetes cluster
 
@@ -451,7 +482,7 @@ published one that `k8s/golang-web.yaml` pins, not one you built.
 
 Run it from `main`, the branch a clone starts on, not from a release tag: a tag's
 `k8s/golang-web.yaml` names the release before it, because the image is published only after the
-tag. Releases 0.0.4 and older serve `/shutdown` to anyone who can reach the app. If one of them
+tag. Releases 0.0.4 and older serve `/shutdown`, so anyone who can reach the app can stop it. If one of them
 is deployed, run `git switch main && git pull`, then this section again to replace it.
 
 Check which cluster kubectl points at. For the local cluster, first point this terminal at its
