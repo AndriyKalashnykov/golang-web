@@ -351,7 +351,7 @@ builds the image and pushes it. Choose **one** and run only its block. Both
 work; if unsure, pick podman — **except on an arm64 Linux machine** (run `uname -m`: `aarch64` means arm64): there, podman 4.x (Ubuntu
 24.04 has 4.9) builds an image the cluster cannot pull, and
 [Build and push](REGISTRY.md#build-and-push) refuses it. Pick docker there
-(podman 5.8 also works, if you already have it).
+(podman 5 or newer also works, if you already have it).
 
 **macOS, podman:**
 
