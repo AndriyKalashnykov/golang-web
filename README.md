@@ -339,22 +339,31 @@ app; the `make: *** … Error` line it leaves is normal. If port 8080 is taken, 
 ### Use the pinned tools at your own prompt
 
 Optional, and only after `make deps` has run: the `make` commands find the pinned tools by
-themselves. To also use them (`go`, `kind` and the rest) at your own prompt, run the line for
-your shell once, then open a new terminal.
-
-**zsh (the macOS default):**
-
-```bash
-echo 'eval "$(~/.local/bin/mise activate zsh)"' >> ~/.zshrc
-```
-
-**bash:**
+themselves. To also use them (`go`, `kind` and the rest) at your own prompt, run this once. It
+reads your login shell from `$SHELL` and adds mise to `~/.zshrc` (zsh, the macOS default) or
+`~/.bashrc` (bash); running it again adds nothing.
 
 ```bash
-echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
+S="$(basename "${SHELL:-}")"
+case "$S" in
+  zsh)  RC="$HOME/.zshrc" ;;
+  bash) RC="$HOME/.bashrc" ;;
+  *)    RC="" ;;
+esac
+L="eval \"\$(~/.local/bin/mise activate $S)\""
+if [ -z "$RC" ]; then
+  echo "Your shell is '${S:-unknown}', not zsh or bash: add mise to it by hand, see https://mise.jdx.dev/getting-started.html"
+elif grep -qxF "$L" "$RC" 2>/dev/null; then
+  echo "mise is already set up in $RC"
+else
+  echo "$L" >> "$RC" && echo "Added mise to $RC. Open a new terminal."
+fi
 ```
 
-Expect `go version` in the repo directory to print the Go version pinned in
+Expect `Added mise to …` (or `already set up` on a second run), then open a new terminal. For
+another shell it changes nothing and prints where mise documents the line to add.
+
+Then expect `go version` in the repo directory to print the Go version pinned in
 [`.mise.toml`](.mise.toml).
 
 ## Change settings
