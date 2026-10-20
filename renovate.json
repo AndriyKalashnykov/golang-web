@@ -35,6 +35,21 @@
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)( extractVersion=(?<extractVersion>[^\\s]+))?\\n\\s+[A-Z_]+:\\s*\"?(?<currentValue>[^\\s\"]+)\"?"
       ]
+    },
+    {
+      "customType": "regex",
+      "description": "The Go version in go.mod and .mise.toml, read from the same Docker Hub golang tags as the Dockerfile's base image. Go releases hours before Docker Hub publishes its image (1.27.3: 02:16 vs 04:26 UTC, 2026-10-20), so with each file on its own source Renovate bumped go.mod and .mise.toml without the Dockerfile and check-toolchain-alignment failed (#384). One source means no Go version is proposed before its image exists.",
+      "managerFilePatterns": [
+        "/^go\\.mod$/",
+        "/^\\.mise\\.toml$/"
+      ],
+      "matchStrings": [
+        "\\ngo (?<currentValue>\\d+\\.\\d+\\.\\d+)\\n",
+        "\\ngo = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "docker.io/library/golang",
+      "versioningTemplate": "docker"
     }
   ],
   "postUpdateOptions": [
@@ -77,14 +92,15 @@
       "groupName": "GitHub Actions"
     },
     {
-      "description": "Bump Go version in go.mod to latest patch",
+      "description": "The Go version in go.mod and .mise.toml is tracked by the custom manager above, from Docker Hub. Their own lookups (go.dev releases) see a Go release before its image exists, so they are off.",
       "matchManagers": [
-        "gomod"
+        "gomod",
+        "mise"
       ],
       "matchDepNames": [
         "go"
       ],
-      "rangeStrategy": "bump"
+      "enabled": false
     },
     {
       "description": "Group Docker base images",
@@ -118,7 +134,8 @@
         "custom.regex"
       ],
       "matchDepNames": [
-        "!go"
+        "!go",
+        "!docker.io/library/golang"
       ],
       "groupName": "Tool versions",
       "minimumReleaseAge": "3 days",
@@ -151,15 +168,12 @@
       "extractVersion": "^jq-(?<version>.+)$"
     },
     {
-      "description": "Group Go toolchain bumps into a single PR: the go.mod directive, the Dockerfile golang base image, and the .mise.toml `go` pin MUST land together or `make check-toolchain-alignment` fails. Must stay LAST so this groupName overrides the per-manager groups above.",
+      "description": "Group Go toolchain bumps into a single PR: the go.mod directive, the Dockerfile golang base image, and the .mise.toml `go` pin MUST land together or `make check-toolchain-alignment` fails. All three read Docker Hub's golang tags (the custom manager above), so they also resolve the same version at the same time; the Tool versions rule excludes them so its 3-day wait cannot hold back one half. Must stay LAST so this groupName overrides the per-manager groups above.",
       "matchManagers": [
-        "gomod",
         "dockerfile",
-        "mise"
+        "custom.regex"
       ],
       "matchDepNames": [
-        "go",
-        "golang",
         "docker.io/library/golang"
       ],
       "groupName": "Go toolchain"

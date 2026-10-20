@@ -293,6 +293,28 @@ make version        # Print current version tag
       `ps -q` 2.4-8.4 s; on a bare runner `info` reached 22.7 s. The fix: the check runs
       `ps -q` and its limit is 60 s. Not proven: how long `ps -q` can take on a bad evening
       (podman's first-run storage check is still paid), which is why the limit was raised too.
+- [ ] **A Go release reached go.mod before its Docker image existed (2026-10-20; fixed, not yet
+      seen in production).** Go 1.27.3: Renovate's #384 opened at 02:16 UTC with go.mod and
+      `.mise.toml` bumped (both read go.dev) but not the Dockerfile, because Docker Hub pushed
+      `golang:1.27.3` only at 04:26; `check-toolchain-alignment` failed and the PR sat blocked
+      until the Dockerfile was bumped by hand on its branch. Grouping could not help: a group puts
+      the pins in one PR, but each still reads its own source. A `minimumReleaseAge` cannot help
+      either: each pin's wait starts at its own source's release time, so the gap only moves.
+      Now `renovate.json` reads the Go version in go.mod and `.mise.toml` from the Dockerfile's
+      source, Docker Hub's `golang` tags (a custom manager; the gomod and mise `go` lookups are
+      off), and the Tool versions rule's 3-day wait excludes them. Measured with renovate 44.165.1
+      (`--dry-run=lookup`, all three set back to 1.27.2): all three proposed 1.27.3 in
+      `renovate/go-toolchain`. To close this entry: the next Go release opens one PR with all
+      three files, after its image exists.
+      Still open (adversarial review, 2026-10-20): Docker Hub adds each architecture to a tag's
+      index as it finishes, so a PR opened right after the tag appears may pin an index without
+      arm64. CI would not see it (the builder runs on `$BUILDPLATFORM`; the `docker` job is
+      tag-only). A `minimumReleaseAge` on the Go toolchain rule was tried and not shipped: a local
+      `--dry-run=lookup` proposed 1.27.3 with "1 day" and with "6 hours" alike, so its effect
+      cannot be measured locally, and if Docker Hub gives no release time the default
+      `timestamp-required` would hold Go for ever. What would settle it: a check that the pinned
+      index lists linux/amd64 and linux/arm64. Also unguarded: the two regexes need `X.Y.Z`
+      (a `go 1.28` line drops the pin silently), and `go mod tidy` no longer runs on a Go bump.
 - [ ] **`ubuntu-latest` moves to Ubuntu 26 from 2026-10-19** (notice on every CI run;
       actions/runner-images#14748). All four CI jobs and the cleanup jobs use `ubuntu-latest`,
       so the runner's preinstalled tools change under them without a commit here. What depends
