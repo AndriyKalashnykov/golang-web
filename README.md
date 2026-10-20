@@ -21,21 +21,29 @@ the published image or from your own build.
 
 ## Install the prerequisites
 
-Install these yourself. `make deps`, the first command in [Run it locally](#run-it-locally),
-installs mise, Go, kind and the linters into your home directory, and podman only when you have
-no engine. It never installs Docker or kubectl.
+Do this once, before [Run it locally](#run-it-locally). Follow the part for your system from top
+to bottom:
 
-| To | Install |
-|----|---------|
-| Build, test and run the app | [make](https://www.gnu.org/software/make/), [Git](https://git-scm.com/) and [curl](https://curl.se/); on a Mac, [Homebrew](https://brew.sh) |
-| Also build or run the image | [podman](https://podman.io/) or [Docker](https://docs.docker.com/) |
-| Also deploy to a cluster you have | [kubectl](https://kubernetes.io/docs/tasks/tools/) |
-| Also run the local cluster (`make e2e`) | Docker and kubectl. `make e2e` needs Docker even when you build with podman |
-| Also run the CI workflow here (`make ci-run`) | Docker |
+1. [Ubuntu or Debian](#ubuntu-or-debian) or [macOS](#macos): make, Git, curl and one container
+   engine, podman or Docker. Its engine step tells you which one to pick.
+2. [Install kubectl](#install-kubectl), if you will use a Kubernetes section: the local cluster,
+   a cluster you already have, or VKS.
+3. [Check the tools](#check-the-tools), to see that nothing is missing.
 
-Check your system in [Tested platforms](#tested-platforms), then follow
-[Ubuntu or Debian](#ubuntu-or-debian) or [macOS](#macos) from top to bottom. Both end with
-[Install kubectl](#install-kubectl), if you need it, and [Check the tools](#check-the-tools).
+Then go to [Run it locally](#run-it-locally).
+
+You do not install Go, kind or the linters yourself: `make deps`, the first command in
+[Run it locally](#run-it-locally), puts the pinned versions in your home directory.
+
+If you only want part of this README, you can skip some of the steps:
+
+| You only want to | You can skip |
+|------------------|--------------|
+| Build, test and run the app | the engine and kubectl. With no engine, `make deps` installs podman (on Linux it asks for your password) |
+| Build or run the image | kubectl |
+| Deploy the published image to a cluster you already have | the engine |
+| Run the local cluster (`make e2e`) | nothing, and the engine must be Docker, even if you build the image with podman |
+| Run the CI workflow here (`make ci-run`) | kubectl, but the engine must be Docker |
 
 ### Tested platforms
 
@@ -161,11 +169,14 @@ brew --version
 
 Expect a line starting `Homebrew `.
 
-#### 3. Install podman, or Docker with Colima
+#### 3. Install podman or Docker
 
-Install one engine. If both are installed, the image commands use podman; `make e2e` and
-`make ci-run` always use Docker. Pick Docker if you will run either of them. On a Mac either engine runs in a small
-virtual machine, which the blocks below start.
+Install one engine. Pick Docker if you will run `make e2e` or `make ci-run`, which always use
+Docker; otherwise podman. If both are installed, the image commands use podman.
+
+On a Mac a container engine runs inside a small Linux virtual machine. podman creates and starts
+its own (`podman machine`). Docker needs a separate tool for that:
+[Colima](https://github.com/abiosoft/colima), which the Docker block installs and starts.
 
 **podman:**
 
@@ -178,7 +189,7 @@ podman info >/dev/null 2>&1 || podman machine start
 Expect the last lines to say the machine `started successfully`, or nothing if it was already
 running.
 
-**Docker,** with [Colima](https://github.com/abiosoft/colima):
+**Docker, with Colima:**
 
 ```bash
 brew install colima docker docker-buildx
