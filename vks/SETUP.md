@@ -54,19 +54,21 @@ brew --version
 `jq` reads JSON; Linux also needs `git`, `make`, `unzip`, `curl` and `openssl`, which macOS
 already has.
 
-**macOS** (skip this if `jq --version` already works; macOS 26 has `jq` built in):
+The block reads your system: on macOS it installs `jq` with Homebrew only when it is missing
+(macOS 26 has it built in); on Debian and Ubuntu it installs all six with apt.
 
 ```sh
-brew install jq
+if [ "$(uname -s)" = Darwin ]; then
+  if command -v jq >/dev/null 2>&1; then echo "jq is already installed"; else brew install jq; fi
+elif command -v apt-get >/dev/null 2>&1; then
+  sudo apt-get install -y jq git make unzip curl openssl
+else
+  echo "Not macOS, Debian or Ubuntu: install jq git make unzip curl openssl with your system's package manager"
+fi
 ```
 
-**Linux (Debian/Ubuntu):**
-
-```sh
-sudo apt-get install -y jq git make unzip curl openssl
-```
-
-**Expect:** the install ends without an error; the main guide's check block confirms it.
+**Expect:** `jq is already installed`, or the install ending without an error; the main guide's
+check block confirms it. On Linux, `sudo` may ask for your password.
 
 ## Install kubectl
 

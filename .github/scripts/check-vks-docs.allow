@@ -10,16 +10,10 @@ expect | REGISTRY.md | lines the reader types into the env file, not a block to 
 expect | ARGOCD-manual.md | only assigns the reader's four choices; the next block's If-not covers a miss | NEW_CLUSTER="my-new-cluster"
 
 # Alternatives that share ONE Expect, written after the last of them.
-expect | SETUP.md | macOS and Linux alternatives share the Expect after the Linux block | brew install jq
-expect | REGISTRY.md | the three engine alternatives share the Expect after the Colima block | cp "$HARBOR_CA" "$HOME/.config/containers/certs.d/${HARBOR_FQDN}/ca.crt"
-expect | REGISTRY.md | the three engine alternatives share the Expect after the Colima block | sudo install -D -m0644 "$HARBOR_CA" "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt"
 expect | ARGOCD-manual.md | three list commands share the Expect after the third | kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" get kr
 expect | ARGOCD-manual.md | three list commands share the Expect after the third | kubectl --kubeconfig "$SUPERVISOR_KUBECONFIG" -n "$VKS_NAMESPACE" get virtualmachineclass
 
 # The expectation is stated BEFORE the blocks ("each prints nothing"), not as an Expect after them.
-expect | CLEANUP.md | prose above the three blocks says each prints nothing | rm -rf "$HOME/.config/containers/certs.d/${HARBOR_FQDN:?}"
-expect | CLEANUP.md | prose above the three blocks says each prints nothing | sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
-expect | CLEANUP.md | prose above the three blocks says each prints nothing | colima ssh -- sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
 
 # REAL defects in the guides, found by this gate on 2026-10-10 and not yet fixed in the text.
 expect | README.md | DEFECT: the certificate-checking renew block has no Expect (the default renew block has one) | KUBECONFIG="$SUPERVISOR_KUBECONFIG" vcf context refresh supervisor --ca-certificate "$SUPERVISOR_CA"
