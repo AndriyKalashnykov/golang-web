@@ -39,7 +39,7 @@ If you only want part of this README, you can skip some of the steps:
 
 | You only want to | You can skip |
 |------------------|--------------|
-| Build, test and run the app | the engine and kubectl. With no engine, `make deps` installs podman (on Linux it asks for your password) |
+| Build, test and run the app | kubectl. `make deps` installs podman if you have no engine (on Linux it asks for your password) |
 | Build or run the image | kubectl |
 | Deploy the published image to a cluster you already have | the engine |
 | Run the local cluster (`make e2e`) | nothing, and the engine must be Docker, even if you build the image with podman |
@@ -86,16 +86,33 @@ su -c "apt-get install -y sudo && usermod -aG sudo $USER"
 #### 2. Install podman or Docker
 
 Install one engine. If both are installed, the image commands use podman; `make e2e` and
-`make ci-run` always use Docker.
+`make ci-run` always use Docker, so install Docker if you will run either of them.
 
-| Your case | Install |
-|-----------|---------|
-| You will run `make e2e` or `make ci-run` | Docker |
-| Debian 12 (its podman 4.3 cannot build the image) | Docker |
-| arm64 (`uname -m` prints `aarch64`) with podman older than 5 (Ubuntu 24.04 has 4.9), and you will push the image | Docker |
-| Anything else | podman |
+Otherwise this block says which engine this machine needs. It reads the podman version apt
+would install (step 1 updated apt's list) and the machine's architecture, and installs nothing:
 
-If podman is already installed in one of the Docker cases, also run
+```bash
+V="$(apt-cache policy podman 2>/dev/null | awk '/Candidate:/ {print $2}' | sed 's/^[0-9]*://')"
+MAJ="${V%%.*}"; R="${V#*.}"; MIN="${R%%[!0-9]*}"
+case "$MAJ$MIN" in
+  ''|*[!0-9]*) N=0 ;;
+  *) N=$((MAJ * 100 + MIN)) ;;
+esac
+if [ -z "$V" ]; then
+  echo "apt knows no podman: run 'sudo apt-get update', then this block again, or install Docker."
+elif [ "$N" -lt 409 ]; then
+  echo "Install Docker: apt's podman is '$V', and building the image needs podman 4.9 or newer."
+elif [ "$(uname -m)" = aarch64 ] && [ "$N" -lt 500 ]; then
+  echo "Install Docker if you will push the image: apt's podman $V is older than 5 and cannot push it on arm64. Otherwise install podman."
+else
+  echo "Install podman (apt has $V), or Docker if you will run make e2e or make ci-run."
+fi
+```
+
+Expect one line that says which engine to install. Debian 12 prints `Install Docker` (its podman
+is 4.3); Ubuntu 24.04 on arm64 prints the line about pushing (its podman is 4.9).
+
+If podman is already installed and you install Docker, also run
 `export CONTAINER_ENGINE=docker`; see [Choose podman or Docker](#choose-podman-or-docker).
 
 **podman:**
@@ -157,17 +174,36 @@ Expect `==> Installation successful!` near the end.
 
 #### 2. Put brew on your PATH
 
-Run this as its own block, after the installer has finished. It is for zsh, the macOS default
-shell:
+Run this as its own block, after the installer has finished. It reads your login shell from
+`$SHELL` and adds brew to the file that shell reads at login: `~/.zprofile` for zsh (the macOS
+default); for bash the first of `~/.bash_profile`, `~/.bash_login` and `~/.profile` that exists,
+or a new `~/.bash_profile`. Running it again adds nothing.
 
 ```bash
 B=/opt/homebrew/bin/brew; [ -x "$B" ] || B=/usr/local/bin/brew
-grep -qs "brew shellenv" ~/.zprofile || echo "eval \"\$($B shellenv)\"" >> ~/.zprofile
-eval "$($B shellenv)"
-brew --version
+L="eval \"\$($B shellenv)\""
+case "$(basename "${SHELL:-}")" in
+  zsh) RC="$HOME/.zprofile" ;;
+  bash)
+    RC="$HOME/.bash_profile"
+    for F in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do
+      if [ -f "$F" ]; then RC="$F"; break; fi
+    done ;;
+  *) RC="" ;;
+esac
+if [ ! -x "$B" ]; then
+  echo "brew is not in /opt/homebrew or /usr/local: run 1. Install Homebrew first."
+elif [ -z "$RC" ]; then
+  echo "Your shell is '$(basename "${SHELL:-unknown}")', not zsh or bash: add this line to its startup file: $L"
+elif grep -qs "brew shellenv" "$RC"; then
+  echo "brew is already set up in $RC"
+else
+  echo "$L" >> "$RC" && echo "Added brew to $RC"
+fi
+[ -x "$B" ] && eval "$($B shellenv)" && brew --version
 ```
 
-Expect a line starting `Homebrew `.
+Expect `Added brew to …` (or `already set up` on a second run), then a line starting `Homebrew `.
 
 #### 3. Install podman or Docker
 
@@ -340,15 +376,22 @@ app; the `make: *** … Error` line it leaves is normal. If port 8080 is taken, 
 
 Optional, and only after `make deps` has run: the `make` commands find the pinned tools by
 themselves. To also use them (`go`, `kind` and the rest) at your own prompt, run this once. It
-reads your login shell from `$SHELL` and adds mise to `~/.zshrc` (zsh, the macOS default) or
-`~/.bashrc` (bash); running it again adds nothing.
+reads your login shell from `$SHELL` and adds mise to `~/.zshrc` (zsh, the macOS default),
+`~/.bashrc` (bash on Linux), or for bash on a Mac the file it reads at login (the first of
+`~/.bash_profile`, `~/.bash_login` and `~/.profile` that exists, or a new `~/.bash_profile`).
+Running it again adds nothing.
 
 ```bash
 S="$(basename "${SHELL:-}")"
-case "$S" in
-  zsh)  RC="$HOME/.zshrc" ;;
-  bash) RC="$HOME/.bashrc" ;;
-  *)    RC="" ;;
+case "$S/$(uname -s)" in
+  zsh/*) RC="$HOME/.zshrc" ;;
+  bash/Darwin)
+    RC="$HOME/.bash_profile"
+    for F in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do
+      if [ -f "$F" ]; then RC="$F"; break; fi
+    done ;;
+  bash/*) RC="$HOME/.bashrc" ;;
+  *) RC="" ;;
 esac
 L="eval \"\$(~/.local/bin/mise activate $S)\""
 if [ -z "$RC" ]; then
