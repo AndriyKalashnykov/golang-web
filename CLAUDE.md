@@ -160,6 +160,9 @@ make version        # Print current version tag
       and 5 and `make release` were not run, and the amd64 image was pushed but not run. Every section
       after the mise line ran in a terminal with mise activated. The macOS 26.6.2 row is an earlier
       Mac that no longer exists.
+      On 2026-10-19 (owner) the table lost its `Tested with` (tool versions) and `Covered`
+      columns and the macOS 26.6.2 row: they read as test notes. The last README with them is
+      `git show 7990e57:README.md`.
 - [x] **`/shutdown` closed in a published image: v0.0.5, 2026-10-15.** `main.go` registers it only
       when `ENABLE_SHUTDOWN` is exactly `true`. Run on amd64 with docker: unset, `1`, `TRUE`,
       `" true"` and 8 path variants (`/shutdown/`, `//shutdown`, `/%73hutdown`, ...) all reach the

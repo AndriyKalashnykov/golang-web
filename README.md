@@ -39,20 +39,19 @@ Check your system in [Tested platforms](#tested-platforms), then follow
 
 ### Tested platforms
 
-| OS | Architecture | Tested with | Covered |
-|----|--------------|-------------|----------|
-| Ubuntu 24.04.5 LTS | x86_64 | GNU Make 4.3, Git 2.43.0, podman 4.9.3, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
-| Ubuntu 26.04.1 LTS | x86_64 | GNU Make 4.4.1, Git 2.53.0, podman 5.7.0, Docker 29.8.1 and 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section |
-| Ubuntu 24.04.4 LTS | arm64 | GNU Make 4.3, Git 2.43.0, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.9.3 | Every section, with Docker. podman 4.9.3 does not push the image |
-| Ubuntu 26.04 LTS | arm64 | GNU Make 4.4.1, Git 2.53.0, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.7.0 | Every section, with Docker. `make image-push` also works with podman |
-| Debian 12.15 | x86_64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0 | Every section, with Docker. podman 4.3.1 does not build the image |
-| Debian 13.7 | x86_64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section with Docker. With podman: every section except `make e2e` and `make ci-run` |
-| Debian 12.15 | arm64 | GNU Make 4.3, Git 2.39.5, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 4.3.1 | Every section, with Docker. podman 4.3.1 does not build the image |
-| Debian 13.6 | arm64 | GNU Make 4.4.1, Git 2.47.3, Docker 29.8.2 (buildx 0.37.1), kubectl 1.37.1, kind 0.33.0; podman 5.4.2 | Every section, with Docker. `make image-push` also works with podman |
-| macOS 26.6.1 | arm64 (Apple Silicon) | GNU Make 3.81, Git 2.50.1, podman 6.1.3, Docker 29.8.2 with engine 29.5.2 in Colima 0.10.3 (buildx 0.37.2), kubectl 1.37.1 (1.36.2 before the install block), kind 0.33.0 | Every section, with Docker, except the LoadBalancer block and the namespace delete (use `make kind-delete`). With podman: the run, image, push and contributor sections; `make e2e` and `make ci-run` need Docker |
-| macOS 26.6.2 | arm64 (Apple Silicon) | GNU Make 3.81 and 4.4.1, Git 2.55.0, podman 6.1.2, Docker 29.8.1 via Colima 0.10.3, kubectl 1.36.2, kind 0.33.0 | An earlier version of this README (2026-09-24), except the kubectl install block |
+| OS | Architecture |
+|----|--------------|
+| Ubuntu 24.04.5 LTS | x86_64 |
+| Ubuntu 26.04.1 LTS | x86_64 |
+| Ubuntu 24.04.4 LTS | arm64 |
+| Ubuntu 26.04 LTS | arm64 |
+| Debian 12.15 | x86_64 |
+| Debian 13.7 | x86_64 |
+| Debian 12.15 | arm64 |
+| Debian 13.6 | arm64 |
+| macOS 26.6.1 | arm64 (Apple Silicon) |
 
-Each row is one walk of the README, on 2026-10-06 unless the row says otherwise. Not walked
+Each row is one walk of the README, on 2026-10-06. Not walked
 anywhere: push steps 1 and 5, and the Kubernetes sections' separate kubeconfig file (added
 2026-10-09).
 
