@@ -87,31 +87,23 @@ engine. If the block hangs, an engine is half-started: press Ctrl-C, start it fu
 ## Remove the Harbor CA
 
 Only if you installed it with [REGISTRY.md](REGISTRY.md). Skip this if you use this Harbor for
-other work: those tools need the CA too. Run only the block
-for your engine; each prints nothing (the Colima block starts Colima first if it is stopped, and
-then prints its start-up lines).
-
-**podman, Linux and macOS:**
+other work: those tools need the CA too. The block finds your engines itself: it removes podman's
+copy, then Docker's, inside Colima on a Mac that has Colima, or under `/etc/docker` on Linux when
+that copy exists.
 
 ```sh
 source ~/.vks-golang-web.env
 rm -rf "$HOME/.config/containers/certs.d/${HARBOR_FQDN:?}"
+if [ "$(uname -s)" = Darwin ] && command -v colima >/dev/null 2>&1; then
+  colima status >/dev/null 2>&1 || colima start
+  colima ssh -- sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}" </dev/null
+elif [ -d "/etc/docker/certs.d/${HARBOR_FQDN:?}" ]; then
+  sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
+fi
 ```
 
-**Linux, docker:**
-
-```sh
-source ~/.vks-golang-web.env
-sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
-```
-
-**macOS, docker (Colima):**
-
-```sh
-source ~/.vks-golang-web.env
-colima status >/dev/null 2>&1 || colima start
-colima ssh -- sudo rm -rf "/etc/docker/certs.d/${HARBOR_FQDN:?}"
-```
+**Expect:** nothing, or Colima's start-up lines if it was stopped. On Linux with Docker, `sudo`
+may ask for your password.
 
 ## Delete the files these guides wrote
 

@@ -64,36 +64,33 @@ the trusted fingerprint, ignoring colons and upper/lower case.
 
 ### Install the CA for your engine
 
-Run only the block for the engine you installed.
-
-**podman, Linux and macOS:**
-
-```sh
-source ~/.vks-golang-web.env
-mkdir -p "$HOME/.config/containers/certs.d/${HARBOR_FQDN}"
-cp "$HARBOR_CA" "$HOME/.config/containers/certs.d/${HARBOR_FQDN}/ca.crt"
-```
-
-**Linux, docker:**
+The block finds your engines itself and installs the CA for each one it finds: podman (Linux and
+macOS), Docker on Linux, and Docker in Colima on a Mac. For Colima the CA goes inside its virtual
+machine, so the block starts Colima if it is stopped (after a restart of the Mac, for example);
+`</dev/null` keeps `colima ssh` from reading the lines you pasted after it. If you ever run
+`colima delete`, run this again.
 
 ```sh
 source ~/.vks-golang-web.env
-sudo install -D -m0644 "$HARBOR_CA" "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt"
+command -v podman >/dev/null 2>&1 || command -v docker >/dev/null 2>&1 \
+  || echo "No podman or docker found: install an engine first (the repository README, Install the prerequisites)"
+if command -v podman >/dev/null 2>&1; then
+  mkdir -p "$HOME/.config/containers/certs.d/${HARBOR_FQDN}"
+  cp "$HARBOR_CA" "$HOME/.config/containers/certs.d/${HARBOR_FQDN}/ca.crt" && echo "podman: CA installed"
+fi
+if [ "$(uname -s)" = Darwin ] && command -v colima >/dev/null 2>&1; then
+  colima status >/dev/null 2>&1 || colima start
+  colima ssh -- sudo mkdir -p "/etc/docker/certs.d/${HARBOR_FQDN}" </dev/null
+  colima ssh -- sudo tee "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt" < "$HARBOR_CA" >/dev/null && echo "docker (Colima): CA installed"
+elif [ "$(uname -s)" = Darwin ] && command -v docker >/dev/null 2>&1; then
+  echo "docker without Colima: these guides set up Docker with Colima; add the CA the way your Docker documents"
+elif command -v docker >/dev/null 2>&1; then
+  sudo install -D -m0644 "$HARBOR_CA" "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt" && echo "docker: CA installed"
+fi
 ```
 
-**macOS, docker (Colima).** The CA goes inside Colima's VM, so the first line starts Colima if it is
-stopped (after a restart of the Mac, for example). `</dev/null` keeps `colima ssh` from reading
-the lines you pasted after it. If you ever run `colima delete`, run this again:
-
-```sh
-source ~/.vks-golang-web.env
-colima status >/dev/null 2>&1 || colima start
-colima ssh -- sudo mkdir -p "/etc/docker/certs.d/${HARBOR_FQDN}" </dev/null
-colima ssh -- sudo tee "/etc/docker/certs.d/${HARBOR_FQDN}/ca.crt" < "$HARBOR_CA" >/dev/null
-```
-
-**Expect:** no output. On the Colima path, if Colima was stopped, its start-up lines come first and
-end with `done`.
+**Expect:** one `…: CA installed` line per engine you have. If Colima was stopped, its start-up
+lines come first and end with `done`. On Linux with Docker, `sudo` may ask for your password.
 
 **If not:** `colima not running` (Colima path) — Colima did not start: run `colima start` by itself
 and read its error.

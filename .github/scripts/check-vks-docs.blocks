@@ -6,8 +6,8 @@ ARGOCD-app.md 20
 ARGOCD-auto.md 24
 ARGOCD-manual.md 29
 ARGOCD.md 1
-CLEANUP.md 8
-CLUSTER-auto.md 14
+CLEANUP.md 6
+CLUSTER-auto.md 13
 CLUSTER-manual.md 2
 CLUSTER.md 4
 HARBOR-auto.md 23
@@ -17,8 +17,8 @@ NAMESPACE-auto.md 13
 NAMESPACE-manual.md 2
 NAMESPACE.md 2
 README.md 22
-REGISTRY.md 16
-SETUP.md 21
+REGISTRY.md 14
+SETUP.md 20
 TROUBLESHOOTING.md 0
 addons/CERT-MANAGER.md 9
 addons/HEADLAMP.md 27

@@ -27,25 +27,23 @@ you what to do.
 
 ## Install envsubst
 
-`envsubst` fills the `${…}` places of a file from your settings. Skip the install if
-`envsubst --version` already works.
-
-**macOS:**
+`envsubst` fills the `${…}` places of a file from your settings. The block installs it only when
+it is missing: with Homebrew on macOS, with apt on Debian and Ubuntu.
 
 ```sh
-brew install gettext
+if command -v envsubst >/dev/null 2>&1; then
+  echo "envsubst is already installed"
+elif [ "$(uname -s)" = Darwin ]; then
+  brew install gettext
+elif command -v apt-get >/dev/null 2>&1; then
+  sudo apt-get update && sudo apt-get install -y gettext-base
+else
+  echo "Not macOS, Debian or Ubuntu: install gettext with your system's package manager"
+fi
 ```
 
-**Expect:** Homebrew's install lines, ending without an `Error:` line.
-
-**Linux (Debian/Ubuntu):**
-
-```sh
-sudo apt-get update && sudo apt-get install -y gettext-base
-```
-
-**Expect:** the install ends without an error (`gettext-base is already the newest version` is
-fine).
+**Expect:** `envsubst is already installed`, or the install's lines ending without an error. On
+Linux, `sudo` may ask for your password.
 
 Then, on both, check the tools and the namespace:
 
