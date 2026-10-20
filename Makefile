@@ -56,7 +56,9 @@ CLOUD_PROVIDER_KIND_VERSION := 0.12.0
 # renovate: datasource=npm depName=renovate
 RENOVATE_VERSION    := 44.165.3
 # PlantUML renderer for docs/diagrams/*.puml. Runs as a container (not a mise
-# tool) so no JRE is needed on the host.
+# tool) so no JRE is needed on the host. A new version can change the PNG bytes
+# with no source change, so its Renovate PR fails diagrams-check: on that PR's
+# branch run `make diagrams` and commit docs/diagrams/out/ (#386).
 # renovate: datasource=docker depName=plantuml/plantuml
 PLANTUML_VERSION    := 1.2026.9
 # C4-PlantUML macro library, pinned in each .puml `!include`. MUST be a tagged
