@@ -54,11 +54,11 @@ CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 CLOUD_PROVIDER_KIND_VERSION := 0.12.0
 # Renovate CLI, run via `npx renovate@$(RENOVATE_VERSION)`; not a mise tool.
 # renovate: datasource=npm depName=renovate
-RENOVATE_VERSION    := 44.165.1
+RENOVATE_VERSION    := 44.165.3
 # PlantUML renderer for docs/diagrams/*.puml. Runs as a container (not a mise
 # tool) so no JRE is needed on the host.
 # renovate: datasource=docker depName=plantuml/plantuml
-PLANTUML_VERSION    := 1.2026.8
+PLANTUML_VERSION    := 1.2026.9
 # C4-PlantUML macro library, pinned in each .puml `!include`. MUST be a tagged
 # release -- `master` changes upstream without warning and breaks rendering.
 # renovate: datasource=github-releases depName=plantuml-stdlib/C4-PlantUML
