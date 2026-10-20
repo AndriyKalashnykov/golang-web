@@ -4,7 +4,7 @@ Resume point for work on this repo. Durable facts and the backlog are in [CLAUDE
 the VKS runbook has its own [vks/HANDOFF.md](vks/HANDOFF.md). Keep this file short: replace its
 content when the state changes, do not append history (git has it).
 
-## State — 2026-10-19
+## State — 2026-10-20
 
 **v0.0.5 is released and signed** (`0.0.5`, `0.0`, `0`, `latest` = `sha256:cbd47f21…565d`, amd64 +
 arm64; `cosign verify` passes for the v0.0.5 identity and fails for v0.0.4). It closes `/shutdown`:
@@ -34,6 +34,16 @@ touches only files CI ignores (this file, README.md) gets no checks; merge it wi
   walker), and their findings are fixed. Tried on this host: the tool check and the cosign
   block, in bash and zsh, and both cosign failures. The README was not walked on a clean
   machine after the rewrite. Its *Tested platforms* table still records the 2026-10-06 walks.
+- **README prerequisites say what to do and when** (#381, #383, #385, 2026-10-20). *Tested
+  platforms* lists only OS and architecture. The setup blocks detect the shell, OS and engine
+  (one block, not one per variant): the brew PATH and mise blocks write the startup file the
+  login shell reads, and on Ubuntu/Debian a block reads apt's podman version and names the
+  engine to install. Run in bash and zsh against stand-in `brew`, `apt-cache` and `uname`; not
+  on a Mac, and not pasted into an interactive terminal.
+- **Go 1.27.3 everywhere** (#384). Renovate's PR stalled: Go's release reached go.mod and
+  `.mise.toml` two hours before Docker Hub had the image, so the Dockerfile was bumped by hand on
+  its branch. `renovate.json` now reads all three Go pins from Docker Hub's `golang` tags
+  (CLAUDE.md backlog, *A Go release reached go.mod before its Docker image existed*).
 - **`make image-push` advice on arm64 Linux** (#377): it says podman 5 or newer, not 5.8.
   Shown with a stand-in podman and `uname`, never on a real arm64 machine. `vks/SETUP.md` and
   `vks/TROUBLESHOOTING.md` were changed to match.
@@ -54,7 +64,10 @@ touches only files CI ignores (this file, README.md) gets no checks; merge it wi
    `gh pr view <n> --json autoMergeRequest` is null while it is open (first real PR since
    automerge was turned off), and its `static-check` log shows `check-image-pin` passing for the
    new version before you merge it.
-3. **Next README walk** (needs the owner's machines). These paths have never been walked:
+3. **At the next Go release:** Renovate should open one `Go toolchain` PR that changes go.mod,
+   `.mise.toml` and the Dockerfile together, after Docker Hub has the image. If it bumps only
+   some of them, the fix in `renovate.json` did not hold; read that PR's branch name first.
+4. **Next README walk** (needs the owner's machines). These paths have never been walked:
    - the Debian fallback when `sudo` is missing (`su -c …`);
    - a bare Mac, from the Homebrew installer on;
    - the blocks pasted into macOS `/bin/bash` 3.2;

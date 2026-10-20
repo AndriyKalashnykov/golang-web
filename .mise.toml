@@ -4,6 +4,9 @@
 # tracked automatically. Do NOT add inline `# renovate:` comments here:
 # that would invite a duplicate custom.regex customManager and
 # cross-manager drift (the Makefile constants these replaced are gone).
+# The one exception is `go`: renovate.json reads it from Docker Hub's
+# golang tags, like the Dockerfile, because Go releases hours before its
+# image (#384). Do not move it back to the mise manager.
 #
 # `go` is ALSO declared in go.mod (`go X.Y.Z`) and in the Dockerfile
 # builder stage. All three MUST agree -- `make check-toolchain-alignment`
