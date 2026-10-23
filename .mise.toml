@@ -45,7 +45,7 @@ node = "24"
 # cosign and crane check the pinned image in `make check-image-pin` (static-check): the registry
 # tag still names the pinned digest, and the digest is signed by this repo's release run. The
 # tag-only `docker` job installs this same cosign to sign releases, so signer and verifier match.
-"aqua:sigstore/cosign"        = "3.1.3"
+"aqua:sigstore/cosign"        = "3.1.4"
 "aqua:google/go-containerregistry" = "0.22.1"
 
 # === Utilities ===
