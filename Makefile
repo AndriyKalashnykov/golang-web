@@ -54,7 +54,7 @@ CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 CLOUD_PROVIDER_KIND_VERSION := 0.12.0
 # Renovate CLI, run via `npx renovate@$(RENOVATE_VERSION)`; not a mise tool.
 # renovate: datasource=npm depName=renovate
-RENOVATE_VERSION    := 44.173.1
+RENOVATE_VERSION    := 44.175.0
 # PlantUML renderer for docs/diagrams/*.puml. Runs as a container (not a mise
 # tool) so no JRE is needed on the host. A new version can change the PNG bytes
 # with no source change, so its Renovate PR fails diagrams-check: on that PR's
