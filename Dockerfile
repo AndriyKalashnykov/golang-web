@@ -7,7 +7,7 @@
 # whole Go toolchain under emulation -- and under Colima's QEMU the Go runtime crashes in
 # `go mod download` ("marked free object in span"; measured on macOS 26.6.2). The final stage
 # runs no commands, so nothing is emulated at all.
-FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3@sha256:6f1acc898d064a4e9d5773ee574a9af6a9b786306939ac14d7fd806bf62046db AS builder
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3@sha256:b76020929b709ddb6202afc05410a0faefae20ae05e27ad548b3870092688a69 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /workspace
