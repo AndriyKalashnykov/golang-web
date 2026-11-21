@@ -85,7 +85,7 @@ jobs:
       # .mise.toml, so a separate actions/setup-go step would be redundant
       # work and a second place for the Go version to drift.
       - name: Set up toolchain (mise)
-        uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5
+        uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5
         with:
           version: ${{ env.MISE_VERSION }}
           cache: true
@@ -122,7 +122,7 @@ jobs:
       # .mise.toml, so a separate actions/setup-go step would be redundant
       # work and a second place for the Go version to drift.
       - name: Set up toolchain (mise)
-        uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5
+        uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5
         with:
           version: ${{ env.MISE_VERSION }}
           cache: true
@@ -152,7 +152,7 @@ jobs:
       # .mise.toml, so a separate actions/setup-go step would be redundant
       # work and a second place for the Go version to drift.
       - name: Set up toolchain (mise)
-        uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5
+        uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5
         with:
           version: ${{ env.MISE_VERSION }}
           cache: true
@@ -279,7 +279,7 @@ jobs:
       # cache (cache: false). It runs before anything is pushed, so a failed download leaves no
       # unsigned digest in GHCR.
       - name: Install cosign
-        uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5
+        uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5
         with:
           version: ${{ env.MISE_VERSION }}
           install_args: aqua:sigstore/cosign
